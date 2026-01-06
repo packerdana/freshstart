@@ -87,6 +87,9 @@ export default function TodayScreen() {
       if (session) {
         const duration = streetTimeService.calculateCurrentDuration(session);
         setStreetTime(duration);
+        setRouteStarted(true);
+      } else if (routeStarted && !session) {
+        setRouteStarted(false);
       }
     } catch (error) {
       console.error('Error loading street time session:', error);
