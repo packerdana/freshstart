@@ -161,10 +161,15 @@ export default function TodayScreen() {
 
   const handleStartPmOffice = async () => {
     try {
+      let streetTimeEnded = false;
+
       if (streetTimeSession && !streetTimeSession.end_time) {
-        await streetTimeService.endSession(streetTimeSession.id);
+        const endedSession = await streetTimeService.endSession(streetTimeSession.id);
+        const durationMinutes = Math.round(endedSession.duration_minutes);
         setStreetTimeSession(null);
         setStreetTime(0);
+        streetTimeEnded = true;
+        console.log(`Street time automatically ended: ${durationMinutes} minutes`);
       }
 
       const session = await pmOfficeService.startSession();
@@ -172,6 +177,10 @@ export default function TodayScreen() {
       setPmOfficeTime(0);
       setNotes('');
       await loadWeekTotal();
+
+      if (streetTimeEnded) {
+        alert('✓ Street time (721) automatically stopped and PM Office time (744) started.');
+      }
     } catch (error) {
       console.error('Error starting PM Office:', error);
       alert(error.message || 'Failed to start PM Office timer');
@@ -260,12 +269,15 @@ export default function TodayScreen() {
 
       if (streetTimeSession && !streetTimeSession.end_time) {
         try {
+          console.log('Auto-ending active street time session during route completion...');
           const endedSession = await streetTimeService.endSession(streetTimeSession.id);
           streetTimeMinutes = Math.round(endedSession.duration_minutes);
+          console.log(`Street time (721) automatically ended: ${streetTimeMinutes} minutes`);
           setStreetTimeSession(null);
           setStreetTime(0);
         } catch (error) {
           console.error('Error stopping street time during route completion:', error);
+          alert('Warning: Failed to automatically stop street time. Please verify your street time entry.');
         }
       }
 

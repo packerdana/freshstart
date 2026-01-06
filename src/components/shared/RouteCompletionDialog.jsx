@@ -103,11 +103,16 @@ export default function RouteCompletionDialog({
                 min="0.1"
                 max="12"
                 helperText={calculatedStreetTime
-                  ? `Auto-calculated from timer: ${(calculatedStreetTime / 60).toFixed(2)} hours`
-                  : "REQUIRED: Enter the actual time spent on the street in hours"
+                  ? `✓ Auto-ended and calculated from 721 timer: ${(calculatedStreetTime / 60).toFixed(2)} hours`
+                  : "REQUIRED: Enter the actual time spent on the street in hours (manual backup)"
                 }
                 className={showError ? 'border-red-500' : ''}
               />
+              {calculatedStreetTime && (
+                <p className="text-green-600 text-xs mt-1 flex items-center gap-1">
+                  <span>✓</span> Street time was automatically stopped when completing route
+                </p>
+              )}
               {showError && (
                 <p className="text-red-600 text-sm mt-1 font-semibold">
                   ⚠ Street time is required! Please enter your actual street time in hours.
