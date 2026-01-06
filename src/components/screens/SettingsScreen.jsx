@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
-import { LogOut, User, Mail, Clock, Database, Info, Settings as SettingsIcon, Bell, Shield, Download, MapPin, Plus, CreditCard as Edit, Trash2, FileText, AlertTriangle } from 'lucide-react';
+import { LogOut, User, Mail, Clock, Database, Info, Settings as SettingsIcon, Bell, Shield, Download, MapPin, Plus, CreditCard as Edit, Trash2, FileText, AlertTriangle, Bug } from 'lucide-react';
 import Card from '../shared/Card';
 import Button from '../shared/Button';
 import RouteSetupModal from '../shared/RouteSetupModal';
 import RouteEvaluationModal from '../shared/RouteEvaluationModal';
 import DeleteTestDataModal from '../shared/DeleteTestDataModal';
+import DiagnosticsModal from '../shared/DiagnosticsModal';
 import useAuthStore from '../../stores/authStore';
 import useRouteStore from '../../stores/routeStore';
 import { createRoute, updateRoute, deleteRoute } from '../../services/routeHistoryService';
@@ -17,6 +18,7 @@ export default function SettingsScreen() {
   const [showRouteModal, setShowRouteModal] = useState(false);
   const [showEvaluationModal, setShowEvaluationModal] = useState(false);
   const [showDeleteDataModal, setShowDeleteDataModal] = useState(false);
+  const [showDiagnosticsModal, setShowDiagnosticsModal] = useState(false);
   const [editingRoute, setEditingRoute] = useState(null);
 
   useEffect(() => {
@@ -279,6 +281,18 @@ export default function SettingsScreen() {
           </div>
         </div>
         <div className="space-y-2">
+          <button
+            onClick={() => setShowDiagnosticsModal(true)}
+            className="w-full flex items-center justify-between p-3 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors text-left"
+          >
+            <div className="flex items-center gap-3">
+              <Bug className="w-5 h-5 text-blue-600" />
+              <div>
+                <p className="text-sm font-semibold text-blue-900">Run Diagnostics</p>
+                <p className="text-xs text-blue-700">Test database connection and data access</p>
+              </div>
+            </div>
+          </button>
           <button className="w-full flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors text-left">
             <div className="flex items-center gap-3">
               <Bell className="w-5 h-5 text-gray-600" />
@@ -386,6 +400,11 @@ export default function SettingsScreen() {
         isOpen={showDeleteDataModal}
         onClose={() => setShowDeleteDataModal(false)}
         onSuccess={handleDeleteDataSuccess}
+      />
+
+      <DiagnosticsModal
+        isOpen={showDiagnosticsModal}
+        onClose={() => setShowDiagnosticsModal(false)}
       />
     </div>
   );
