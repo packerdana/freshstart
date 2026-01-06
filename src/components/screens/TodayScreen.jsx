@@ -292,6 +292,14 @@ export default function TodayScreen() {
       const tourLengthMinutes = (currentRoute?.tourLength || 8.5) * 60;
       const actualOvertime = Math.max(0, actualTotalMinutes - tourLengthMinutes);
 
+      const actualLeaveTime = streetTimeSession?.start_time
+        ? new Date(streetTimeSession.start_time).toLocaleTimeString('en-US', {
+            hour12: false,
+            hour: '2-digit',
+            minute: '2-digit'
+          })
+        : null;
+
       const historyData = {
         date: today,
         dps: todayInputs.dps || 0,
@@ -309,6 +317,10 @@ export default function TodayScreen() {
         hasBoxholder: todayInputs.hasBoxholder || false,
         startTime: todayInputs.leaveOfficeTime || currentRoute?.startTime,
         leaveOfficeTime: prediction?.leaveOfficeTime,
+        predictedLeaveTime: prediction?.leaveOfficeTime,
+        actualLeaveTime: actualLeaveTime,
+        predictedOfficeTime: prediction?.officeTime,
+        actualOfficeTime: actualOfficeTime,
       };
 
       const waypointsToSave = waypoints.map(wp => ({

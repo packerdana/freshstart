@@ -87,6 +87,10 @@ export async function saveRouteHistory(routeId, historyData, waypoints = null) {
       penalty_overtime: penaltyOvertimeMinutes,
       is_ns_day: isNSDay,
       weekly_hours: weeklyHours,
+      predicted_leave_time: historyData.predictedLeaveTime || null,
+      actual_leave_time: historyData.actualLeaveTime || null,
+      predicted_office_time: historyData.predictedOfficeTime ? Math.round(historyData.predictedOfficeTime) : null,
+      actual_office_time: historyData.actualOfficeTime ? Math.round(historyData.actualOfficeTime) : null,
     }, {
       onConflict: 'route_id,date'
     })

@@ -152,6 +152,62 @@ export default function StatsScreen() {
     return history.slice(0, 10);
   }, [history]);
 
+  const casingStats = useMemo(() => {
+    if (!history || history.length === 0) return null;
+
+    const daysWithLeaveTimesData = history.filter(day =>
+      day.predicted_leave_time && day.actual_leave_time
+    );
+
+    if (daysWithLeaveTimesData.length === 0) return null;
+
+    const parseTimeToMinutes = (timeStr) => {
+      if (!timeStr) return null;
+      const [hours, minutes] = timeStr.split(':').map(Number);
+      return hours * 60 + minutes;
+    };
+
+    let totalVariance = 0;
+    let earlyCount = 0;
+    let lateCount = 0;
+    let onTimeCount = 0;
+
+    const detailedDays = daysWithLeaveTimesData.map(day => {
+      const predictedMins = parseTimeToMinutes(day.predicted_leave_time);
+      const actualMins = parseTimeToMinutes(day.actual_leave_time);
+
+      if (predictedMins === null || actualMins === null) return null;
+
+      const variance = actualMins - predictedMins;
+      totalVariance += variance;
+
+      if (variance < -5) earlyCount++;
+      else if (variance > 5) lateCount++;
+      else onTimeCount++;
+
+      return {
+        date: day.date,
+        predictedTime: day.predicted_leave_time,
+        actualTime: day.actual_leave_time,
+        variance,
+        predictedOfficeTime: day.predicted_office_time,
+        actualOfficeTime: day.actual_office_time
+      };
+    }).filter(Boolean);
+
+    const avgVariance = totalVariance / detailedDays.length;
+
+    return {
+      totalDays: detailedDays.length,
+      avgVariance: Math.round(avgVariance),
+      earlyCount,
+      lateCount,
+      onTimeCount,
+      accuracy: ((onTimeCount / detailedDays.length) * 100).toFixed(0),
+      recentDays: detailedDays.slice(0, 5)
+    };
+  }, [history]);
+
   if (loading) {
     return (
       <div className="p-4 max-w-2xl mx-auto">
@@ -335,6 +391,86 @@ export default function StatsScreen() {
                 <span className="text-lg font-bold text-green-600">
                   {Math.round(pmOfficeStats.averageSeconds / 60)} min
                 </span>
+              </div>
+            </div>
+          )}
+        </Card>
+      )}
+
+      {casingStats && (
+        <Card className="bg-gradient-to-br from-violet-50 to-purple-50 border-2 border-violet-200">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                <Timer className="w-5 h-5 text-violet-600" />
+                Casing Performance
+              </h3>
+              <p className="text-xs text-gray-600 mt-1">Predicted vs Actual Leave Times</p>
+            </div>
+            <span className="text-2xl">📦</span>
+          </div>
+
+          <div className="grid grid-cols-3 gap-3 mb-4">
+            <div className="bg-white/70 rounded-lg p-3 text-center">
+              <p className="text-xs text-gray-600 mb-1">Days Tracked</p>
+              <p className="text-2xl font-bold text-violet-600">{casingStats.totalDays}</p>
+            </div>
+            <div className="bg-white/70 rounded-lg p-3 text-center">
+              <p className="text-xs text-gray-600 mb-1">Avg Variance</p>
+              <p className={`text-2xl font-bold ${
+                Math.abs(casingStats.avgVariance) <= 5 ? 'text-green-600' :
+                casingStats.avgVariance > 0 ? 'text-red-600' : 'text-blue-600'
+              }`}>
+                {casingStats.avgVariance > 0 ? '+' : ''}{casingStats.avgVariance}m
+              </p>
+            </div>
+            <div className="bg-white/70 rounded-lg p-3 text-center">
+              <p className="text-xs text-gray-600 mb-1">Accuracy</p>
+              <p className="text-2xl font-bold text-violet-600">{casingStats.accuracy}%</p>
+              <p className="text-xs text-gray-500">±5 min</p>
+            </div>
+          </div>
+
+          <div className="bg-white/70 rounded-lg p-3 mb-3">
+            <div className="grid grid-cols-3 gap-2 text-center text-sm">
+              <div>
+                <p className="text-green-600 font-bold text-lg">{casingStats.earlyCount}</p>
+                <p className="text-xs text-gray-600">Left Early</p>
+              </div>
+              <div>
+                <p className="text-blue-600 font-bold text-lg">{casingStats.onTimeCount}</p>
+                <p className="text-xs text-gray-600">On Time</p>
+              </div>
+              <div>
+                <p className="text-red-600 font-bold text-lg">{casingStats.lateCount}</p>
+                <p className="text-xs text-gray-600">Left Late</p>
+              </div>
+            </div>
+          </div>
+
+          {casingStats.recentDays && casingStats.recentDays.length > 0 && (
+            <div>
+              <h4 className="text-sm font-semibold text-gray-700 mb-2">Recent Days</h4>
+              <div className="space-y-2">
+                {casingStats.recentDays.map((day, index) => (
+                  <div key={index} className="bg-white/70 rounded p-2 text-xs">
+                    <div className="flex justify-between items-center">
+                      <span className="font-medium text-gray-700">
+                        {format(parseLocalDate(day.date), 'MMM d')}
+                      </span>
+                      <span className={`font-bold ${
+                        Math.abs(day.variance) <= 5 ? 'text-green-600' :
+                        day.variance > 0 ? 'text-red-600' : 'text-blue-600'
+                      }`}>
+                        {day.variance > 0 ? '+' : ''}{day.variance}m
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-gray-600 mt-1">
+                      <span>Predicted: {day.predictedTime}</span>
+                      <span>Actual: {day.actualTime}</span>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           )}
