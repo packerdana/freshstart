@@ -3,8 +3,10 @@ import { getLocalDateString } from '../utils/time';
 
 export const streetTimeService = {
   async startSession(routeId) {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error('Not authenticated');
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user) throw new Error('Not authenticated');
+
+    const user = session.user;
 
     const activeSession = await this.getActiveSession();
     if (activeSession) {
@@ -58,9 +60,10 @@ export const streetTimeService = {
   },
 
   async getActiveSession() {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return null;
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user) return null;
 
+    const user = session.user;
     const today = getLocalDateString();
     const sessionPattern = `rw_%_${user.email?.split('@')[0] || user.id}`;
 
@@ -90,9 +93,10 @@ export const streetTimeService = {
   },
 
   async getTodaySession() {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return null;
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user) return null;
 
+    const user = session.user;
     const today = getLocalDateString();
     const sessionPattern = `rw_%_${user.email?.split('@')[0] || user.id}`;
 

@@ -9,11 +9,13 @@ import { supabase } from '../lib/supabase';
  * WARNING: This is destructive and cannot be undone
  */
 export async function deleteAllRouteHistory() {
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { session } } = await supabase.auth.getSession();
 
-  if (!user) {
+  if (!session?.user) {
     throw new Error('User must be authenticated');
   }
+
+  const user = session.user;
 
   const { data: routes } = await supabase
     .from('routes')
@@ -44,11 +46,13 @@ export async function deleteAllRouteHistory() {
  * WARNING: This is destructive and cannot be undone
  */
 export async function deleteAllWaypoints() {
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { session } } = await supabase.auth.getSession();
 
-  if (!user) {
+  if (!session?.user) {
     throw new Error('User must be authenticated');
   }
+
+  const user = session.user;
 
   const { data: routes } = await supabase
     .from('routes')
@@ -79,11 +83,13 @@ export async function deleteAllWaypoints() {
  * WARNING: This is destructive and cannot be undone
  */
 export async function deleteAllPmOfficeSessions() {
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { session } } = await supabase.auth.getSession();
 
-  if (!user) {
+  if (!session?.user) {
     throw new Error('User must be authenticated');
   }
+
+  const user = session.user;
 
   const { error, count } = await supabase
     .from('pm_office_sessions')
@@ -133,11 +139,13 @@ export async function deleteAllTestData() {
  * Useful for showing users what will be deleted
  */
 export async function getDataCounts() {
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { session } } = await supabase.auth.getSession();
 
-  if (!user) {
+  if (!session?.user) {
     return { routeHistory: 0, waypoints: 0, pmOfficeSessions: 0 };
   }
+
+  const user = session.user;
 
   const { data: routes } = await supabase
     .from('routes')

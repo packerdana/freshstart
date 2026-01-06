@@ -3,8 +3,10 @@ import { getWorkweekStart, getWorkweekEnd } from '../utils/uspsConstants';
 
 export const pmOfficeService = {
   async startSession() {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error('Not authenticated');
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user) throw new Error('Not authenticated');
+
+    const user = session.user;
 
     const activeSession = await this.getActiveSession();
     if (activeSession) {
@@ -115,8 +117,10 @@ export const pmOfficeService = {
   },
 
   async getActiveSession() {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return null;
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user) return null;
+
+    const user = session.user;
 
     const { data, error } = await supabase
       .from('pm_office_sessions')
@@ -142,8 +146,10 @@ export const pmOfficeService = {
   },
 
   async getSessionsForDateRange(startDate, endDate) {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return [];
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user) return [];
+
+    const user = session.user;
 
     const { data, error } = await supabase
       .from('pm_office_sessions')

@@ -1,11 +1,13 @@
 import { supabase } from '../lib/supabase';
 
 export async function createRoute(routeData) {
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { session } } = await supabase.auth.getSession();
 
-  if (!user) {
+  if (!session?.user) {
     throw new Error('User must be authenticated to create a route');
   }
+
+  const user = session.user;
 
   const { data, error } = await supabase
     .from('routes')
@@ -30,11 +32,13 @@ export async function createRoute(routeData) {
 }
 
 export async function updateRoute(routeId, updates) {
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { session } } = await supabase.auth.getSession();
 
-  if (!user) {
+  if (!session?.user) {
     throw new Error('User must be authenticated');
   }
+
+  const user = session.user;
 
   const { data, error } = await supabase
     .from('routes')
@@ -60,11 +64,13 @@ export async function updateRoute(routeId, updates) {
 }
 
 export async function deleteRoute(routeId) {
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { session } } = await supabase.auth.getSession();
 
-  if (!user) {
+  if (!session?.user) {
     throw new Error('User must be authenticated');
   }
+
+  const user = session.user;
 
   const { error } = await supabase
     .from('routes')
@@ -81,11 +87,13 @@ export async function deleteRoute(routeId) {
 }
 
 export async function setActiveRoute(routeId) {
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { session } } = await supabase.auth.getSession();
 
-  if (!user) {
+  if (!session?.user) {
     throw new Error('User must be authenticated');
   }
+
+  const user = session.user;
 
   await supabase
     .from('routes')

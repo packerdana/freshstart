@@ -167,11 +167,13 @@ export async function deleteRouteHistory(id) {
 }
 
 export async function createRoute(routeData) {
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { session } } = await supabase.auth.getSession();
 
-  if (!user) {
+  if (!session?.user) {
     throw new Error('User must be authenticated to create a route');
   }
+
+  const user = session.user;
 
   const { data, error } = await supabase
     .from('routes')
@@ -196,11 +198,13 @@ export async function createRoute(routeData) {
 }
 
 export async function getUserRoutes() {
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { session } } = await supabase.auth.getSession();
 
-  if (!user) {
+  if (!session?.user) {
     return [];
   }
+
+  const user = session.user;
 
   const { data, error } = await supabase
     .from('routes')
@@ -259,8 +263,10 @@ export async function deleteRoute(routeId) {
 }
 
 export async function getWeekTotalMinutes() {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return 0;
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.user) return 0;
+
+  const user = session.user;
 
   const today = new Date();
   const weekStart = getWorkweekStart(today);
