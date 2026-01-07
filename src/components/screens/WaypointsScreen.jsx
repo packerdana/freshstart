@@ -1,11 +1,13 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Search, Plus, Download, Trash2, MapPin, Check, Clock, TrendingUp, TrendingDown, Save, RefreshCw } from 'lucide-react';
+import { Search, Plus, Download, Trash2, MapPin, Check, Clock, TrendingUp, TrendingDown, Save, RefreshCw, Calendar, Copy, AlertCircle } from 'lucide-react';
 import Card from '../shared/Card';
 import Button from '../shared/Button';
 import AddWaypointModal from '../shared/AddWaypointModal';
+import DatePicker from '../shared/DatePicker';
 import useRouteStore from '../../stores/routeStore';
-import { exportWaypointsToJSON, markWaypointCompleted, markWaypointPending } from '../../services/waypointsService';
+import { exportWaypointsToJSON, markWaypointCompleted, markWaypointPending, getWaypointsForRoute } from '../../services/waypointsService';
 import { predictWaypointTimes } from '../../services/waypointPredictionService';
+import { copyWaypointsToToday, verifyHistoricalDataExists } from '../../services/waypointRecoveryService';
 import { format } from 'date-fns';
 
 export default function WaypointsScreen() {
@@ -13,6 +15,11 @@ export default function WaypointsScreen() {
   const [activeFilter, setActiveFilter] = useState('all');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingWaypoint, setEditingWaypoint] = useState(null);
+  const [viewMode, setViewMode] = useState('today');
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [historicalWaypoints, setHistoricalWaypoints] = useState([]);
+  const [historicalLoading, setHistoricalLoading] = useState(false);
+  const [dataVerification, setDataVerification] = useState(null);
 
   const {
     waypoints,
@@ -161,13 +168,76 @@ export default function WaypointsScreen() {
     }
   };
 
+  const loadHistoricalWaypoints = async (date) => {
+    if (!currentRouteId) return;
+
+    setHistoricalLoading(true);
+    try {
+      const data = await getWaypointsForRoute(currentRouteId, date);
+      setHistoricalWaypoints(data);
+
+      const verification = await verifyHistoricalDataExists(currentRouteId, date);
+      setDataVerification(verification);
+    } catch (error) {
+      console.error('Failed to load historical waypoints:', error);
+      setHistoricalWaypoints([]);
+      setDataVerification(null);
+    } finally {
+      setHistoricalLoading(false);
+    }
+  };
+
+  const handleDateChange = (newDate) => {
+    setSelectedDate(newDate);
+    const today = new Date().toISOString().split('T')[0];
+    if (newDate === today) {
+      setViewMode('today');
+    } else {
+      setViewMode('historical');
+      loadHistoricalWaypoints(newDate);
+    }
+  };
+
+  const handleCopyToToday = async () => {
+    const today = new Date().toISOString().split('T')[0];
+    if (selectedDate === today) {
+      alert('You are already viewing today\'s waypoints');
+      return;
+    }
+
+    if (!confirm(`Copy ${historicalWaypoints.length} waypoints from ${format(new Date(selectedDate), 'MMMM d, yyyy')} to today? This will replace today's waypoints.`)) {
+      return;
+    }
+
+    try {
+      const result = await copyWaypointsToToday(currentRouteId, selectedDate);
+      alert(`Successfully recovered ${result.count} waypoints to today!`);
+
+      setViewMode('today');
+      setSelectedDate(today);
+      await loadWaypoints();
+    } catch (error) {
+      console.error('Failed to copy waypoints:', error);
+      alert('Failed to copy waypoints. Please try again.');
+    }
+  };
+
+  useEffect(() => {
+    if (viewMode === 'historical' && selectedDate) {
+      loadHistoricalWaypoints(selectedDate);
+    }
+  }, [currentRouteId]);
+
+  const displayWaypoints = viewMode === 'today' ? waypoints : historicalWaypoints;
+  const isLoading = viewMode === 'today' ? waypointsLoading : historicalLoading;
+
   const filters = [
-    { id: 'all', label: `All (${waypoints.length})` },
-    { id: 'completed', label: `Done (${waypoints.filter(w => w.status === 'completed').length})` },
-    { id: 'pending', label: `Pending (${waypoints.filter(w => w.status === 'pending').length})` },
+    { id: 'all', label: `All (${displayWaypoints.length})` },
+    { id: 'completed', label: `Done (${displayWaypoints.filter(w => w.status === 'completed').length})` },
+    { id: 'pending', label: `Pending (${displayWaypoints.filter(w => w.status === 'pending').length})` },
   ];
 
-  const filteredWaypoints = waypoints.filter(waypoint => {
+  const filteredWaypoints = displayWaypoints.filter(waypoint => {
     if (activeFilter === 'completed' && waypoint.status !== 'completed') return false;
     if (activeFilter === 'pending' && waypoint.status !== 'pending') return false;
     if (searchQuery && !waypoint.address.toLowerCase().includes(searchQuery.toLowerCase())) {
@@ -180,8 +250,55 @@ export default function WaypointsScreen() {
     <div className="p-4 max-w-2xl mx-auto pb-20">
       <div className="mb-6">
         <h2 className="text-2xl font-bold text-gray-900">Waypoints</h2>
-        <p className="text-sm text-gray-500">Today: {waypoints.length} stops</p>
+        <p className="text-sm text-gray-500">
+          {viewMode === 'today'
+            ? `Today: ${waypoints.length} stops`
+            : `${format(new Date(selectedDate), 'MMM d, yyyy')}: ${displayWaypoints.length} stops`}
+        </p>
       </div>
+
+      <Card className="mb-4">
+        <DatePicker
+          selectedDate={selectedDate}
+          onChange={handleDateChange}
+          label="View Waypoints from Date"
+        />
+
+        {viewMode === 'historical' && dataVerification && (
+          <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+            <div className="flex items-start gap-2">
+              <AlertCircle className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
+              <div className="flex-1">
+                <p className="text-sm text-blue-800 font-medium">Historical Data Found</p>
+                <p className="text-xs text-blue-700 mt-1">
+                  {dataVerification.waypointCount} waypoint(s) from this date
+                  {dataVerification.hasHistory && ' • Route history saved'}
+                  {dataVerification.hasTimingData && ' • Timing data available'}
+                </p>
+              </div>
+            </div>
+            {displayWaypoints.length > 0 && (
+              <Button
+                onClick={handleCopyToToday}
+                variant="secondary"
+                className="w-full mt-3 flex items-center justify-center gap-2"
+              >
+                <Copy className="w-4 h-4" />
+                Copy These Waypoints to Today
+              </Button>
+            )}
+          </div>
+        )}
+
+        {viewMode === 'historical' && displayWaypoints.length === 0 && !isLoading && (
+          <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+            <p className="text-sm text-amber-800 font-medium">No Waypoints Found</p>
+            <p className="text-xs text-amber-700 mt-1">
+              There are no waypoints saved for {format(new Date(selectedDate), 'MMMM d, yyyy')}
+            </p>
+          </div>
+        )}
+      </Card>
 
       <Card className="mb-4">
         {!currentRouteId && (
@@ -202,38 +319,42 @@ export default function WaypointsScreen() {
           </div>
         )}
 
-        <Button
-          onClick={() => {
-            setEditingWaypoint(null);
-            setIsModalOpen(true);
-          }}
-          className="w-full mb-3 flex items-center justify-center gap-2"
-          disabled={!currentRouteId}
-        >
-          <Plus className="w-5 h-5" />
-          Add Waypoint
-        </Button>
+{viewMode === 'today' && (
+          <>
+            <Button
+              onClick={() => {
+                setEditingWaypoint(null);
+                setIsModalOpen(true);
+              }}
+              className="w-full mb-3 flex items-center justify-center gap-2"
+              disabled={!currentRouteId}
+            >
+              <Plus className="w-5 h-5" />
+              Add Waypoint
+            </Button>
 
-        <div className="flex gap-2 mb-4">
-          <Button
-            variant="secondary"
-            onClick={handleLoadFromTemplate}
-            className="flex-1 flex items-center justify-center gap-2"
-            disabled={!currentRouteId || !hasTemplates}
-          >
-            <RefreshCw className="w-4 h-4" />
-            Load Template
-          </Button>
-          <Button
-            variant="secondary"
-            onClick={handleSaveAsTemplate}
-            className="flex-1 flex items-center justify-center gap-2"
-            disabled={!currentRouteId || waypoints.length === 0}
-          >
-            <Save className="w-4 h-4" />
-            Save as Template
-          </Button>
-        </div>
+            <div className="flex gap-2 mb-4">
+              <Button
+                variant="secondary"
+                onClick={handleLoadFromTemplate}
+                className="flex-1 flex items-center justify-center gap-2"
+                disabled={!currentRouteId || !hasTemplates}
+              >
+                <RefreshCw className="w-4 h-4" />
+                Load Template
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={handleSaveAsTemplate}
+                className="flex-1 flex items-center justify-center gap-2"
+                disabled={!currentRouteId || waypoints.length === 0}
+              >
+                <Save className="w-4 h-4" />
+                Save as Template
+              </Button>
+            </div>
+          </>
+        )}
 
         <div className="relative">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
@@ -263,7 +384,7 @@ export default function WaypointsScreen() {
         ))}
       </div>
 
-      {waypointsLoading ? (
+      {isLoading ? (
         <Card>
           <div className="text-center py-8">
             <p className="text-gray-600">Loading waypoints...</p>
@@ -348,35 +469,37 @@ export default function WaypointsScreen() {
                         </div>
                       </div>
                     </div>
-                    <div className="flex flex-col gap-1">
-                      {waypoint.status === 'completed' ? (
+                    {viewMode === 'today' && (
+                      <div className="flex flex-col gap-1">
+                        {waypoint.status === 'completed' ? (
+                          <button
+                            onClick={() => handleMarkPending(waypoint.id)}
+                            className="text-amber-600 text-xs font-medium hover:text-amber-700"
+                          >
+                            Uncomplete
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => handleMarkCompleted(waypoint.id)}
+                            className="text-green-600 text-xs font-medium hover:text-green-700"
+                          >
+                            Complete
+                          </button>
+                        )}
                         <button
-                          onClick={() => handleMarkPending(waypoint.id)}
-                          className="text-amber-600 text-xs font-medium hover:text-amber-700"
+                          onClick={() => handleEditWaypoint(waypoint)}
+                          className="text-blue-600 text-xs font-medium hover:text-blue-700"
                         >
-                          Uncomplete
+                          Edit
                         </button>
-                      ) : (
                         <button
-                          onClick={() => handleMarkCompleted(waypoint.id)}
-                          className="text-green-600 text-xs font-medium hover:text-green-700"
+                          onClick={() => handleDeleteWaypoint(waypoint.id)}
+                          className="text-red-600 text-xs font-medium hover:text-red-700"
                         >
-                          Complete
+                          Delete
                         </button>
-                      )}
-                      <button
-                        onClick={() => handleEditWaypoint(waypoint)}
-                        className="text-blue-600 text-xs font-medium hover:text-blue-700"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => handleDeleteWaypoint(waypoint.id)}
-                        className="text-red-600 text-xs font-medium hover:text-red-700"
-                      >
-                        Delete
-                      </button>
-                    </div>
+                      </div>
+                    )}
                   </div>
                 </Card>
               );
@@ -392,14 +515,16 @@ export default function WaypointsScreen() {
               <Download className="w-4 h-4" />
               Export
             </Button>
-            <Button
-              variant="secondary"
-              onClick={handleClearAll}
-              className="flex-1 flex items-center justify-center gap-2 text-red-600 hover:text-red-700"
-            >
-              <Trash2 className="w-4 h-4" />
-              Clear All
-            </Button>
+            {viewMode === 'today' && (
+              <Button
+                variant="secondary"
+                onClick={handleClearAll}
+                className="flex-1 flex items-center justify-center gap-2 text-red-600 hover:text-red-700"
+              >
+                <Trash2 className="w-4 h-4" />
+                Clear All
+              </Button>
+            )}
           </div>
         </>
       )}

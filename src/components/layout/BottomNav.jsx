@@ -1,10 +1,11 @@
-import { Home, MapPin, Clock, BarChart3, Route, Settings, Timer } from 'lucide-react';
+import { Home, MapPin, Clock, BarChart3, Route, Settings, Timer, History } from 'lucide-react';
 
 export default function BottomNav({ activeTab, onTabChange }) {
   const tabs = [
     { id: 'today', label: 'Today', icon: Home },
     { id: 'routes', label: 'Routes', icon: Route },
     { id: 'waypoints', label: 'Waypts', icon: MapPin },
+    { id: 'history', label: 'History', icon: History },
     { id: 'timers', label: 'Timers', icon: Timer },
     { id: 'stats', label: 'Stats', icon: BarChart3 },
     { id: 'settings', label: 'Settings', icon: Settings },

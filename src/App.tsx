@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import TodayScreen from './components/screens/TodayScreen';
 import RoutesScreen from './components/screens/RoutesScreen';
 import WaypointsScreen from './components/screens/WaypointsScreen';
+import WaypointHistoryScreen from './components/screens/WaypointHistoryScreen';
 import BreaksScreen from './components/screens/BreaksScreen';
 import StatsScreen from './components/screens/StatsScreen';
 import SettingsScreen from './components/screens/SettingsScreen';
@@ -66,6 +67,8 @@ function App() {
         return <RoutesScreen />;
       case 'waypoints':
         return <WaypointsScreen />;
+      case 'history':
+        return <WaypointHistoryScreen />;
       case 'timers':
         return <BreaksScreen />;
       case 'stats':
