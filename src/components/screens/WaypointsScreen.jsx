@@ -470,7 +470,10 @@ export default function WaypointsScreen() {
             {filteredWaypoints.map((waypoint) => {
               const prediction = waypointPredictions.find(p => p.id === waypoint.id);
               const hasActualTime = waypoint.delivery_time && waypoint.status === 'completed';
-              const hasPrediction = prediction && prediction.predictedTime && prediction.confidence !== 'none';
+              const hasPrediction = prediction &&
+                                     prediction.predictedTime &&
+                                     prediction.predictedTime !== null &&
+                                     prediction.confidence !== 'none';
 
               let variance = null;
               if (hasActualTime && hasPrediction && prediction.predictedMinutes) {
