@@ -9,7 +9,10 @@ export function calculateWaypointAverages(history, waypointName = null) {
     .filter(day => day.waypoint_timings && day.waypoint_timings.length > 0)
     .slice(-30);
 
+  console.log(`Found ${recentHistory.length} days with waypoint timing data out of ${history.length} total history entries`);
+
   if (recentHistory.length === 0) {
+    console.log('No waypoint timing data in history');
     return null;
   }
 
@@ -68,6 +71,7 @@ export function predictWaypointTimes(waypoints, startTime, history) {
   const allAverages = calculateWaypointAverages(history);
 
   if (!allAverages || allAverages.length === 0) {
+    console.log('No averages calculated from history - predictions unavailable');
     return waypoints.map(wp => ({
       ...wp,
       predictedTime: null,
@@ -75,6 +79,8 @@ export function predictWaypointTimes(waypoints, startTime, history) {
       confidence: 'none'
     }));
   }
+
+  console.log('Calculated waypoint averages:', allAverages);
 
   let currentTime = startTime;
   let lastCompletedIndex = -1;
@@ -99,9 +105,11 @@ export function predictWaypointTimes(waypoints, startTime, history) {
       };
     }
 
-    const average = allAverages.find(avg => avg.name === waypoint.name);
+    const waypointName = waypoint.address || waypoint.name;
+    const average = allAverages.find(avg => avg.name === waypointName);
 
     if (!average) {
+      console.log(`No historical average found for waypoint: "${waypointName}"`);
       return {
         ...waypoint,
         predictedTime: null,
@@ -118,11 +126,13 @@ export function predictWaypointTimes(waypoints, startTime, history) {
 
       const remainingWaypoints = waypoints.slice(lastCompletedIndex + 1, index + 1);
       elapsedSoFar = remainingWaypoints.reduce((sum, wp) => {
-        const wpAvg = allAverages.find(avg => avg.name === wp.name);
+        const wpName = wp.address || wp.name;
+        const wpAvg = allAverages.find(avg => avg.name === wpName);
         if (!wpAvg) return sum;
 
+        const lastWpName = waypoints[lastCompletedIndex].address || waypoints[lastCompletedIndex].name;
         const lastWpAvg = lastCompletedIndex >= 0
-          ? allAverages.find(avg => avg.name === waypoints[lastCompletedIndex].name)
+          ? allAverages.find(avg => avg.name === lastWpName)
           : null;
 
         const increment = lastWpAvg
@@ -190,15 +200,16 @@ export function calculateProgressStatus(waypoints, predictions, currentTime) {
     status,
     variance,
     message,
-    lastWaypoint: lastCompleted.name,
+    lastWaypoint: lastCompleted.address || lastCompleted.name,
     completedAt: lastCompleted.delivery_time
   };
 }
 
 export function estimateReturnTime(waypoints, predictions, startTime) {
-  const returnWaypoint = predictions.find(p =>
-    p.name === 'Return to PO' || p.name.toLowerCase().includes('return')
-  );
+  const returnWaypoint = predictions.find(p => {
+    const name = p.address || p.name;
+    return name === 'Return to PO' || name?.toLowerCase().includes('return');
+  });
 
   if (!returnWaypoint || !returnWaypoint.predictedTime) {
     return null;
