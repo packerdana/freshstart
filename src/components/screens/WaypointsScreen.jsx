@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Search, Plus, Download, Trash2, MapPin, Check, Clock, TrendingUp, TrendingDown } from 'lucide-react';
+import { Search, Plus, Download, Trash2, MapPin, Check, Clock, TrendingUp, TrendingDown, Save, RefreshCw } from 'lucide-react';
 import Card from '../shared/Card';
 import Button from '../shared/Button';
 import AddWaypointModal from '../shared/AddWaypointModal';
@@ -21,11 +21,15 @@ export default function WaypointsScreen() {
     routeConfig,
     routeHistory,
     todayInputs,
+    hasTemplates,
     loadWaypoints,
     addWaypoint,
     updateWaypoint,
     deleteWaypoint,
     clearAllWaypoints,
+    saveAsTemplate,
+    loadFromTemplate,
+    loadTemplates,
   } = useRouteStore();
 
   const waypointPredictions = useMemo(() => {
@@ -40,8 +44,9 @@ export default function WaypointsScreen() {
   useEffect(() => {
     if (currentRouteId) {
       loadWaypoints();
+      loadTemplates();
     }
-  }, [currentRouteId, loadWaypoints]);
+  }, [currentRouteId, loadWaypoints, loadTemplates]);
 
   const handleAddWaypoint = async (waypointData) => {
     try {
@@ -90,6 +95,45 @@ export default function WaypointsScreen() {
       await exportWaypointsToJSON(currentRouteId);
     } catch (error) {
       console.error('Failed to export waypoints:', error);
+    }
+  };
+
+  const handleSaveAsTemplate = async () => {
+    if (waypoints.length === 0) {
+      alert('Add some waypoints first before saving as a template');
+      return;
+    }
+
+    if (confirm(`Save these ${waypoints.length} waypoints as your route template? This will replace any existing template.`)) {
+      try {
+        await saveAsTemplate();
+        alert('Template saved! Your waypoints will auto-populate each day.');
+      } catch (error) {
+        console.error('Failed to save template:', error);
+        alert('Failed to save template. Please try again.');
+      }
+    }
+  };
+
+  const handleLoadFromTemplate = async () => {
+    if (!hasTemplates) {
+      alert('No template found. Create waypoints and save them as a template first.');
+      return;
+    }
+
+    if (waypoints.length > 0) {
+      if (!confirm('This will replace your current waypoints. Continue?')) {
+        return;
+      }
+      await clearAllWaypoints();
+    }
+
+    try {
+      await loadFromTemplate();
+      alert('Waypoints loaded from template!');
+    } catch (error) {
+      console.error('Failed to load from template:', error);
+      alert('Failed to load waypoints from template. Please try again.');
     }
   };
 
@@ -148,17 +192,48 @@ export default function WaypointsScreen() {
             </p>
           </div>
         )}
+
+        {hasTemplates && waypoints.length === 0 && (
+          <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+            <p className="text-sm text-blue-800 mb-1 font-medium">Template Available</p>
+            <p className="text-xs text-blue-700">
+              Click "Load Template" below to auto-populate your waypoints for today
+            </p>
+          </div>
+        )}
+
         <Button
           onClick={() => {
             setEditingWaypoint(null);
             setIsModalOpen(true);
           }}
-          className="w-full mb-4 flex items-center justify-center gap-2"
+          className="w-full mb-3 flex items-center justify-center gap-2"
           disabled={!currentRouteId}
         >
           <Plus className="w-5 h-5" />
           Add Waypoint
         </Button>
+
+        <div className="flex gap-2 mb-4">
+          <Button
+            variant="secondary"
+            onClick={handleLoadFromTemplate}
+            className="flex-1 flex items-center justify-center gap-2"
+            disabled={!currentRouteId || !hasTemplates}
+          >
+            <RefreshCw className="w-4 h-4" />
+            Load Template
+          </Button>
+          <Button
+            variant="secondary"
+            onClick={handleSaveAsTemplate}
+            className="flex-1 flex items-center justify-center gap-2"
+            disabled={!currentRouteId || waypoints.length === 0}
+          >
+            <Save className="w-4 h-4" />
+            Save as Template
+          </Button>
+        </div>
 
         <div className="relative">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />

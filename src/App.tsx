@@ -17,6 +17,7 @@ function App() {
   const [activeTab, setActiveTab] = useState('today');
   const loadUserRoutes = useRouteStore((state) => state.loadUserRoutes);
   const checkAndResetDailyData = useRouteStore((state) => state.checkAndResetDailyData);
+  const autoPopulateWaypointsIfNeeded = useRouteStore((state) => state.autoPopulateWaypointsIfNeeded);
   const { user, loading, initializeAuth } = useAuthStore();
   const currentRoute = useRouteStore((state) => state.currentRoute);
 
@@ -32,9 +33,11 @@ function App() {
   useEffect(() => {
     if (user) {
       checkAndResetDailyData();
-      loadUserRoutes();
+      loadUserRoutes().then(() => {
+        autoPopulateWaypointsIfNeeded();
+      });
     }
-  }, [user, loadUserRoutes, checkAndResetDailyData]);
+  }, [user, loadUserRoutes, checkAndResetDailyData, autoPopulateWaypointsIfNeeded]);
 
   if (loading) {
     return (

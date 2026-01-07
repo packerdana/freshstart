@@ -4,6 +4,7 @@ import { getUserRoutes, getRouteHistory } from '../services/routeHistoryService'
 import { calculateRouteAverages } from '../services/routeAveragesService';
 import { getWaypointsForRoute, createWaypoint, updateWaypoint, deleteWaypoint, deleteAllWaypoints } from '../services/waypointsService';
 import { createRoute as createRouteService, updateRoute as updateRouteService, deleteRoute as deleteRouteService } from '../services/routeManagementService';
+import { getTemplatesForRoute, saveCurrentWaypointsAsTemplate, instantiateTemplates } from '../services/waypointTemplateService';
 import { getLocalDateString } from '../utils/time';
 
 const useRouteStore = create(
@@ -19,6 +20,10 @@ const useRouteStore = create(
 
       waypoints: [],
       waypointsLoading: false,
+
+      templates: [],
+      templatesLoading: false,
+      hasTemplates: false,
 
       loading: false,
       error: null,
@@ -44,7 +49,7 @@ const useRouteStore = create(
         const lastReset = get().lastResetDate;
 
         if (lastReset !== today) {
-          console.log('New day detected - resetting safety talk time');
+          console.log('New day detected - resetting daily data');
           set({
             todayInputs: {
               dps: 0,
@@ -59,7 +64,12 @@ const useRouteStore = create(
             },
             routeStarted: false,
             lastResetDate: today,
+            waypoints: [],
           });
+
+          setTimeout(() => {
+            get().autoPopulateWaypointsIfNeeded();
+          }, 500);
         }
       },
 
@@ -269,6 +279,96 @@ const useRouteStore = create(
         } catch (error) {
           console.error('Error clearing waypoints:', error);
           throw error;
+        }
+      },
+
+      loadTemplates: async () => {
+        const routeId = get().currentRouteId;
+        if (!routeId) {
+          console.warn('No current route selected');
+          return;
+        }
+
+        set({ templatesLoading: true });
+
+        try {
+          const templates = await getTemplatesForRoute(routeId);
+          set({
+            templates,
+            hasTemplates: templates.length > 0,
+            templatesLoading: false
+          });
+        } catch (error) {
+          console.error('Error loading templates:', error);
+          set({ error: error.message, templatesLoading: false });
+        }
+      },
+
+      saveAsTemplate: async () => {
+        const routeId = get().currentRouteId;
+        const waypoints = get().waypoints;
+
+        if (!routeId) {
+          throw new Error('No current route selected');
+        }
+
+        if (waypoints.length === 0) {
+          throw new Error('No waypoints to save as template');
+        }
+
+        try {
+          const templates = await saveCurrentWaypointsAsTemplate(routeId, waypoints);
+          set({
+            templates,
+            hasTemplates: true
+          });
+          return templates;
+        } catch (error) {
+          console.error('Error saving waypoints as template:', error);
+          throw error;
+        }
+      },
+
+      loadFromTemplate: async (date = null) => {
+        const routeId = get().currentRouteId;
+        if (!routeId) {
+          throw new Error('No current route selected');
+        }
+
+        try {
+          const newWaypoints = await instantiateTemplates(routeId, date);
+          set({ waypoints: newWaypoints });
+          return newWaypoints;
+        } catch (error) {
+          console.error('Error loading from template:', error);
+          throw error;
+        }
+      },
+
+      autoPopulateWaypointsIfNeeded: async () => {
+        const routeId = get().currentRouteId;
+        const waypoints = get().waypoints;
+        const hasTemplates = get().hasTemplates;
+
+        if (!routeId || waypoints.length > 0) {
+          return;
+        }
+
+        try {
+          const templates = await getTemplatesForRoute(routeId);
+
+          if (templates.length > 0) {
+            console.log('Auto-populating waypoints from template');
+            const newWaypoints = await instantiateTemplates(routeId);
+            set({
+              waypoints: newWaypoints,
+              templates,
+              hasTemplates: true
+            });
+            return newWaypoints;
+          }
+        } catch (error) {
+          console.error('Error auto-populating waypoints:', error);
         }
       },
 
