@@ -6,7 +6,7 @@ import AddWaypointModal from '../shared/AddWaypointModal';
 import DatePicker from '../shared/DatePicker';
 import WaypointDebugModal from '../shared/WaypointDebugModal';
 import useRouteStore from '../../stores/routeStore';
-import { exportWaypointsToJSON, markWaypointCompleted, markWaypointPending, getWaypointsForRoute } from '../../services/waypointsService';
+import { exportWaypointsToJSON, markWaypointCompleted, markWaypointPending, getWaypointsForRoute, removeDuplicateWaypoints } from '../../services/waypointsService';
 import { predictWaypointTimes } from '../../services/waypointPredictionService';
 import { copyWaypointsToToday, verifyHistoricalDataExists } from '../../services/waypointRecoveryService';
 import { format } from 'date-fns';
@@ -145,6 +145,21 @@ export default function WaypointsScreen() {
     } catch (error) {
       console.error('Failed to load from template:', error);
       alert('Failed to load waypoints from template. Please try again.');
+    }
+  };
+
+  const handleRemoveDuplicates = async () => {
+    if (!currentRouteId) return;
+
+    if (confirm('Remove duplicate waypoints? This will keep only the first occurrence of each sequence number.')) {
+      try {
+        const result = await removeDuplicateWaypoints(currentRouteId);
+        await loadWaypoints();
+        alert(`Removed ${result.removed} duplicates. ${result.remaining} waypoints remaining.`);
+      } catch (error) {
+        console.error('Failed to remove duplicates:', error);
+        alert('Failed to remove duplicates. Please try again.');
+      }
     }
   };
 
@@ -371,6 +386,18 @@ export default function WaypointsScreen() {
                 Save as Template
               </Button>
             </div>
+
+            {waypoints.length > 20 && (
+              <Button
+                variant="secondary"
+                onClick={handleRemoveDuplicates}
+                className="w-full mb-4 flex items-center justify-center gap-2 bg-amber-50 border-amber-300 text-amber-900 hover:bg-amber-100"
+                disabled={!currentRouteId}
+              >
+                <AlertCircle className="w-4 h-4" />
+                Remove Duplicate Waypoints
+              </Button>
+            )}
           </>
         )}
 

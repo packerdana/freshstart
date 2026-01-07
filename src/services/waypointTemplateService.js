@@ -122,6 +122,17 @@ export const instantiateTemplates = async (routeId, date = null) => {
 
     const targetDate = date || new Date().toISOString().split('T')[0];
 
+    const { data: existing } = await supabase
+      .from('waypoints')
+      .select('id')
+      .eq('route_id', routeId)
+      .eq('date', targetDate);
+
+    if (existing && existing.length > 0) {
+      console.log('Waypoints already exist for this date, skipping instantiation');
+      return [];
+    }
+
     const waypoints = templates.map(template => ({
       route_id: routeId,
       date: targetDate,

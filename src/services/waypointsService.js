@@ -85,6 +85,47 @@ export const deleteAllWaypoints = async (routeId, date = null) => {
   }
 };
 
+export const removeDuplicateWaypoints = async (routeId, date = null) => {
+  try {
+    const targetDate = date || new Date().toISOString().split('T')[0];
+
+    const { data: waypoints, error: fetchError } = await supabase
+      .from('waypoints')
+      .select('*')
+      .eq('route_id', routeId)
+      .eq('date', targetDate)
+      .order('sequence_number', { ascending: true })
+      .order('created_at', { ascending: true });
+
+    if (fetchError) throw fetchError;
+
+    const seen = new Set();
+    const duplicates = [];
+
+    waypoints.forEach(wp => {
+      if (seen.has(wp.sequence_number)) {
+        duplicates.push(wp.id);
+      } else {
+        seen.add(wp.sequence_number);
+      }
+    });
+
+    if (duplicates.length > 0) {
+      const { error: deleteError } = await supabase
+        .from('waypoints')
+        .delete()
+        .in('id', duplicates);
+
+      if (deleteError) throw deleteError;
+    }
+
+    return { removed: duplicates.length, remaining: waypoints.length - duplicates.length };
+  } catch (error) {
+    console.error('Error removing duplicate waypoints:', error);
+    throw error;
+  }
+};
+
 export const bulkCreateWaypoints = async (waypoints) => {
   try {
     const { data, error } = await supabase
