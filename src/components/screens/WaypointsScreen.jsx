@@ -503,9 +503,16 @@ export default function WaypointsScreen() {
 
                           <div className="flex items-center gap-2 mt-1">
                             <p className="text-sm text-gray-500">
-                              {waypoint.delivery_time
-                                ? format(new Date(waypoint.delivery_time), 'h:mm a')
-                                : 'Not delivered'}
+                              {(() => {
+                                if (!waypoint.delivery_time) return 'Not delivered';
+                                try {
+                                  const deliveryTime = new Date(waypoint.delivery_time);
+                                  if (isNaN(deliveryTime.getTime())) return 'Not delivered';
+                                  return format(deliveryTime, 'h:mm a');
+                                } catch (e) {
+                                  return 'Not delivered';
+                                }
+                              })()}
                             </p>
 
                             {variance !== null && (
@@ -519,12 +526,20 @@ export default function WaypointsScreen() {
                             )}
                           </div>
 
-                          {hasPrediction && !hasActualTime && (
-                            <div className="flex items-center gap-1 text-xs text-gray-500 mt-1">
-                              <Clock className="w-3 h-3" />
-                              Expected: {format(new Date(prediction.predictedTime), 'h:mm a')}
-                            </div>
-                          )}
+                          {hasPrediction && !hasActualTime && (() => {
+                            try {
+                              const predTime = new Date(prediction.predictedTime);
+                              if (isNaN(predTime.getTime())) return null;
+                              return (
+                                <div className="flex items-center gap-1 text-xs text-gray-500 mt-1">
+                                  <Clock className="w-3 h-3" />
+                                  Expected: {format(predTime, 'h:mm a')}
+                                </div>
+                              );
+                            } catch (e) {
+                              return null;
+                            }
+                          })()}
 
                           {waypoint.notes && (
                             <p className="text-sm text-gray-400 mt-1">{waypoint.notes}</p>
