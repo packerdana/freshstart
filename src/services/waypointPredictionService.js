@@ -68,6 +68,18 @@ export function predictWaypointTimes(waypoints, startTime, history) {
     return [];
   }
 
+  if (!startTime) {
+    console.log('No start time provided for predictions');
+    return waypoints.map(wp => ({
+      ...wp,
+      predictedTime: null,
+      predictedMinutes: null,
+      confidence: 'none'
+    }));
+  }
+
+  const baseStartTime = new Date(startTime);
+
   const allAverages = calculateWaypointAverages(history);
 
   if (!allAverages || allAverages.length === 0) {
@@ -82,7 +94,7 @@ export function predictWaypointTimes(waypoints, startTime, history) {
 
   console.log('Calculated waypoint averages:', allAverages);
 
-  let currentTime = startTime;
+  let currentTime = baseStartTime;
   let lastCompletedIndex = -1;
 
   waypoints.forEach((wp, index) => {
@@ -95,7 +107,7 @@ export function predictWaypointTimes(waypoints, startTime, history) {
   const predictions = waypoints.map((waypoint, index) => {
     if (waypoint.status === 'completed' && waypoint.delivery_time) {
       const deliveryTime = new Date(waypoint.delivery_time);
-      const elapsed = timeDifference(startTime, deliveryTime);
+      const elapsed = timeDifference(baseStartTime, deliveryTime);
       return {
         ...waypoint,
         predictedTime: deliveryTime,
@@ -119,7 +131,7 @@ export function predictWaypointTimes(waypoints, startTime, history) {
       };
     }
 
-    let baseTime = startTime;
+    let baseTime = baseStartTime;
     let elapsedSoFar = 0;
 
     if (lastCompletedIndex >= 0) {
