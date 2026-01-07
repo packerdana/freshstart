@@ -153,6 +153,7 @@ export default function WaypointsScreen() {
         status: updated.status,
         delivery_time: updated.delivery_time
       });
+      await loadWaypoints();
     } catch (error) {
       console.error('Failed to mark waypoint completed:', error);
     }
@@ -165,6 +166,7 @@ export default function WaypointsScreen() {
         status: updated.status,
         delivery_time: updated.delivery_time
       });
+      await loadWaypoints();
     } catch (error) {
       console.error('Failed to mark waypoint pending:', error);
     }

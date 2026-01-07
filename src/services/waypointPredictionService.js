@@ -80,18 +80,18 @@ export function predictWaypointTimes(waypoints, startTime, history) {
   let lastCompletedIndex = -1;
 
   waypoints.forEach((wp, index) => {
-    if (wp.status === 'completed' && wp.completedAt) {
+    if (wp.status === 'completed' && wp.delivery_time) {
       lastCompletedIndex = index;
-      currentTime = wp.completedAt;
+      currentTime = wp.delivery_time;
     }
   });
 
   const predictions = waypoints.map((waypoint, index) => {
-    if (waypoint.status === 'completed' && waypoint.completedAt) {
-      const elapsed = timeDifference(startTime, waypoint.completedAt);
+    if (waypoint.status === 'completed' && waypoint.delivery_time) {
+      const elapsed = timeDifference(startTime, waypoint.delivery_time);
       return {
         ...waypoint,
-        predictedTime: waypoint.completedAt,
+        predictedTime: waypoint.delivery_time,
         predictedMinutes: elapsed,
         actualMinutes: elapsed,
         confidence: 'actual',
@@ -164,7 +164,7 @@ export function calculateProgressStatus(waypoints, predictions, currentTime) {
 
   const prediction = predictions.find(p => p.id === lastCompleted.id);
 
-  if (!prediction || !prediction.predictedTime || !lastCompleted.completedAt) {
+  if (!prediction || !prediction.predictedTime || !lastCompleted.delivery_time) {
     return {
       status: 'on-schedule',
       variance: 0,
@@ -172,7 +172,7 @@ export function calculateProgressStatus(waypoints, predictions, currentTime) {
     };
   }
 
-  const variance = timeDifference(prediction.predictedTime, lastCompleted.completedAt);
+  const variance = timeDifference(prediction.predictedTime, lastCompleted.delivery_time);
 
   let status, message;
   if (variance <= -10) {
@@ -191,7 +191,7 @@ export function calculateProgressStatus(waypoints, predictions, currentTime) {
     variance,
     message,
     lastWaypoint: lastCompleted.name,
-    completedAt: lastCompleted.completedAt
+    completedAt: lastCompleted.delivery_time
   };
 }
 
