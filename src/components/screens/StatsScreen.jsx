@@ -7,7 +7,8 @@ import { pmOfficeService } from '../../services/pmOfficeService';
 import { routeProtectionService } from '../../services/routeProtectionService';
 import { formatMinutesAsTime, parseLocalDate } from '../../utils/time';
 import { getWorkweekStart } from '../../utils/uspsConstants';
-import { Clock, TrendingUp, Calendar, Package, Timer, Target, Activity, Award, FileText, AlertTriangle, Shield } from 'lucide-react';
+import { calculateRecordDays, formatRecordValue, formatRecordDate } from '../../services/recordStatsService';
+import { Clock, TrendingUp, Calendar, Package, Timer, Target, Activity, Award, FileText, AlertTriangle, Shield, Trophy } from 'lucide-react';
 
 export default function StatsScreen() {
   const { history, averages, currentRoute, todayInputs, loading, activeRoute } = useRouteStore();
@@ -150,6 +151,10 @@ export default function StatsScreen() {
   const recentHistory = useMemo(() => {
     if (!history) return [];
     return history.slice(0, 10);
+  }, [history]);
+
+  const recordDays = useMemo(() => {
+    return calculateRecordDays(history);
   }, [history]);
 
   const casingStats = useMemo(() => {
@@ -628,6 +633,92 @@ export default function StatsScreen() {
           </div>
         </div>
       </Card>
+
+      {recordDays && (
+        <Card className="bg-gradient-to-br from-purple-50 to-pink-50 border-2 border-purple-200">
+          <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+            <Trophy className="w-5 h-5 text-purple-600" />
+            Record Day Performance
+          </h3>
+          <div className="space-y-3">
+            {recordDays.dps.value > 0 && (
+              <div className="bg-white/70 rounded-lg p-3">
+                <div className="flex justify-between items-start">
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-gray-700 mb-1">DPS</p>
+                    <p className="text-xs text-gray-600">
+                      {formatRecordDate(recordDays.dps.date)}
+                    </p>
+                  </div>
+                  <p className="text-xl font-bold text-purple-600">
+                    {formatRecordValue(recordDays.dps.value, 'dps')}
+                  </p>
+                </div>
+              </div>
+            )}
+            {recordDays.letters.value > 0 && (
+              <div className="bg-white/70 rounded-lg p-3">
+                <div className="flex justify-between items-start">
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-gray-700 mb-1">Letters</p>
+                    <p className="text-xs text-gray-600">
+                      {formatRecordDate(recordDays.letters.date)}
+                    </p>
+                  </div>
+                  <p className="text-xl font-bold text-purple-600">
+                    {formatRecordValue(recordDays.letters.value, 'letters')}
+                  </p>
+                </div>
+              </div>
+            )}
+            {recordDays.flats.value > 0 && (
+              <div className="bg-white/70 rounded-lg p-3">
+                <div className="flex justify-between items-start">
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-gray-700 mb-1">Flats</p>
+                    <p className="text-xs text-gray-600">
+                      {formatRecordDate(recordDays.flats.date)}
+                    </p>
+                  </div>
+                  <p className="text-xl font-bold text-purple-600">
+                    {formatRecordValue(recordDays.flats.value, 'flats')}
+                  </p>
+                </div>
+              </div>
+            )}
+            {recordDays.parcels.value > 0 && (
+              <div className="bg-white/70 rounded-lg p-3">
+                <div className="flex justify-between items-start">
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-gray-700 mb-1">Parcels</p>
+                    <p className="text-xs text-gray-600">
+                      {formatRecordDate(recordDays.parcels.date)}
+                    </p>
+                  </div>
+                  <p className="text-xl font-bold text-purple-600">
+                    {formatRecordValue(recordDays.parcels.value, 'parcels')}
+                  </p>
+                </div>
+              </div>
+            )}
+            {recordDays.spurs.value > 0 && (
+              <div className="bg-white/70 rounded-lg p-3">
+                <div className="flex justify-between items-start">
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-gray-700 mb-1">SPRs</p>
+                    <p className="text-xs text-gray-600">
+                      {formatRecordDate(recordDays.spurs.date)}
+                    </p>
+                  </div>
+                  <p className="text-xl font-bold text-purple-600">
+                    {formatRecordValue(recordDays.spurs.value, 'spurs')}
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+        </Card>
+      )}
 
       <Card>
         <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
