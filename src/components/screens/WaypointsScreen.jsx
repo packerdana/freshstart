@@ -1,9 +1,10 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Search, Plus, Download, Trash2, MapPin, Check, Clock, TrendingUp, TrendingDown, Save, RefreshCw, Calendar, Copy, AlertCircle } from 'lucide-react';
+import { Search, Plus, Download, Trash2, MapPin, Check, Clock, TrendingUp, TrendingDown, Save, RefreshCw, Calendar, Copy, AlertCircle, Wrench } from 'lucide-react';
 import Card from '../shared/Card';
 import Button from '../shared/Button';
 import AddWaypointModal from '../shared/AddWaypointModal';
 import DatePicker from '../shared/DatePicker';
+import WaypointDebugModal from '../shared/WaypointDebugModal';
 import useRouteStore from '../../stores/routeStore';
 import { exportWaypointsToJSON, markWaypointCompleted, markWaypointPending, getWaypointsForRoute } from '../../services/waypointsService';
 import { predictWaypointTimes } from '../../services/waypointPredictionService';
@@ -20,6 +21,7 @@ export default function WaypointsScreen() {
   const [historicalWaypoints, setHistoricalWaypoints] = useState([]);
   const [historicalLoading, setHistoricalLoading] = useState(false);
   const [dataVerification, setDataVerification] = useState(null);
+  const [isDebugModalOpen, setIsDebugModalOpen] = useState(false);
 
   const {
     waypoints,
@@ -248,13 +250,25 @@ export default function WaypointsScreen() {
 
   return (
     <div className="p-4 max-w-2xl mx-auto pb-20">
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold text-gray-900">Waypoints</h2>
-        <p className="text-sm text-gray-500">
-          {viewMode === 'today'
-            ? `Today: ${waypoints.length} stops`
-            : `${format(new Date(selectedDate), 'MMM d, yyyy')}: ${displayWaypoints.length} stops`}
-        </p>
+      <div className="mb-6 flex justify-between items-start">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900">Waypoints</h2>
+          <p className="text-sm text-gray-500">
+            {viewMode === 'today'
+              ? `Today: ${waypoints.length} stops`
+              : `${format(new Date(selectedDate), 'MMM d, yyyy')}: ${displayWaypoints.length} stops`}
+          </p>
+        </div>
+        {viewMode === 'today' && currentRouteId && (
+          <button
+            onClick={() => setIsDebugModalOpen(true)}
+            className="flex items-center gap-1 px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+            title="Check & Fix Waypoint Data"
+          >
+            <Wrench className="w-4 h-4" />
+            <span>Fix</span>
+          </button>
+        )}
       </div>
 
       <Card className="mb-4">
@@ -537,6 +551,15 @@ export default function WaypointsScreen() {
         }}
         onSave={editingWaypoint ? handleUpdateWaypoint : handleAddWaypoint}
         editWaypoint={editingWaypoint}
+      />
+
+      <WaypointDebugModal
+        isOpen={isDebugModalOpen}
+        onClose={() => {
+          setIsDebugModalOpen(false);
+          loadWaypoints();
+        }}
+        routeId={currentRouteId}
       />
     </div>
   );
