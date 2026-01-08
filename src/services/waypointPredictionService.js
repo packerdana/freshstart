@@ -78,7 +78,25 @@ export function predictWaypointTimes(waypoints, startTime, history) {
     }));
   }
 
-  const baseStartTime = new Date(startTime);
+  let baseStartTime = new Date(startTime);
+
+  if (isNaN(baseStartTime.getTime())) {
+    const timeMatch = startTime.match(/^(\d{1,2}):(\d{2})$/);
+    if (timeMatch) {
+      const today = new Date();
+      today.setHours(parseInt(timeMatch[1], 10), parseInt(timeMatch[2], 10), 0, 0);
+      baseStartTime = today;
+      console.log(`Converted time string "${startTime}" to full date:`, baseStartTime);
+    } else {
+      console.error('Invalid start time format:', startTime);
+      return waypoints.map(wp => ({
+        ...wp,
+        predictedTime: null,
+        predictedMinutes: null,
+        confidence: 'none'
+      }));
+    }
+  }
 
   const allAverages = calculateWaypointAverages(history);
 
@@ -164,6 +182,8 @@ export function predictWaypointTimes(waypoints, startTime, history) {
     const adjustedMinutesFromStart = historicalMinutesFromStart + paceAdjustment;
     const predictedTime = addMinutes(baseStartTime, adjustedMinutesFromStart);
 
+    console.log(`[PREDICTION] ${waypointName}: ${historicalMinutesFromStart} min from start → ${predictedTime.toISOString()}`);
+
     return {
       ...waypoint,
       predictedTime,
@@ -172,6 +192,13 @@ export function predictWaypointTimes(waypoints, startTime, history) {
       sampleSize: average.sampleSize
     };
   });
+
+  console.log('Generated predictions:', predictions.map(p => ({
+    id: p.id,
+    address: p.address || p.name,
+    predictedTime: p.predictedTime,
+    confidence: p.confidence
+  })));
 
   return predictions;
 }

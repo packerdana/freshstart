@@ -45,11 +45,15 @@ export default function WaypointsScreen() {
 
   const waypointPredictions = useMemo(() => {
     if (!waypoints || waypoints.length === 0 || !history || history.length === 0) {
+      console.log('[UI] No waypoint predictions - missing data:', { waypoints: waypoints?.length, history: history?.length });
       return [];
     }
 
     const leaveOfficeTime = todayInputs.leaveOfficeTime || routeConfig?.startTime || '07:30';
-    return predictWaypointTimes(waypoints, leaveOfficeTime, history);
+    console.log('[UI] Calculating predictions with start time:', leaveOfficeTime);
+    const predictions = predictWaypointTimes(waypoints, leaveOfficeTime, history);
+    console.log('[UI] Received predictions:', predictions.map(p => ({ id: p.id, address: p.address, hasPrediction: !!p.predictedTime, confidence: p.confidence })));
+    return predictions;
   }, [waypoints, history, todayInputs.leaveOfficeTime, routeConfig]);
 
   useEffect(() => {
@@ -474,6 +478,15 @@ export default function WaypointsScreen() {
                                      prediction.predictedTime &&
                                      prediction.predictedTime !== null &&
                                      prediction.confidence !== 'none';
+
+              if (waypoint.status !== 'completed') {
+                console.log(`[UI] Waypoint ${waypoint.address}:`, {
+                  hasPrediction,
+                  predictionFound: !!prediction,
+                  predictedTime: prediction?.predictedTime,
+                  confidence: prediction?.confidence
+                });
+              }
 
               let variance = null;
               if (hasActualTime && hasPrediction && prediction.predictedMinutes) {
