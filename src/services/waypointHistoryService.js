@@ -9,7 +9,7 @@ export async function fetchWaypointHistory(routeId, daysBack = 30) {
     console.log(`[WAYPOINT HISTORY] Fetching deliveries for route ${routeId} since ${cutoffDateStr}`);
 
     const { data: deliveries, error } = await supabase
-      .from('waypoint_deliveries')
+      .from('waypoints')
       .select('date, address, delivery_time, sequence_number')
       .eq('route_id', routeId)
       .eq('status', 'completed')
