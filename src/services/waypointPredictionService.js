@@ -1,69 +1,18 @@
 import { addMinutes, timeDifference } from '../utils/time';
+import { fetchWaypointHistory, calculateWaypointAveragesFromDeliveries } from './waypointHistoryService';
 
-export function calculateWaypointAverages(history, waypointName = null) {
+export async function calculateWaypointAverages(routeId, waypointName = null) {
+  const history = await fetchWaypointHistory(routeId, 30);
+
   if (!history || history.length === 0) {
+    console.log('No waypoint history available for this route');
     return null;
   }
 
-  const recentHistory = history
-    .filter(day => day.waypoint_timings && day.waypoint_timings.length > 0)
-    .slice(-30);
-
-  console.log(`Found ${recentHistory.length} days with waypoint timing data out of ${history.length} total history entries`);
-
-  if (recentHistory.length === 0) {
-    console.log('No waypoint timing data in history');
-    return null;
-  }
-
-  if (waypointName) {
-    const waypointData = recentHistory
-      .map(day => {
-        const waypoint = day.waypoint_timings.find(w => w.name === waypointName);
-        return waypoint ? waypoint.elapsedMinutes : null;
-      })
-      .filter(time => time !== null);
-
-    if (waypointData.length === 0) {
-      return null;
-    }
-
-    const avgTime = waypointData.reduce((sum, time) => sum + time, 0) / waypointData.length;
-
-    return {
-      name: waypointName,
-      averageMinutes: Math.round(avgTime),
-      sampleSize: waypointData.length,
-      confidence: waypointData.length >= 10 ? 'high' : waypointData.length >= 5 ? 'medium' : 'low'
-    };
-  }
-
-  const waypointMap = new Map();
-
-  recentHistory.forEach(day => {
-    day.waypoint_timings.forEach(waypoint => {
-      if (!waypointMap.has(waypoint.name)) {
-        waypointMap.set(waypoint.name, []);
-      }
-      waypointMap.get(waypoint.name).push(waypoint.elapsedMinutes);
-    });
-  });
-
-  const averages = [];
-  waypointMap.forEach((times, name) => {
-    const avgTime = times.reduce((sum, time) => sum + time, 0) / times.length;
-    averages.push({
-      name,
-      averageMinutes: Math.round(avgTime),
-      sampleSize: times.length,
-      confidence: times.length >= 10 ? 'high' : times.length >= 5 ? 'medium' : 'low'
-    });
-  });
-
-  return averages;
+  return calculateWaypointAveragesFromDeliveries(history, waypointName);
 }
 
-export function predictWaypointTimes(waypoints, startTime, history) {
+export async function predictWaypointTimes(waypoints, startTime, routeId) {
   if (!waypoints || waypoints.length === 0) {
     return [];
   }
@@ -98,7 +47,7 @@ export function predictWaypointTimes(waypoints, startTime, history) {
     }
   }
 
-  const allAverages = calculateWaypointAverages(history);
+  const allAverages = await calculateWaypointAverages(routeId);
 
   if (!allAverages || allAverages.length === 0) {
     console.log('No averages calculated from history - predictions unavailable');

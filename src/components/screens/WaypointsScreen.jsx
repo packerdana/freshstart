@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { Search, Plus, Download, Trash2, MapPin, Check, Clock, TrendingUp, TrendingDown, Save, RefreshCw, Calendar, Copy, AlertCircle, Wrench } from 'lucide-react';
 import Card from '../shared/Card';
 import Button from '../shared/Button';
@@ -22,6 +22,7 @@ export default function WaypointsScreen() {
   const [historicalLoading, setHistoricalLoading] = useState(false);
   const [dataVerification, setDataVerification] = useState(null);
   const [isDebugModalOpen, setIsDebugModalOpen] = useState(false);
+  const [waypointPredictions, setWaypointPredictions] = useState([]);
 
   const {
     waypoints,
@@ -43,18 +44,29 @@ export default function WaypointsScreen() {
 
   const routeConfig = getCurrentRouteConfig();
 
-  const waypointPredictions = useMemo(() => {
-    if (!waypoints || waypoints.length === 0 || !history || history.length === 0) {
-      console.log('[UI] No waypoint predictions - missing data:', { waypoints: waypoints?.length, history: history?.length });
-      return [];
+  useEffect(() => {
+    async function loadPredictions() {
+      if (!waypoints || waypoints.length === 0 || !currentRouteId) {
+        console.log('[UI] No waypoint predictions - missing data:', { waypoints: waypoints?.length, routeId: currentRouteId });
+        setWaypointPredictions([]);
+        return;
+      }
+
+      const leaveOfficeTime = todayInputs.leaveOfficeTime || routeConfig?.startTime || '07:30';
+      console.log('[UI] Calculating predictions with start time:', leaveOfficeTime, 'for route:', currentRouteId);
+
+      try {
+        const predictions = await predictWaypointTimes(waypoints, leaveOfficeTime, currentRouteId);
+        console.log('[UI] Received predictions:', predictions.map(p => ({ id: p.id, address: p.address, hasPrediction: !!p.predictedTime, confidence: p.confidence })));
+        setWaypointPredictions(predictions);
+      } catch (error) {
+        console.error('[UI] Error loading predictions:', error);
+        setWaypointPredictions([]);
+      }
     }
 
-    const leaveOfficeTime = todayInputs.leaveOfficeTime || routeConfig?.startTime || '07:30';
-    console.log('[UI] Calculating predictions with start time:', leaveOfficeTime);
-    const predictions = predictWaypointTimes(waypoints, leaveOfficeTime, history);
-    console.log('[UI] Received predictions:', predictions.map(p => ({ id: p.id, address: p.address, hasPrediction: !!p.predictedTime, confidence: p.confidence })));
-    return predictions;
-  }, [waypoints, history, todayInputs.leaveOfficeTime, routeConfig]);
+    loadPredictions();
+  }, [waypoints, currentRouteId, todayInputs.leaveOfficeTime, routeConfig]);
 
   useEffect(() => {
     if (currentRouteId) {

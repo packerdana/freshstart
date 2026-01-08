@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Clock, TrendingUp, TrendingDown, Minus, Package } from 'lucide-react';
 import Card from './Card';
 import Input from './Input';
@@ -7,7 +7,8 @@ import { predictWaypointTimes, calculateProgressStatus } from '../../services/wa
 import { estimatePackageSplit, getPackageEstimationMessage } from '../../services/packageEstimationService';
 
 export default function HowAmIDoingSection() {
-  const { todayInputs, updateTodayInputs, waypoints, getCurrentRouteConfig, history } = useRouteStore();
+  const { todayInputs, updateTodayInputs, waypoints, getCurrentRouteConfig, history, currentRouteId } = useRouteStore();
+  const [progressStatus, setProgressStatus] = useState(null);
 
   const scannerTotal = todayInputs.scannerTotal || 0;
   const parcels = todayInputs.parcels || 0;
@@ -20,15 +21,27 @@ export default function HowAmIDoingSection() {
     return estimatePackageSplit(scannerTotal, history);
   }, [scannerTotal, history]);
 
-  const progressStatus = useMemo(() => {
-    if (!waypoints || waypoints.length === 0 || !history || history.length === 0) {
-      return null;
+  useEffect(() => {
+    async function loadProgressStatus() {
+      if (!waypoints || waypoints.length === 0 || !currentRouteId) {
+        setProgressStatus(null);
+        return;
+      }
+
+      const leaveOfficeTime = todayInputs.leaveOfficeTime || routeConfig?.startTime || '07:30';
+
+      try {
+        const predictions = await predictWaypointTimes(waypoints, leaveOfficeTime, currentRouteId);
+        const status = calculateProgressStatus(waypoints, predictions, new Date().toISOString());
+        setProgressStatus(status);
+      } catch (error) {
+        console.error('[HowAmIDoing] Error loading progress status:', error);
+        setProgressStatus(null);
+      }
     }
 
-    const leaveOfficeTime = todayInputs.leaveOfficeTime || routeConfig?.startTime || '07:30';
-    const predictions = predictWaypointTimes(waypoints, leaveOfficeTime, history);
-    return calculateProgressStatus(waypoints, predictions, new Date().toISOString());
-  }, [waypoints, history, todayInputs.leaveOfficeTime, routeConfig]);
+    loadProgressStatus();
+  }, [waypoints, currentRouteId, todayInputs.leaveOfficeTime, routeConfig]);
 
   useEffect(() => {
     if (estimation && !packagesManuallyUpdated) {

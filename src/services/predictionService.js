@@ -142,7 +142,7 @@ export function calculateSmartPrediction(todayMail, history) {
   return calculateVolumeWeightedPrediction(similarDayTypes, todayMail, todayDayType);
 }
 
-export function calculateFullDayPrediction(todayMail, routeConfig, history, waypoints = null) {
+export async function calculateFullDayPrediction(todayMail, routeConfig, history, waypoints = null, routeId = null) {
   let streetPrediction = calculateSmartPrediction(todayMail, history);
   let totalStreetTime;
 
@@ -241,8 +241,8 @@ export function calculateFullDayPrediction(todayMail, routeConfig, history, wayp
   let waypointEnhanced = false;
   let returnTimeEstimate = null;
 
-  if (waypoints && waypoints.length > 0 && history) {
-    const predictions = predictWaypointTimes(waypoints, leaveOfficeTime, history);
+  if (waypoints && waypoints.length > 0 && routeId) {
+    const predictions = await predictWaypointTimes(waypoints, leaveOfficeTime, routeId);
     returnTimeEstimate = estimateReturnTime(waypoints, predictions, leaveOfficeTime);
 
     if (returnTimeEstimate && returnTimeEstimate.predictedReturnTime) {

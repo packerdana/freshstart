@@ -32,6 +32,7 @@ export default function TodayScreen() {
   const [notes, setNotes] = useState('');
   const [showEodReport, setShowEodReport] = useState(false);
   const [eodReportData, setEodReportData] = useState(null);
+  const [prediction, setPrediction] = useState(null);
 
   useEffect(() => {
     const timer = setInterval(() => setDate(new Date()), 60000);
@@ -107,28 +108,41 @@ export default function TodayScreen() {
     }
   };
 
-  const prediction = useMemo(() => {
-    const hasInput = todayInputs.dps || todayInputs.flats || todayInputs.letters ||
-                     todayInputs.parcels || todayInputs.sprs;
+  useEffect(() => {
+    async function loadPrediction() {
+      const hasInput = todayInputs.dps || todayInputs.flats || todayInputs.letters ||
+                       todayInputs.parcels || todayInputs.sprs;
 
-    if (!hasInput) return null;
+      if (!hasInput) {
+        setPrediction(null);
+        return;
+      }
 
-    const todayMail = {
-      dps: todayInputs.dps || 0,
-      flats: todayInputs.flats || 0,
-      letters: todayInputs.letters || 0,
-      parcels: todayInputs.parcels || 0,
-      sprs: todayInputs.sprs || 0,
-      curtailed: 0,
-      safetyTalk: todayInputs.safetyTalk || 0,
-      hasBoxholder: todayInputs.hasBoxholder || false,
-    };
+      const todayMail = {
+        dps: todayInputs.dps || 0,
+        flats: todayInputs.flats || 0,
+        letters: todayInputs.letters || 0,
+        parcels: todayInputs.parcels || 0,
+        sprs: todayInputs.sprs || 0,
+        curtailed: 0,
+        safetyTalk: todayInputs.safetyTalk || 0,
+        hasBoxholder: todayInputs.hasBoxholder || false,
+      };
 
-    const routeConfig = getCurrentRouteConfig();
-    const routeHistory = history || [];
+      const routeConfig = getCurrentRouteConfig();
+      const routeHistory = history || [];
 
-    return calculateFullDayPrediction(todayMail, routeConfig, routeHistory);
-  }, [todayInputs, history, getCurrentRouteConfig]);
+      try {
+        const pred = await calculateFullDayPrediction(todayMail, routeConfig, routeHistory, waypoints, currentRouteId);
+        setPrediction(pred);
+      } catch (error) {
+        console.error('[TodayScreen] Error calculating prediction:', error);
+        setPrediction(null);
+      }
+    }
+
+    loadPrediction();
+  }, [todayInputs, history, waypoints, currentRouteId, getCurrentRouteConfig]);
 
   const handleInputChange = (field, value) => {
     const isDecimalField = field === 'flats' || field === 'letters';
