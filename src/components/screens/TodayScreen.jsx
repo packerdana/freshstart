@@ -74,6 +74,7 @@ export default function TodayScreen() {
         setNotes(session.notes || '');
         const duration = pmOfficeService.calculateCurrentDuration(session);
         setPmOfficeTime(duration);
+        setRouteStarted(true);
       }
     } catch (error) {
       console.error('Error loading active session:', error);
@@ -88,7 +89,8 @@ export default function TodayScreen() {
         const duration = streetTimeService.calculateCurrentDuration(session);
         setStreetTime(duration);
         setRouteStarted(true);
-      } else if (routeStarted && !session) {
+      } else if (routeStarted && !session && !pmOfficeSession) {
+        // Only set routeStarted to false if BOTH street and PM office sessions are inactive
         setRouteStarted(false);
       }
     } catch (error) {
@@ -176,6 +178,7 @@ export default function TodayScreen() {
       setPmOfficeSession(session);
       setPmOfficeTime(0);
       setNotes('');
+      setRouteStarted(true);
       await loadWeekTotal();
 
       if (streetTimeEnded) {
