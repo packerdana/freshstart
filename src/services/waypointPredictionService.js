@@ -160,7 +160,9 @@ export function predictWaypointTimes(waypoints, startTime, history) {
         const defaultIncrement = 6;
         const stopsFromLast = index - lastCompletedIndex;
         const predictedMinutes = timeDifference(baseStartTime, lastCompletedTime) + (defaultIncrement * stopsFromLast);
-        const predictedTime = addMinutes(baseStartTime, predictedMinutes);
+        
+        // FIX: Use native Date math instead of addMinutes utility
+        const predictedTime = new Date(baseStartTime.getTime() + predictedMinutes * 60 * 1000);
 
         return {
           ...waypoint,
@@ -180,14 +182,17 @@ export function predictWaypointTimes(waypoints, startTime, history) {
 
     const historicalMinutesFromStart = average.averageMinutes;
     const adjustedMinutesFromStart = historicalMinutesFromStart + paceAdjustment;
-    const predictedTime = addMinutes(baseStartTime, adjustedMinutesFromStart);
+    
+    // FIX: Use native Date math instead of potentially broken addMinutes utility
+    // This creates a new Date by adding milliseconds to the base start time
+    const predictedTime = new Date(baseStartTime.getTime() + adjustedMinutesFromStart * 60 * 1000);
 
-    console.log(`[PREDICTION] ${waypointName}: ${historicalMinutesFromStart} min from start → ${predictedTime.toISOString()}`);
+    console.log(`[PREDICTION] ${waypointName}: ${historicalMinutesFromStart} min from start (adjusted: ${adjustedMinutesFromStart}) → ${predictedTime.toLocaleTimeString()}`);
 
     return {
       ...waypoint,
       predictedTime,
-      predictedMinutes: historicalMinutesFromStart,
+      predictedMinutes: adjustedMinutesFromStart,
       confidence: average.confidence,
       sampleSize: average.sampleSize
     };
@@ -196,7 +201,8 @@ export function predictWaypointTimes(waypoints, startTime, history) {
   console.log('Generated predictions:', predictions.map(p => ({
     id: p.id,
     address: p.address || p.name,
-    predictedTime: p.predictedTime,
+    predictedTime: p.predictedTime ? p.predictedTime.toLocaleTimeString() : 'none',
+    predictedMinutes: p.predictedMinutes,
     confidence: p.confidence
   })));
 
