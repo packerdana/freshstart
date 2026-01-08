@@ -94,80 +94,102 @@ export function predictWaypointTimes(waypoints, startTime, history) {
 
   console.log('Calculated waypoint averages:', allAverages);
 
-  let currentTime = baseStartTime;
   let lastCompletedIndex = -1;
+  let lastCompletedTime = baseStartTime;
 
   waypoints.forEach((wp, index) => {
     if (wp.status === 'completed' && wp.delivery_time) {
       lastCompletedIndex = index;
-      currentTime = new Date(wp.delivery_time);
+      lastCompletedTime = new Date(wp.delivery_time);
     }
   });
 
-  const predictions = waypoints.map((waypoint, index) => {
+  const completedWaypoints = waypoints.filter((wp, idx) => idx <= lastCompletedIndex && wp.status === 'completed' && wp.delivery_time);
+  let averagePaceMinutes = 6;
+
+  if (completedWaypoints.length >= 2) {
+    const times = completedWaypoints.map(wp => new Date(wp.delivery_time));
+    const totalTimeMinutes = timeDifference(times[0], times[times.length - 1]);
+    averagePaceMinutes = totalTimeMinutes / (completedWaypoints.length - 1);
+    console.log(`Calculated pace from ${completedWaypoints.length} completed waypoints: ${averagePaceMinutes.toFixed(1)} min/stop`);
+  } else if (completedWaypoints.length === 1) {
+    const firstWaypointName = completedWaypoints[0].address || completedWaypoints[0].name;
+    const firstAvg = allAverages.find(avg => avg.name === firstWaypointName);
+    if (firstAvg && firstAvg.averageMinutes > 0) {
+      averagePaceMinutes = firstAvg.averageMinutes;
+      console.log(`Using historical average for first waypoint as pace: ${averagePaceMinutes} min`);
+    }
+  }
+
+  const predictions = [];
+  let cumulativeTime = lastCompletedTime;
+
+  for (let index = 0; index < waypoints.length; index++) {
+    const waypoint = waypoints[index];
+
     if (waypoint.status === 'completed' && waypoint.delivery_time) {
       const deliveryTime = new Date(waypoint.delivery_time);
       const elapsed = timeDifference(baseStartTime, deliveryTime);
-      return {
+      predictions.push({
         ...waypoint,
         predictedTime: deliveryTime,
         predictedMinutes: elapsed,
         actualMinutes: elapsed,
         confidence: 'actual',
         variance: 0
-      };
+      });
+      cumulativeTime = deliveryTime;
+      continue;
+    }
+
+    if (index <= lastCompletedIndex) {
+      predictions.push({
+        ...waypoint,
+        predictedTime: null,
+        predictedMinutes: null,
+        confidence: 'none'
+      });
+      continue;
     }
 
     const waypointName = waypoint.address || waypoint.name;
     const average = allAverages.find(avg => avg.name === waypointName);
 
-    if (!average) {
-      console.log(`No historical average found for waypoint: "${waypointName}"`);
-      return {
+    if (index === 0 && lastCompletedIndex === -1) {
+      const predictedTime = average ? addMinutes(baseStartTime, average.averageMinutes) : addMinutes(baseStartTime, averagePaceMinutes);
+      predictions.push({
         ...waypoint,
-        predictedTime: null,
-        predictedMinutes: null,
-        confidence: 'none'
-      };
-    }
-
-    let baseTime = baseStartTime;
-    let elapsedSoFar = 0;
-
-    if (lastCompletedIndex >= 0) {
-      baseTime = currentTime;
-
-      const remainingWaypoints = waypoints.slice(lastCompletedIndex + 1, index + 1);
-      elapsedSoFar = remainingWaypoints.reduce((sum, wp) => {
-        const wpName = wp.address || wp.name;
-        const wpAvg = allAverages.find(avg => avg.name === wpName);
-        if (!wpAvg) return sum;
-
-        const lastWpName = waypoints[lastCompletedIndex].address || waypoints[lastCompletedIndex].name;
-        const lastWpAvg = lastCompletedIndex >= 0
-          ? allAverages.find(avg => avg.name === lastWpName)
-          : null;
-
-        const increment = lastWpAvg
-          ? Math.max(0, wpAvg.averageMinutes - lastWpAvg.averageMinutes)
-          : wpAvg.averageMinutes;
-
-        return sum + increment;
-      }, 0);
+        predictedTime,
+        predictedMinutes: average?.averageMinutes || averagePaceMinutes,
+        confidence: average?.confidence || 'low',
+        sampleSize: average?.sampleSize
+      });
+      cumulativeTime = predictedTime;
     } else {
-      elapsedSoFar = average.averageMinutes;
+      const prevWaypoint = waypoints[index - 1];
+      const prevWaypointName = prevWaypoint.address || prevWaypoint.name;
+      const prevAvg = allAverages.find(avg => avg.name === prevWaypointName);
+      const currentAvg = allAverages.find(avg => avg.name === waypointName);
+
+      let incrementMinutes = averagePaceMinutes;
+
+      if (prevAvg && currentAvg && currentAvg.averageMinutes > prevAvg.averageMinutes) {
+        incrementMinutes = currentAvg.averageMinutes - prevAvg.averageMinutes;
+      } else if (!prevAvg && currentAvg) {
+        incrementMinutes = currentAvg.averageMinutes;
+      }
+
+      const predictedTime = addMinutes(cumulativeTime, incrementMinutes);
+      predictions.push({
+        ...waypoint,
+        predictedTime,
+        predictedMinutes: incrementMinutes,
+        confidence: currentAvg?.confidence || 'low',
+        sampleSize: currentAvg?.sampleSize
+      });
+      cumulativeTime = predictedTime;
     }
-
-    const predictedTime = addMinutes(baseTime, elapsedSoFar);
-
-    return {
-      ...waypoint,
-      predictedTime,
-      predictedMinutes: average.averageMinutes,
-      confidence: average.confidence,
-      sampleSize: average.sampleSize
-    };
-  });
+  }
 
   return predictions;
 }
