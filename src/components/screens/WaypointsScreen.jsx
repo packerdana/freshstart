@@ -410,12 +410,36 @@ export default function WaypointsScreen() {
                 className="w-full mb-4 flex items-center justify-center gap-2 bg-amber-50 border-amber-300 text-amber-900 hover:bg-amber-100"
                 disabled={!currentRouteId}
               >
-                <AlertCircle className="w-4 h-4" />
-                Remove Duplicate Waypoints
-              </Button>
-            )}
-          </>
-        )}
+               let variance = null;
+              if (hasActualTime && hasPrediction && prediction.predictedMinutes) {
+              // Parse start time correctly (handle both full timestamps and time-only strings)
+                const startTimeStr = todayInputs.leaveOfficeTime || routeConfig?.startTime || '07:30';
+                let startTime;
+  
+              // Try parsing as full timestamp first
+                const tempDate = new Date(startTimeStr);
+              if (!isNaN(tempDate.getTime())) {
+                  startTime = tempDate;
+              } else {
+              // Parse as time-only string (HH:MM format)
+                const timeMatch = startTimeStr.match(/^(\d{1,2}):(\d{2})$/);
+              if (timeMatch) {
+                const today = new Date(waypoint.delivery_time); // Use same date as delivery
+                today.setHours(parseInt(timeMatch[1], 10), parseInt(timeMatch[2], 10), 0, 0);
+                startTime = today;
+              } else {
+              // Fallback: can't calculate variance
+                startTime = null;
+                }
+              }
+  
+              if (startTime) {
+                const actualMinutes = Math.round(
+                (new Date(waypoint.delivery_time) - startTime) / (1000 * 60)
+              );
+                variance = actualMinutes - prediction.predictedMinutes;
+                }
+              }
 
         <div className="relative">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
