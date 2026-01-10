@@ -410,7 +410,11 @@ export default function WaypointsScreen() {
                 className="w-full mb-4 flex items-center justify-center gap-2 bg-amber-50 border-amber-300 text-amber-900 hover:bg-amber-100"
                 disabled={!currentRouteId}
               >
-               let variance = null;
+                <AlertCircle className="w-4 h-4" />
+                Remove Duplicate Waypoints
+              </Button>
+            )}
+            let variance = null;
               if (hasActualTime && hasPrediction && prediction.predictedMinutes) {
               // Parse start time correctly (handle both full timestamps and time-only strings)
                 const startTimeStr = todayInputs.leaveOfficeTime || routeConfig?.startTime || '07:30';
