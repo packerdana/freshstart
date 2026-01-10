@@ -27,6 +27,7 @@ export default function TodayScreen() {
   const [pmOfficeTime, setPmOfficeTime] = useState(0);
   const [streetTimeSession, setStreetTimeSession] = useState(null);
   const [streetTime, setStreetTime] = useState(0);
+  const [completedStreetTimeMinutes, setCompletedStreetTimeMinutes] = useState(null); // NEW: Preserve street time when session ends
   const [weekTotal, setWeekTotal] = useState(0);
   const [showNotes, setShowNotes] = useState(false);
   const [notes, setNotes] = useState('');
@@ -160,6 +161,7 @@ export default function TodayScreen() {
       const session = await streetTimeService.startSession(currentRouteId);
       setStreetTimeSession(session);
       setStreetTime(0);
+      setCompletedStreetTimeMinutes(null); // Clear any previous completed time
       setRouteStarted(true);
       console.log('Route started with data:', todayInputs);
       console.log('Street time tracking started:', session);
@@ -172,6 +174,7 @@ export default function TodayScreen() {
   const handleCancelRoute = () => {
     if (confirm('Cancel route start? Your mail volume data will be kept.')) {
       setRouteStarted(false);
+      setCompletedStreetTimeMinutes(null); // Clear preserved time
     }
   };
 
@@ -182,6 +185,11 @@ export default function TodayScreen() {
       if (streetTimeSession && !streetTimeSession.end_time) {
         const endedSession = await streetTimeService.endSession(streetTimeSession.id);
         const durationMinutes = Math.round(endedSession.duration_minutes);
+        
+        // FIXED: Preserve the street time before clearing the state
+        setCompletedStreetTimeMinutes(durationMinutes);
+        console.log(`✓ Street time preserved: ${durationMinutes} minutes`);
+        
         setStreetTimeSession(null);
         setStreetTime(0);
         streetTimeEnded = true;
@@ -289,7 +297,12 @@ export default function TodayScreen() {
           console.log('Auto-ending active street time session during route completion...');
           const endedSession = await streetTimeService.endSession(streetTimeSession.id);
           streetTimeMinutes = Math.round(endedSession.duration_minutes);
+          
+          // FIXED: Preserve the street time before clearing the state
+          setCompletedStreetTimeMinutes(streetTimeMinutes);
+          console.log(`✓ Street time preserved during completion: ${streetTimeMinutes} minutes`);
           console.log(`Street time (721) automatically ended: ${streetTimeMinutes} minutes`);
+          
           setStreetTimeSession(null);
           setStreetTime(0);
         } catch (error) {
@@ -376,6 +389,7 @@ export default function TodayScreen() {
 
       setShowCompletionDialog(false);
       setRouteStarted(false);
+      setCompletedStreetTimeMinutes(null); // Clear preserved time after successful completion
       await loadWeekTotal();
 
       const updatedWeekTotal = await getWeekTotalMinutes();
@@ -808,7 +822,7 @@ export default function TodayScreen() {
         <RouteCompletionDialog
           prediction={prediction}
           todayInputs={todayInputs}
-          calculatedStreetTime={Math.round(streetTime / 60)}
+          calculatedStreetTime={completedStreetTimeMinutes}
           onComplete={handleCompleteRoute}
           onCancel={() => setShowCompletionDialog(false)}
         />
