@@ -1,6 +1,46 @@
 import { supabase } from '../lib/supabase';
 import { calculatePenaltyOT, getWorkweekStart, getWorkweekEnd } from '../utils/uspsConstants';
 
+/**
+ * Convert snake_case database fields to camelCase for prediction service
+ * This ensures historical data works with calculateSmartPrediction()
+ */
+function convertHistoryFieldNames(dbRecord) {
+  if (!dbRecord) return null;
+  
+  return {
+    id: dbRecord.id,
+    routeId: dbRecord.route_id,
+    date: dbRecord.date,
+    dps: dbRecord.dps,
+    flats: dbRecord.flats,
+    letters: dbRecord.letters,
+    parcels: dbRecord.parcels,
+    sprs: dbRecord.spurs, // Note: database uses 'spurs', code uses 'sprs'
+    curtailed: dbRecord.curtailed,
+    safetyTalk: dbRecord.safety_talk,
+    streetTime: dbRecord.street_time,
+    streetTimeNormalized: dbRecord.street_time_normalized,
+    officeTime: dbRecord.office_time,
+    dayType: dbRecord.day_type,
+    overtime: dbRecord.overtime,
+    auxiliaryAssistance: dbRecord.auxiliary_assistance,
+    mailNotDelivered: dbRecord.mail_not_delivered,
+    notes: dbRecord.notes,
+    pmOfficeTime: dbRecord.pm_office_time,
+    waypointTimings: dbRecord.waypoint_timings,
+    penaltyOvertime: dbRecord.penalty_overtime,
+    isNsDay: dbRecord.is_ns_day,
+    weeklyHours: dbRecord.weekly_hours,
+    predictedLeaveTime: dbRecord.predicted_leave_time,
+    actualLeaveTime: dbRecord.actual_leave_time,
+    predictedOfficeTime: dbRecord.predicted_office_time,
+    actualOfficeTime: dbRecord.actual_office_time,
+    createdAt: dbRecord.created_at,
+    updatedAt: dbRecord.updated_at,
+  };
+}
+
 export async function saveRouteHistory(routeId, historyData, waypoints = null) {
   if (!routeId || routeId === 'temp-route-id') {
     console.warn('No valid route ID - route history not saved to database');
@@ -102,7 +142,8 @@ export async function saveRouteHistory(routeId, historyData, waypoints = null) {
     throw error;
   }
 
-  return data;
+  // Convert to camelCase before returning
+  return convertHistoryFieldNames(data);
 }
 
 export async function updateRouteHistory(id, updates) {
@@ -121,7 +162,8 @@ export async function updateRouteHistory(id, updates) {
     throw error;
   }
 
-  return data;
+  // Convert to camelCase before returning
+  return convertHistoryFieldNames(data);
 }
 
 export async function getRouteHistory(routeId, limit = 30) {
@@ -137,7 +179,8 @@ export async function getRouteHistory(routeId, limit = 30) {
     throw error;
   }
 
-  return data || [];
+  // FIXED: Convert snake_case to camelCase for prediction service
+  return (data || []).map(convertHistoryFieldNames);
 }
 
 export async function getTodayRouteHistory(routeId, date) {
@@ -153,7 +196,8 @@ export async function getTodayRouteHistory(routeId, date) {
     throw error;
   }
 
-  return data;
+  // Convert to camelCase before returning
+  return convertHistoryFieldNames(data);
 }
 
 export async function deleteRouteHistory(id) {
