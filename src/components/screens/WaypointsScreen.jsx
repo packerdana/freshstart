@@ -415,8 +415,7 @@ export default function WaypointsScreen() {
               // Parse start time correctly (handle both full timestamps and time-only strings)
                 const startTimeStr = todayInputs.leaveOfficeTime || routeConfig?.startTime || '07:30';
                 let startTime;
-  
-              // Try parsing as full timestamp first
+                // Try parsing as full timestamp first
                 const tempDate = new Date(startTimeStr);
               if (!isNaN(tempDate.getTime())) {
                   startTime = tempDate;
