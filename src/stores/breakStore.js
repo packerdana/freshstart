@@ -194,7 +194,7 @@ const useBreakStore = create((set, get) => ({
     return true;
   },
 
-  endLoadTruck: async (userId = null) => {
+  endLoadTruck: async (userId = null, routeStore = null) => {
     const { loadTruckTime, loadTruckPackageCount, todaysBreaks } = get();
     const duration = Math.round(loadTruckTime / 60);
     const loadingTimeMs = loadTruckTime * 1000;
@@ -203,6 +203,12 @@ const useBreakStore = create((set, get) => ({
 
     if (userId) {
       await smartLoadMonitor.saveLoadingEntry(userId, loadTruckPackageCount, loadingTimeMs);
+    }
+
+    // ADDED: Save loading time to routeStore so it can be included in 721 street time
+    if (routeStore && duration > 0) {
+      routeStore.getState().setPreRouteLoadingMinutes(duration);
+      console.log(`✓ Pre-route loading time saved: ${duration} minutes (will be included when route starts)`);
     }
 
     set({
