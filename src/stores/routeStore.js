@@ -44,6 +44,11 @@ const useRouteStore = create(
 
       routeStarted: false,
 
+      // ADDED: Track pre-route loading time for carriers who load before starting route
+      preRouteLoadingMinutes: 0,
+
+      setPreRouteLoadingMinutes: (minutes) => set({ preRouteLoadingMinutes: minutes }),
+
       checkAndResetDailyData: () => {
         const today = getLocalDateString(new Date());
         const lastReset = get().lastResetDate;
@@ -63,6 +68,7 @@ const useRouteStore = create(
               hasBoxholder: false,
             },
             routeStarted: false,
+            preRouteLoadingMinutes: 0, // ADDED: Reset loading time daily
             lastResetDate: today,
             waypoints: [],
           });
@@ -498,6 +504,7 @@ const useRouteStore = create(
         todayInputs: state.todayInputs,
         routeStarted: state.routeStarted,
         lastResetDate: state.lastResetDate,
+        preRouteLoadingMinutes: state.preRouteLoadingMinutes, // ADDED: Persist loading time
       }),
     }
   )
