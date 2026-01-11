@@ -159,12 +159,26 @@ export default function TodayScreen() {
         return;
       }
 
-      const session = await streetTimeService.startSession(currentRouteId);
+      // ADDED: Get pre-route loading time if carrier loaded truck before starting route
+      const preRouteLoadingMinutes = useRouteStore.getState().preRouteLoadingMinutes || 0;
+      
+      if (preRouteLoadingMinutes > 0) {
+        console.log(`Including ${preRouteLoadingMinutes} minutes of pre-route loading time in 721 street time`);
+      }
+
+      const session = await streetTimeService.startSession(currentRouteId, preRouteLoadingMinutes);
       setStreetTimeSession(session);
       setStreetTime(0);
       setCompletedStreetTimeMinutes(null); // Clear any previous completed time
       setStreetStartTime(null); // Clear any previous start time
       setRouteStarted(true);
+      
+      // ADDED: Clear pre-route loading time after using it
+      if (preRouteLoadingMinutes > 0) {
+        useRouteStore.getState().setPreRouteLoadingMinutes(0);
+        console.log('✓ Pre-route loading time cleared from state');
+      }
+      
       console.log('Route started with data:', todayInputs);
       console.log('Street time tracking started:', session);
     } catch (error) {
