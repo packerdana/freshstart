@@ -9,11 +9,13 @@ import PackageProgressCard from '../shared/PackageProgressCard';
 import RouteCompletionDialog from '../shared/RouteCompletionDialog';
 import WorkOffRouteModal from '../shared/WorkOffRouteModal';
 import EndOfDayReport from '../shared/EndOfDayReport';
+import ForgotRouteDialog from '../shared/ForgotRouteDialog';
 import useRouteStore from '../../stores/routeStore';
 import { calculateFullDayPrediction } from '../../services/predictionService';
 import { saveRouteHistory, getWeekTotalMinutes } from '../../services/routeHistoryService';
 import { pmOfficeService } from '../../services/pmOfficeService';
 import { streetTimeService } from '../../services/streetTimeService';
+import { offRouteService } from '../../services/offRouteService';
 import { DEFAULT_ROUTE_CONFIG } from '../../utils/constants';
 import { getLocalDateString, formatTimeAMPM } from '../../utils/time';
 import { supabase } from '../../lib/supabase';
@@ -27,14 +29,23 @@ export default function TodayScreen() {
   const [pmOfficeTime, setPmOfficeTime] = useState(0);
   const [streetTimeSession, setStreetTimeSession] = useState(null);
   const [streetTime, setStreetTime] = useState(0);
-  const [completedStreetTimeMinutes, setCompletedStreetTimeMinutes] = useState(null); // NEW: Preserve street time when session ends
-  const [streetStartTime, setStreetStartTime] = useState(null); // NEW: Preserve street start time for office time calculation
+  const [completedStreetTimeMinutes, setCompletedStreetTimeMinutes] = useState(null);
+  const [streetStartTime, setStreetStartTime] = useState(null);
   const [weekTotal, setWeekTotal] = useState(0);
   const [showNotes, setShowNotes] = useState(false);
   const [notes, setNotes] = useState('');
   const [showEodReport, setShowEodReport] = useState(false);
   const [eodReportData, setEodReportData] = useState(null);
   const [prediction, setPrediction] = useState(null);
+  
+  // NEW: Forgot route feature
+  const [showForgotRouteDialog, setShowForgotRouteDialog] = useState(false);
+  const [showBannerNudge, setShowBannerNudge] = useState(false);
+  const [bannerSnoozedUntil, setBannerSnoozedUntil] = useState(null);
+  
+  // NEW: Off-route tracking
+  const [offRouteSession, setOffRouteSession] = useState(null);
+  const [offRouteTime, setOffRouteTime] = useState(0);
 
   useEffect(() => {
     const timer = setInterval(() => setDate(new Date()), 60000);
@@ -44,6 +55,7 @@ export default function TodayScreen() {
   useEffect(() => {
     loadActiveSession();
     loadStreetTimeSession();
+    loadOffRouteSession();
     loadWeekTotal();
   }, []);
 
@@ -69,6 +81,42 @@ export default function TodayScreen() {
     return () => clearInterval(interval);
   }, [streetTimeSession]);
 
+  // NEW: Off-route timer effect
+  useEffect(() => {
+    if (!offRouteSession) return;
+
+    const interval = setInterval(() => {
+      const duration = offRouteService.calculateCurrentDuration(offRouteSession);
+      setOffRouteTime(duration);
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [offRouteSession]);
+
+  // NEW: Banner nudge detection
+  useEffect(() => {
+    if (!prediction || !streetTimeSession || !routeStarted) {
+      setShowBannerNudge(false);
+      return;
+    }
+
+    // Don't show if already snoozed
+    if (bannerSnoozedUntil && Date.now() < bannerSnoozedUntil) {
+      return;
+    }
+
+    // Check if past predicted end time + 15 minutes
+    const predictedEndTime = prediction.clockOutTime;
+    const now = new Date();
+    const minutesPastPredicted = Math.round((now - predictedEndTime) / 1000 / 60);
+
+    if (minutesPastPredicted >= 15) {
+      setShowBannerNudge(true);
+    } else {
+      setShowBannerNudge(false);
+    }
+  }, [prediction, streetTimeSession, routeStarted, bannerSnoozedUntil]);
+
   const loadActiveSession = async () => {
     try {
       const session = await pmOfficeService.getActiveSession();
@@ -93,11 +141,24 @@ export default function TodayScreen() {
         setStreetTime(duration);
         setRouteStarted(true);
       } else if (routeStarted && !session && !pmOfficeSession) {
-        // Only set routeStarted to false if BOTH street and PM office sessions are inactive
         setRouteStarted(false);
       }
     } catch (error) {
       console.error('Error loading street time session:', error);
+    }
+  };
+
+  // NEW: Load off-route session
+  const loadOffRouteSession = async () => {
+    try {
+      const session = await offRouteService.getActiveOffRouteSession();
+      setOffRouteSession(session);
+      if (session) {
+        const duration = offRouteService.calculateCurrentDuration(session);
+        setOffRouteTime(duration);
+      }
+    } catch (error) {
+      console.error('Error loading off-route session:', error);
     }
   };
 
@@ -159,7 +220,6 @@ export default function TodayScreen() {
         return;
       }
 
-      // ADDED: Get pre-route loading time if carrier loaded truck before starting route
       const preRouteLoadingMinutes = useRouteStore.getState().preRouteLoadingMinutes || 0;
       
       if (preRouteLoadingMinutes > 0) {
@@ -169,11 +229,10 @@ export default function TodayScreen() {
       const session = await streetTimeService.startSession(currentRouteId, preRouteLoadingMinutes);
       setStreetTimeSession(session);
       setStreetTime(0);
-      setCompletedStreetTimeMinutes(null); // Clear any previous completed time
-      setStreetStartTime(null); // Clear any previous start time
+      setCompletedStreetTimeMinutes(null);
+      setStreetStartTime(null);
       setRouteStarted(true);
       
-      // ADDED: Clear pre-route loading time after using it
       if (preRouteLoadingMinutes > 0) {
         useRouteStore.getState().setPreRouteLoadingMinutes(0);
         console.log('✓ Pre-route loading time cleared from state');
@@ -190,40 +249,34 @@ export default function TodayScreen() {
   const handleCancelRoute = () => {
     if (confirm('Cancel route start? Your mail volume data will be kept.')) {
       setRouteStarted(false);
-      setCompletedStreetTimeMinutes(null); // Clear preserved time
-      setStreetStartTime(null); // Clear preserved start time
+      setCompletedStreetTimeMinutes(null);
+      setStreetStartTime(null);
     }
   };
 
   const handleStartPmOffice = async () => {
     try {
       let streetTimeEnded = false;
+      let durationMinutes = 0;
 
       if (streetTimeSession && !streetTimeSession.end_time) {
         const endedSession = await streetTimeService.endSession(streetTimeSession.id);
-        const durationMinutes = Math.round(endedSession.duration_minutes);
-        
-        // FIXED: Preserve the street time and start time before clearing the state
+        durationMinutes = Math.round(endedSession.duration_minutes);
         setCompletedStreetTimeMinutes(durationMinutes);
-        setStreetStartTime(streetTimeSession.start_time); // ✅ Preserve start time
+        setStreetStartTime(streetTimeSession.start_time);
         console.log(`✓ Street time preserved: ${durationMinutes} minutes (started at ${streetTimeSession.start_time})`);
-        
-        setStreetTimeSession(null);
         setStreetTime(0);
         streetTimeEnded = true;
-        console.log(`Street time automatically ended: ${durationMinutes} minutes`);
+        console.log('Street time ended:', durationMinutes, 'minutes');
       }
 
-      const session = await pmOfficeService.startSession();
+      if (!streetTimeEnded) {
+        console.log('Starting PM Office without ending street time');
+      }
+
+      const session = await pmOfficeService.startSession(notes || null);
       setPmOfficeSession(session);
-      setPmOfficeTime(0);
-      setNotes('');
-      setRouteStarted(true);
-      await loadWeekTotal();
-
-      if (streetTimeEnded) {
-        alert('✓ Street time (721) automatically stopped and PM Office time (744) started.');
-      }
+      console.log('PM Office session started:', session);
     } catch (error) {
       console.error('Error starting PM Office:', error);
       alert(error.message || 'Failed to start PM Office timer');
@@ -239,12 +292,10 @@ export default function TodayScreen() {
       setPmOfficeTime(0);
       setNotes('');
       setShowNotes(false);
-      await loadWeekTotal();
-      const duration = Math.round(pmOfficeTime / 60);
-      alert(`PM Office completed: ${duration} minutes`);
+      console.log('PM Office ended');
     } catch (error) {
-      console.error('Error stopping PM Office:', error);
-      alert('Failed to stop PM Office timer');
+      console.error('Error ending PM Office:', error);
+      alert(error.message || 'Failed to end PM Office timer');
     }
   };
 
@@ -252,8 +303,9 @@ export default function TodayScreen() {
     if (!pmOfficeSession) return;
 
     try {
-      const updated = await pmOfficeService.pauseSession(pmOfficeSession.id);
-      setPmOfficeSession(updated);
+      await pmOfficeService.pauseSession(pmOfficeSession.id);
+      loadActiveSession();
+      console.log('PM Office paused');
     } catch (error) {
       console.error('Error pausing PM Office:', error);
       alert(error.message || 'Failed to pause PM Office timer');
@@ -264,8 +316,9 @@ export default function TodayScreen() {
     if (!pmOfficeSession) return;
 
     try {
-      const updated = await pmOfficeService.resumeSession(pmOfficeSession.id);
-      setPmOfficeSession(updated);
+      await pmOfficeService.resumeSession(pmOfficeSession.id);
+      loadActiveSession();
+      console.log('PM Office resumed');
     } catch (error) {
       console.error('Error resuming PM Office:', error);
       alert(error.message || 'Failed to resume PM Office timer');
@@ -296,6 +349,41 @@ export default function TodayScreen() {
     return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
   };
 
+  // NEW: Complete route click handler - ends timer FIRST
+  const handleCompleteRouteClick = async () => {
+    try {
+      let actualStreetMinutes = 0;
+      
+      if (streetTimeSession && !streetTimeSession.end_time) {
+        console.log('Ending street timer before opening dialog...');
+        const endedSession = await streetTimeService.endSession(streetTimeSession.id);
+        actualStreetMinutes = Math.round(endedSession.duration_minutes);
+        
+        setCompletedStreetTimeMinutes(actualStreetMinutes);
+        setStreetStartTime(streetTimeSession.start_time);
+        
+        console.log(`✓ Street timer ended: ${actualStreetMinutes} minutes`);
+        
+        setStreetTimeSession(null);
+        setStreetTime(0);
+      }
+      
+      // Check if running long (forgot route detection)
+      const predictedStreetMinutes = Math.round(prediction?.streetTime || 0);
+      const runningLong = actualStreetMinutes > (predictedStreetMinutes + 15);
+      
+      if (runningLong && predictedStreetMinutes > 0) {
+        console.log(`Route running long: ${actualStreetMinutes} min (predicted: ${predictedStreetMinutes} min)`);
+        setShowForgotRouteDialog(true);
+      } else {
+        setShowCompletionDialog(true);
+      }
+    } catch (error) {
+      console.error('Error in handleCompleteRouteClick:', error);
+      alert(`Error: ${error.message}`);
+    }
+  };
+
   const handleCompleteRoute = async (completionData) => {
     console.log('handleCompleteRoute - currentRouteId:', currentRouteId);
 
@@ -316,9 +404,8 @@ export default function TodayScreen() {
           const endedSession = await streetTimeService.endSession(streetTimeSession.id);
           streetTimeMinutes = Math.round(endedSession.duration_minutes);
           
-          // FIXED: Preserve the street time and start time before clearing the state
           setCompletedStreetTimeMinutes(streetTimeMinutes);
-          setStreetStartTime(streetTimeSession.start_time); // ✅ Preserve start time
+          setStreetStartTime(streetTimeSession.start_time);
           console.log(`✓ Street time preserved during completion: ${streetTimeMinutes} minutes (started at ${streetTimeSession.start_time})`);
           console.log(`Street time (721) automatically ended: ${streetTimeMinutes} minutes`);
           
@@ -347,29 +434,23 @@ export default function TodayScreen() {
 
       const currentRoute = getCurrentRouteConfig();
 
-      // FIXED: Calculate actual 722 office time from street start time
       let actualOfficeTime = prediction?.officeTime || 0;
       
-      // Try to get street start time from active session or preserved value
       const streetStartTimeValue = streetTimeSession?.start_time || streetStartTime;
       
-      // If we have a street start time, calculate actual office time
       if (streetStartTimeValue) {
         const routeStartTimeStr = todayInputs.leaveOfficeTime || currentRoute?.startTime || '07:30';
         
-        // Parse route start time (HH:MM format) to today's date
         const timeMatch = routeStartTimeStr.match(/^(\d{1,2}):(\d{2})$/);
         if (timeMatch) {
-          const routeStartDate = new Date(streetStartTimeValue); // Use same date as street start
+          const routeStartDate = new Date(streetStartTimeValue);
           routeStartDate.setHours(parseInt(timeMatch[1], 10), parseInt(timeMatch[2], 10), 0, 0);
           
           const streetStartDate = new Date(streetStartTimeValue);
           
-          // Calculate actual office time in minutes
           const officeTimeMs = streetStartDate - routeStartDate;
           const calculatedOfficeTime = Math.round(officeTimeMs / (1000 * 60));
           
-          // Use calculated time if it's reasonable (between 0 and 3 hours)
           if (calculatedOfficeTime >= 0 && calculatedOfficeTime <= 180) {
             actualOfficeTime = calculatedOfficeTime;
             console.log(`✓ Actual 722 office time calculated: ${calculatedOfficeTime} minutes (${routeStartTimeStr} → ${new Date(streetStartTimeValue).toLocaleTimeString()})`);
@@ -401,303 +482,237 @@ export default function TodayScreen() {
         letters: todayInputs.letters || 0,
         parcels: todayInputs.parcels || 0,
         sprs: todayInputs.sprs || 0,
+        scannerTotal: todayInputs.scannerTotal || 0,
+        curtailed: 0,
+        officeTime: actualOfficeTime,
         streetTime: actualStreetTime,
-        officeTime: prediction?.officeTime,
-        overtime: actualOvertime,
-        auxiliaryAssistance: completionData.auxiliaryAssistance,
-        mailNotDelivered: completionData.mailNotDelivered,
-        notes: completionData.notes,
         pmOfficeTime: pmOfficeTimeMinutes,
-        hasBoxholder: todayInputs.hasBoxholder || false,
-        startTime: todayInputs.leaveOfficeTime || currentRoute?.startTime,
-        leaveOfficeTime: prediction?.leaveOfficeTime,
-        predictedLeaveTime: prediction?.leaveOfficeTime,
+        totalMinutes: actualTotalMinutes,
+        overtime: actualOvertime,
+        predictedOfficeTime: prediction?.officeTime || 0,
+        predictedStreetTime: prediction?.streetTime || 0,
+        predictedReturnTime: prediction?.returnTime?.toLocaleTimeString('en-US', {
+          hour12: false,
+          hour: '2-digit',
+          minute: '2-digit'
+        }) || null,
         actualLeaveTime: actualLeaveTime,
-        predictedOfficeTime: prediction?.officeTime,
-        actualOfficeTime: actualOfficeTime,
+        actualClockOut: completionData.actualClockOut || null,
+        auxiliaryAssistance: completionData.auxiliaryAssistance || false,
+        mailNotDelivered: completionData.mailNotDelivered || false,
+        routeId: currentRouteId,
+        notes: completionData.notes || null,
+        safetyTalk: todayInputs.safetyTalk || 0,
+        hasBoxholder: todayInputs.hasBoxholder || false,
       };
 
-      const waypointsToSave = waypoints.map(wp => ({
-        id: wp.id,
-        name: wp.address || `Stop ${wp.sequence_number}`,
-        order: wp.sequence_number,
-        status: wp.status,
-        completedAt: wp.delivery_time
-      }));
+      console.log('Saving route history:', historyData);
+      const savedHistory = await saveRouteHistory(historyData);
+      console.log('Route history saved:', savedHistory);
 
-      console.log('About to save route history with data:', {
-        currentRouteId,
-        historyData,
-        waypointsToSave
-      });
-
-      const result = await saveRouteHistory(currentRouteId, historyData, waypointsToSave);
-
-      console.log('Route history saved successfully:', result);
-
-      if (result) {
-        addHistoryEntry(result);
-      }
-
-      setShowCompletionDialog(false);
-      setRouteStarted(false);
-      setCompletedStreetTimeMinutes(null); // Clear preserved time after successful completion
-      setStreetStartTime(null); // Clear preserved start time
-      await loadWeekTotal();
-
-      const updatedWeekTotal = await getWeekTotalMinutes();
-
-      const { data: routeData } = await supabase
-        .from('routes')
-        .select('route_number, evaluated_street_time')
-        .eq('id', currentRouteId)
-        .maybeSingle();
+      addHistoryEntry(savedHistory);
 
       const reportData = {
-        date: today,
-        routeNumber: routeData?.route_number || currentRoute?.routeNumber || 'N/A',
-        mailVolumes: {
-          dps: todayInputs.dps || 0,
-          flats: todayInputs.flats || 0,
-          letters: todayInputs.letters || 0,
-          parcels: todayInputs.parcels || 0,
-          sprs: todayInputs.sprs || 0,
-        },
-        predictedOfficeTime: prediction?.officeTime || null,
-        actualOfficeTime: actualOfficeTime,
-        officeTime722: actualOfficeTime,
-        officeTime744: pmOfficeTimeMinutes,
-        predictedStreetTime: prediction?.streetTime || null,
-        actualStreetTime: actualStreetTime,
-        evaluatedStreetTime: routeData?.evaluated_street_time ? Math.round(routeData.evaluated_street_time * 60) : null,
-        predictedClockOut: prediction?.clockOutTime || null,
-        actualClockOut: completionData.actualClockOut || null,
-        officeTime: actualOfficeTime,
-        pmOfficeTime: pmOfficeTimeMinutes,
-        overtime: actualOvertime,
-        penaltyOvertime: result?.penalty_overtime || 0,
-        workOffRouteTime: 0,
-        auxiliaryAssistance: completionData.auxiliaryAssistance,
-        mailNotDelivered: completionData.mailNotDelivered,
-        notes: completionData.notes,
-        weekTotal: updatedWeekTotal,
+        ...historyData,
+        predictedClockOut: prediction?.clockOutTime?.toLocaleTimeString('en-US', {
+          hour12: false,
+          hour: '2-digit',
+          minute: '2-digit'
+        }) || null,
+        routeNumber: currentRoute?.routeNumber || 'Unknown',
       };
 
       setEodReportData(reportData);
       setShowEodReport(true);
+      setShowCompletionDialog(false);
+      setRouteStarted(false);
+      setCompletedStreetTimeMinutes(null);
+      setStreetStartTime(null);
+
+      console.log('Route completed successfully');
     } catch (error) {
-      console.error('Failed to complete route:', error);
-      throw error;
+      console.error('Error completing route:', error);
+      console.error('Error details:', {
+        message: error.message,
+        code: error.code,
+        details: error.details,
+        hint: error.hint,
+        full: error
+      });
+      alert(`Failed to save route data: ${error.message || 'Unknown error'}. Check console for details.`);
     }
   };
 
-  const totalDPS = todayInputs.dps || 0;
-  const totalFeet = (todayInputs.flats || 0) + (todayInputs.letters || 0);
-  const routesList = Object.values(routes);
-  const currentRoute = routes[currentRouteId];
+  // NEW: Forgot route handlers
+  const handleForgotRouteCorrect = async (correctionData) => {
+    try {
+      console.log('Applying route correction:', correctionData);
+      
+      setCompletedStreetTimeMinutes(correctionData.correctedStreetMinutes);
+      
+      setShowForgotRouteDialog(false);
+      setShowCompletionDialog(true);
+    } catch (error) {
+      console.error('Error correcting route:', error);
+      alert(`Failed to apply correction: ${error.message}`);
+    }
+  };
+
+  const handleForgotRouteUseActual = () => {
+    setShowForgotRouteDialog(false);
+    setShowCompletionDialog(true);
+  };
+
+  const handleForgotRouteCancel = () => {
+    setShowForgotRouteDialog(false);
+  };
+
+  // NEW: Banner nudge handlers
+  const handleBannerSnooze = () => {
+    setBannerSnoozedUntil(Date.now() + (30 * 60 * 1000));
+    setShowBannerNudge(false);
+  };
+
+  const handleBannerEndNow = () => {
+    setShowBannerNudge(false);
+    handleCompleteRouteClick();
+  };
+
+  const handleBannerCorrect = () => {
+    setShowBannerNudge(false);
+    handleCompleteRouteClick();
+  };
+
+  const currentRoute = getCurrentRouteConfig();
+  const routeOptions = Object.values(routes || {}).map(r => ({
+    value: r.id,
+    label: r.routeNumber
+  }));
 
   return (
-    <div className="p-4 max-w-2xl mx-auto">
+    <div className="p-4 pb-20 max-w-4xl mx-auto">
       <div className="mb-6">
-        <h2 className="text-2xl font-bold text-gray-900">
-          {format(date, 'EEEE, MMMM d')}
-        </h2>
-        <p className="text-sm text-gray-500">{format(date, 'yyyy')}</p>
+        <div className="flex items-center justify-between mb-2">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Today</h1>
+            <p className="text-sm text-gray-500">{format(date, 'EEEE, MMMM d, yyyy')}</p>
+          </div>
+          <div className="text-right">
+            <p className="text-3xl font-bold text-gray-900">{format(date, 'h:mm')}</p>
+            <p className="text-sm text-gray-500">{format(date, 'a')}</p>
+          </div>
+        </div>
+
+        {routeOptions.length > 1 && (
+          <div className="mt-4">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Select Route
+            </label>
+            <select
+              value={currentRouteId || ''}
+              onChange={(e) => switchToRoute(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              {routeOptions.map(option => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
-      {routesList.length > 1 && (
-        <Card className="mb-4">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Current Route
-          </label>
-          <select
-            value={currentRouteId || ''}
-            onChange={(e) => switchToRoute(e.target.value)}
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          >
-            {routesList.map((route) => (
-              <option key={route.id} value={route.id}>
-                Route {route.routeNumber}
-              </option>
-            ))}
-          </select>
-        </Card>
-      )}
-
-      <Card>
+      <Card className="mb-6">
         <h3 className="text-lg font-bold text-gray-900 mb-4">Mail Volume</h3>
-
-        <Input
-          label="DPS (Delivery Point Sequence)"
-          type="number"
-          value={todayInputs.dps || ''}
-          onChange={(e) => handleInputChange('dps', e.target.value)}
-          placeholder="0"
-          min="0"
-        />
-
-        <Input
-          label="Flats (feet)"
-          type="number"
-          value={todayInputs.flats || ''}
-          onChange={(e) => handleInputChange('flats', e.target.value)}
-          placeholder="0"
-          min="0"
-          step="0.01"
-        />
-
-        <Input
-          label="Letters (feet)"
-          type="number"
-          value={todayInputs.letters || ''}
-          onChange={(e) => handleInputChange('letters', e.target.value)}
-          placeholder="0"
-          min="0"
-          step="0.01"
-        />
-
-        <div>
+        <div className="grid grid-cols-2 gap-4">
           <Input
-            label="Safety/Training Time (minutes)"
+            label="DPS"
+            type="number"
+            value={todayInputs.dps || ''}
+            onChange={(e) => handleInputChange('dps', e.target.value)}
+            placeholder="0"
+          />
+          <Input
+            label="Flats (Trays)"
+            type="number"
+            step="0.1"
+            value={todayInputs.flats || ''}
+            onChange={(e) => handleInputChange('flats', e.target.value)}
+            placeholder="0.0"
+          />
+          <Input
+            label="Letters (Trays)"
+            type="number"
+            step="0.1"
+            value={todayInputs.letters || ''}
+            onChange={(e) => handleInputChange('letters', e.target.value)}
+            placeholder="0.0"
+          />
+          <Input
+            label="Parcels"
+            type="number"
+            value={todayInputs.parcels || ''}
+            onChange={(e) => handleInputChange('parcels', e.target.value)}
+            placeholder="0"
+          />
+          <Input
+            label="SPRs"
+            type="number"
+            value={todayInputs.sprs || ''}
+            onChange={(e) => handleInputChange('sprs', e.target.value)}
+            placeholder="0"
+          />
+          <Input
+            label="Safety/Training (min)"
             type="number"
             value={todayInputs.safetyTalk || ''}
             onChange={(e) => handleInputChange('safetyTalk', e.target.value)}
-            placeholder="10"
-            min="0"
-            max="60"
+            placeholder="0"
           />
-          <p className="text-xs text-gray-500 mt-1">
-            Daily safety talks, service talks, training, and briefings
-          </p>
         </div>
-
-        <div className="mt-4 flex items-center gap-2">
-          <input
-            type="checkbox"
-            id="has-boxholder"
-            checked={todayInputs.hasBoxholder || false}
-            onChange={(e) => updateTodayInputs({ hasBoxholder: e.target.checked })}
-            className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
-          />
-          <label htmlFor="has-boxholder" className="text-sm font-medium text-gray-700">
-            Boxholder Mail Today (EDDM/Unaddressed)
+        <div className="mt-4">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={todayInputs.hasBoxholder || false}
+              onChange={(e) => updateTodayInputs({ hasBoxholder: e.target.checked })}
+              className="w-4 h-4 text-blue-600"
+            />
+            <span className="text-sm text-gray-700">Boxholder/EDDM</span>
           </label>
-        </div>
-        {todayInputs.hasBoxholder && (
-          <p className="text-xs text-blue-600 mt-1 ml-6">
-            +15 minutes added to office time for boxholder bundling
-          </p>
-        )}
-
-        <div className="mt-4 p-4 bg-gray-50 rounded-lg space-y-2">
-          <div className="flex justify-between items-center">
-            <span className="text-sm font-semibold text-gray-700">DPS Pieces:</span>
-            <span className="text-2xl font-bold text-blue-600">{totalDPS}</span>
-          </div>
-          <div className="flex justify-between items-center">
-            <span className="text-sm font-semibold text-gray-700">Flats + Letters:</span>
-            <span className="text-2xl font-bold text-blue-600">{totalFeet.toFixed(2)} ft</span>
-          </div>
         </div>
       </Card>
 
-      {!routeStarted && <HowAmIDoingSection />}
-
-      {routeStarted && <PackageProgressCard />}
-
       {prediction && (
-        <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-200">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-bold text-gray-900">Today's Prediction</h3>
-            <span className="text-2xl">{prediction.prediction?.badge || '📊'}</span>
+        <>
+          <HowAmIDoingSection prediction={prediction} />
+          <PackageProgressCard prediction={prediction} />
+        </>
+      )}
+
+      {showBannerNudge && (
+        <Card className="bg-yellow-50 border-2 border-yellow-400 mb-4">
+          <div className="flex items-center gap-3 mb-3">
+            <span className="text-3xl">⚠️</span>
+            <div className="flex-1">
+              <h3 className="font-bold text-yellow-900">Past Predicted End Time</h3>
+              <p className="text-sm text-yellow-800">
+                You're {Math.round((Date.now() - prediction.clockOutTime) / 1000 / 60)} minutes past predicted clock out. 
+                Did you forget to end your route?
+              </p>
+            </div>
           </div>
-
-          <div className="space-y-3">
-            <div className="bg-white/70 rounded-lg p-3">
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-sm font-semibold text-gray-700">Office Time</span>
-                <span className="text-xl font-bold text-blue-600">
-                  {Math.floor(prediction.officeTime / 60)}h {Math.round(prediction.officeTime % 60)}m
-                </span>
-              </div>
-              <div className="text-xs text-gray-600 space-y-1">
-                <div className="flex justify-between">
-                  <span>Fixed Office Time:</span>
-                  <span>{Math.round(prediction.components.fixedOfficeTime)} min</span>
-                </div>
-                <div className="flex justify-between font-semibold text-gray-700">
-                  <span>Casing Time:</span>
-                  <span>{Math.round(prediction.components.caseTime)} min</span>
-                </div>
-                {prediction.breakdown.flats.time > 0 && (
-                  <div className="flex justify-between pl-3">
-                    <span>• Flats ({prediction.breakdown.flats.pieces} pcs):</span>
-                    <span>{Math.round(prediction.breakdown.flats.time)} min</span>
-                  </div>
-                )}
-                {prediction.breakdown.letters.time > 0 && (
-                  <div className="flex justify-between pl-3">
-                    <span>• Letters ({prediction.breakdown.letters.pieces} pcs):</span>
-                    <span>{Math.round(prediction.breakdown.letters.time)} min</span>
-                  </div>
-                )}
-                {prediction.breakdown.sprs.time > 0 && (
-                  <div className="flex justify-between pl-3">
-                    <span>• SPRs ({prediction.breakdown.sprs.pieces} pcs):</span>
-                    <span>{Math.round(prediction.breakdown.sprs.time)} min</span>
-                  </div>
-                )}
-                {prediction.components.pullDownTime > 0 && (
-                  <div className="flex justify-between">
-                    <span>Pull-Down Time:</span>
-                    <span>{Math.round(prediction.components.pullDownTime)} min</span>
-                  </div>
-                )}
-                {prediction.components.safetyTalk > 0 && (
-                  <div className="flex justify-between">
-                    <span>Safety/Training:</span>
-                    <span>{Math.round(prediction.components.safetyTalk)} min</span>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="bg-white/70 rounded-lg p-3">
-                <p className="text-xs text-gray-600 mb-1">Leave Office</p>
-                <p className="text-lg font-bold text-gray-900">{formatTimeAMPM(prediction.leaveOfficeTime)}</p>
-              </div>
-              <div className="bg-white/70 rounded-lg p-3">
-                <p className="text-xs text-gray-600 mb-1">Return Time</p>
-                <p className="text-lg font-bold text-gray-900">{formatTimeAMPM(prediction.clockOutTime)}</p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="bg-white/70 rounded-lg p-3">
-                <p className="text-xs text-gray-600 mb-1">Street Time</p>
-                <p className="text-lg font-bold text-gray-900">
-                  {Math.floor(prediction.streetTime / 60)}h {Math.round(prediction.streetTime % 60)}m
-                </p>
-              </div>
-              <div className="bg-white/70 rounded-lg p-3">
-                <p className="text-xs text-gray-600 mb-1">Overtime</p>
-                <p className={`text-lg font-bold ${prediction.overtime > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                  {prediction.overtime > 0 ? `+${Math.round(prediction.overtime)} min` : 'None'}
-                </p>
-              </div>
-            </div>
-
-            {prediction.prediction?.confidence && (
-              <div className="bg-white/70 rounded-lg p-2 text-center">
-                <span className="text-xs text-gray-600">
-                  Confidence: <span className="font-semibold capitalize">{prediction.prediction.confidence}</span>
-                  {prediction.prediction.matchesUsed > 0 && (
-                    <> • {prediction.prediction.matchesUsed} similar days</>
-                  )}
-                </span>
-              </div>
-            )}
+          <div className="grid grid-cols-3 gap-2">
+            <Button onClick={handleBannerSnooze} variant="secondary" size="sm">
+              Snooze 30m
+            </Button>
+            <Button onClick={handleBannerEndNow} size="sm">
+              End Now
+            </Button>
+            <Button onClick={handleBannerCorrect} size="sm">
+              Correct Time
+            </Button>
           </div>
         </Card>
       )}
@@ -731,6 +746,52 @@ export default function TodayScreen() {
 
           <p className="text-xs text-blue-700 text-center">
             Timer will stop automatically when you start 744 PM Office or complete your route
+          </p>
+        </Card>
+      )}
+
+      {offRouteSession && (
+        <Card className="bg-gradient-to-br from-orange-50 to-yellow-50 border-2 border-orange-300">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-12 h-12 bg-orange-600 rounded-full flex items-center justify-center animate-pulse">
+              {offRouteSession.code === '732' ? '📬' : '📦'}
+            </div>
+            <div className="flex-1">
+              <h3 className="text-lg font-bold text-gray-900">
+                {offRouteSession.code === '732' ? 'COLLECTIONS (732)' : 'RELAY ASSISTANCE (736)'}
+              </h3>
+              <p className="text-xs text-gray-600">
+                Started at {new Date(offRouteSession.start_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+              </p>
+            </div>
+          </div>
+
+          <div className="bg-white/70 rounded-lg p-6 mb-4">
+            <div className="text-center">
+              <div className="text-5xl font-bold text-orange-600 mb-2 font-mono">
+                {offRouteService.formatDuration(offRouteTime)}
+              </div>
+              <p className="text-sm text-gray-600">
+                {Math.floor(offRouteTime / 60)} minutes off-route
+              </p>
+            </div>
+          </div>
+
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+            <div className="space-y-1 text-sm">
+              <div className="flex items-center gap-2 text-blue-700">
+                <span>⏸️</span>
+                <span>Route timer (721) PAUSED</span>
+              </div>
+              <div className="flex items-center gap-2 text-orange-700">
+                <span>⏱️</span>
+                <span>Off-route timer ({offRouteSession.code}) ACTIVE</span>
+              </div>
+            </div>
+          </div>
+
+          <p className="text-xs text-orange-700 text-center">
+            Route timer will resume automatically when off-route work ends
           </p>
         </Card>
       )}
@@ -858,7 +919,7 @@ export default function TodayScreen() {
               <Button onClick={handleCancelRoute} variant="secondary" className="w-full">
                 Cancel Route
               </Button>
-              <Button onClick={() => setShowCompletionDialog(true)} className="w-full">
+              <Button onClick={handleCompleteRouteClick} className="w-full">
                 Complete Route
               </Button>
             </div>
@@ -870,7 +931,6 @@ export default function TodayScreen() {
         )}
       </Card>
 
-
       {showCompletionDialog && (
         <RouteCompletionDialog
           prediction={prediction}
@@ -878,6 +938,17 @@ export default function TodayScreen() {
           calculatedStreetTime={completedStreetTimeMinutes}
           onComplete={handleCompleteRoute}
           onCancel={() => setShowCompletionDialog(false)}
+        />
+      )}
+
+      {showForgotRouteDialog && (
+        <ForgotRouteDialog
+          routeStartTime={todayInputs.leaveOfficeTime || getCurrentRouteConfig()?.startTime || '08:00'}
+          predictedStreetMinutes={Math.round(prediction?.streetTime || 0)}
+          actualStreetMinutes={completedStreetTimeMinutes || 0}
+          onCorrect={handleForgotRouteCorrect}
+          onUseActual={handleForgotRouteUseActual}
+          onCancel={handleForgotRouteCancel}
         />
       )}
 
