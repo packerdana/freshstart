@@ -28,6 +28,7 @@ export default function TodayScreen() {
   const [streetTimeSession, setStreetTimeSession] = useState(null);
   const [streetTime, setStreetTime] = useState(0);
   const [completedStreetTimeMinutes, setCompletedStreetTimeMinutes] = useState(null); // NEW: Preserve street time when session ends
+  const [streetStartTime, setStreetStartTime] = useState(null); // NEW: Preserve street start time for office time calculation
   const [weekTotal, setWeekTotal] = useState(0);
   const [showNotes, setShowNotes] = useState(false);
   const [notes, setNotes] = useState('');
@@ -162,6 +163,7 @@ export default function TodayScreen() {
       setStreetTimeSession(session);
       setStreetTime(0);
       setCompletedStreetTimeMinutes(null); // Clear any previous completed time
+      setStreetStartTime(null); // Clear any previous start time
       setRouteStarted(true);
       console.log('Route started with data:', todayInputs);
       console.log('Street time tracking started:', session);
@@ -175,6 +177,7 @@ export default function TodayScreen() {
     if (confirm('Cancel route start? Your mail volume data will be kept.')) {
       setRouteStarted(false);
       setCompletedStreetTimeMinutes(null); // Clear preserved time
+      setStreetStartTime(null); // Clear preserved start time
     }
   };
 
@@ -186,9 +189,10 @@ export default function TodayScreen() {
         const endedSession = await streetTimeService.endSession(streetTimeSession.id);
         const durationMinutes = Math.round(endedSession.duration_minutes);
         
-        // FIXED: Preserve the street time before clearing the state
+        // FIXED: Preserve the street time and start time before clearing the state
         setCompletedStreetTimeMinutes(durationMinutes);
-        console.log(`✓ Street time preserved: ${durationMinutes} minutes`);
+        setStreetStartTime(streetTimeSession.start_time); // ✅ Preserve start time
+        console.log(`✓ Street time preserved: ${durationMinutes} minutes (started at ${streetTimeSession.start_time})`);
         
         setStreetTimeSession(null);
         setStreetTime(0);
@@ -298,9 +302,10 @@ export default function TodayScreen() {
           const endedSession = await streetTimeService.endSession(streetTimeSession.id);
           streetTimeMinutes = Math.round(endedSession.duration_minutes);
           
-          // FIXED: Preserve the street time before clearing the state
+          // FIXED: Preserve the street time and start time before clearing the state
           setCompletedStreetTimeMinutes(streetTimeMinutes);
-          console.log(`✓ Street time preserved during completion: ${streetTimeMinutes} minutes`);
+          setStreetStartTime(streetTimeSession.start_time); // ✅ Preserve start time
+          console.log(`✓ Street time preserved during completion: ${streetTimeMinutes} minutes (started at ${streetTimeSession.start_time})`);
           console.log(`Street time (721) automatically ended: ${streetTimeMinutes} minutes`);
           
           setStreetTimeSession(null);
@@ -328,7 +333,40 @@ export default function TodayScreen() {
 
       const currentRoute = getCurrentRouteConfig();
 
-      const actualOfficeTime = prediction?.officeTime || 0;
+      // FIXED: Calculate actual 722 office time from street start time
+      let actualOfficeTime = prediction?.officeTime || 0;
+      
+      // Try to get street start time from active session or preserved value
+      const streetStartTimeValue = streetTimeSession?.start_time || streetStartTime;
+      
+      // If we have a street start time, calculate actual office time
+      if (streetStartTimeValue) {
+        const routeStartTimeStr = todayInputs.leaveOfficeTime || currentRoute?.startTime || '07:30';
+        
+        // Parse route start time (HH:MM format) to today's date
+        const timeMatch = routeStartTimeStr.match(/^(\d{1,2}):(\d{2})$/);
+        if (timeMatch) {
+          const routeStartDate = new Date(streetStartTimeValue); // Use same date as street start
+          routeStartDate.setHours(parseInt(timeMatch[1], 10), parseInt(timeMatch[2], 10), 0, 0);
+          
+          const streetStartDate = new Date(streetStartTimeValue);
+          
+          // Calculate actual office time in minutes
+          const officeTimeMs = streetStartDate - routeStartDate;
+          const calculatedOfficeTime = Math.round(officeTimeMs / (1000 * 60));
+          
+          // Use calculated time if it's reasonable (between 0 and 3 hours)
+          if (calculatedOfficeTime >= 0 && calculatedOfficeTime <= 180) {
+            actualOfficeTime = calculatedOfficeTime;
+            console.log(`✓ Actual 722 office time calculated: ${calculatedOfficeTime} minutes (${routeStartTimeStr} → ${new Date(streetStartTimeValue).toLocaleTimeString()})`);
+          } else {
+            console.warn(`Calculated office time (${calculatedOfficeTime} min) seems unreasonable, using prediction instead`);
+          }
+        }
+      } else {
+        console.log('No street start time available, using predicted office time');
+      }
+      
       const actualStreetTime = completionData.streetTime || streetTimeMinutes || 0;
       const actualTotalMinutes = actualOfficeTime + actualStreetTime + pmOfficeTimeMinutes;
       const tourLengthMinutes = (currentRoute?.tourLength || 8.5) * 60;
@@ -390,6 +428,7 @@ export default function TodayScreen() {
       setShowCompletionDialog(false);
       setRouteStarted(false);
       setCompletedStreetTimeMinutes(null); // Clear preserved time after successful completion
+      setStreetStartTime(null); // Clear preserved start time
       await loadWeekTotal();
 
       const updatedWeekTotal = await getWeekTotalMinutes();
