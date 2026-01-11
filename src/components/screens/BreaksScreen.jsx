@@ -65,7 +65,8 @@ export default function BreaksScreen() {
   };
 
   const handleEndLoadTruck = async () => {
-    await endLoadTruck(user?.id);
+    // ADDED: Pass routeStore so loading time can be saved for 721 street time
+    await endLoadTruck(user?.id, useRouteStore);
   };
 
   useEffect(() => {
@@ -126,12 +127,12 @@ export default function BreaksScreen() {
         <Card className="mb-4">
           <div className="space-y-2 text-sm text-gray-600">
             <div className="flex items-center gap-2">
-              <span>⏸️</span>
-              <span>Office timer paused (Code 722)</span>
+              <span>⏱️</span>
+              <span>Loading time will be included in street time (Code 721)</span>
             </div>
             <div className="flex items-center gap-2">
-              <span>⏱️</span>
-              <span>Street timer active (Code 721)</span>
+              <span>📝</span>
+              <span>Will backdate 721 start when you click "Start Route"</span>
             </div>
           </div>
         </Card>
@@ -252,7 +253,7 @@ export default function BreaksScreen() {
             <div className="flex-1">
               <h3 className="font-bold text-gray-900">LOAD TRUCK TIMER</h3>
               <p className="text-sm text-gray-600">Track pre-route loading time</p>
-              <p className="text-xs text-gray-500">Pauses office time, starts street time</p>
+              <p className="text-xs text-gray-500">Time will be included in 721 street time</p>
             </div>
           </div>
           <div className="space-y-3">
