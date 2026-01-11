@@ -36,7 +36,7 @@ const useRouteStore = create(
         scannerTotal: 0,
         packagesManuallyUpdated: false,
         sprs: 0,
-        safetyTalk: 10,
+        safetyTalk: 0, // FIXED: Default to 0 instead of 10
         hasBoxholder: false,
       },
 
@@ -64,7 +64,7 @@ const useRouteStore = create(
               scannerTotal: 0,
               packagesManuallyUpdated: false,
               sprs: 0,
-              safetyTalk: 10,
+              safetyTalk: 0, // FIXED: Default to 0 instead of 10
               hasBoxholder: false,
             },
             routeStarted: false,
@@ -178,7 +178,7 @@ const useRouteStore = create(
       })),
 
       clearTodayInputs: () => set({
-        todayInputs: { dps: 0, flats: 0, letters: 0, parcels: 0, scannerTotal: 0, packagesManuallyUpdated: false, sprs: 0, safetyTalk: 10, hasBoxholder: false }
+        todayInputs: { dps: 0, flats: 0, letters: 0, parcels: 0, scannerTotal: 0, packagesManuallyUpdated: false, sprs: 0, safetyTalk: 0, hasBoxholder: false }
       }),
 
       setRouteStarted: (started) => set({ routeStarted: started }),
