@@ -11,7 +11,13 @@ export default function RouteCompletionDialog({
   onComplete,
   onCancel
 }) {
-  const [streetTime, setStreetTime] = useState(calculatedStreetTime ? (calculatedStreetTime / 60).toFixed(2) : '');
+  // FIXED: Keep street time in MINUTES and convert to hours/minutes for display
+  const initialMinutes = calculatedStreetTime || 0;
+  const initialHours = Math.floor(initialMinutes / 60);
+  const initialMins = Math.round(initialMinutes % 60);
+  
+  const [streetTimeHours, setStreetTimeHours] = useState(initialHours.toString());
+  const [streetTimeMinutes, setStreetTimeMinutes] = useState(initialMins.toString());
   const [actualClockOut, setActualClockOut] = useState('');
   const [auxiliaryAssistance, setAuxiliaryAssistance] = useState(false);
   const [mailNotDelivered, setMailNotDelivered] = useState(false);
@@ -23,7 +29,12 @@ export default function RouteCompletionDialog({
     e.preventDefault();
     setShowError(false);
 
-    if (!streetTime || parseFloat(streetTime) <= 0) {
+    // Convert hours and minutes to total minutes
+    const hours = parseInt(streetTimeHours) || 0;
+    const mins = parseInt(streetTimeMinutes) || 0;
+    const totalMinutes = (hours * 60) + mins;
+
+    if (totalMinutes <= 0) {
       setShowError(true);
       return;
     }
@@ -31,10 +42,8 @@ export default function RouteCompletionDialog({
     setLoading(true);
 
     try {
-      const streetTimeMinutes = parseFloat(streetTime) * 60;
-
       await onComplete({
-        streetTime: streetTimeMinutes,
+        streetTime: totalMinutes,
         actualClockOut,
         auxiliaryAssistance,
         mailNotDelivered,
@@ -90,32 +99,58 @@ export default function RouteCompletionDialog({
             )}
 
             <div>
-              <Input
-                label="Actual Street Time (hours) *"
-                type="number"
-                value={streetTime}
-                onChange={(e) => {
-                  setStreetTime(e.target.value);
-                  setShowError(false);
-                }}
-                placeholder="4.5"
-                step="0.01"
-                min="0.1"
-                max="12"
-                helperText={calculatedStreetTime
-                  ? `✓ Auto-ended and calculated from 721 timer: ${(calculatedStreetTime / 60).toFixed(2)} hours`
-                  : "REQUIRED: Enter the actual time spent on the street in hours (manual backup)"
-                }
-                className={showError ? 'border-red-500' : ''}
-              />
-              {calculatedStreetTime && (
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Actual Street Time *
+              </label>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Input
+                    label="Hours"
+                    type="number"
+                    value={streetTimeHours}
+                    onChange={(e) => {
+                      setStreetTimeHours(e.target.value);
+                      setShowError(false);
+                    }}
+                    placeholder="0"
+                    min="0"
+                    max="12"
+                    className={showError ? 'border-red-500' : ''}
+                  />
+                </div>
+                <div>
+                  <Input
+                    label="Minutes"
+                    type="number"
+                    value={streetTimeMinutes}
+                    onChange={(e) => {
+                      setStreetTimeMinutes(e.target.value);
+                      setShowError(false);
+                    }}
+                    placeholder="0"
+                    min="0"
+                    max="59"
+                    className={showError ? 'border-red-500' : ''}
+                  />
+                </div>
+              </div>
+              {calculatedStreetTime > 0 ? (
+                <p className="text-green-600 text-xs mt-2 flex items-center gap-1">
+                  <span>✓</span> Auto-ended and calculated from 721 timer: {Math.floor(calculatedStreetTime / 60)}h {Math.round(calculatedStreetTime % 60)}m
+                </p>
+              ) : (
+                <p className="text-blue-600 text-xs mt-2">
+                  REQUIRED: Enter the actual time spent on the street (manual backup)
+                </p>
+              )}
+              {calculatedStreetTime > 0 && (
                 <p className="text-green-600 text-xs mt-1 flex items-center gap-1">
                   <span>✓</span> Street time was automatically stopped when completing route
                 </p>
               )}
               {showError && (
                 <p className="text-red-600 text-sm mt-1 font-semibold">
-                  ⚠ Street time is required! Please enter your actual street time in hours.
+                  ⚠ Street time is required! Please enter your actual street time.
                 </p>
               )}
             </div>
