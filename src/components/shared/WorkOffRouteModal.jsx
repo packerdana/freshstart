@@ -1,8 +1,12 @@
 import { useState, useEffect } from 'react';
 import Card from './Card';
 import Button from './Button';
+import { offRouteService } from '../../services/offRouteService';
+import useRouteStore from '../../stores/routeStore';
 
 export default function WorkOffRouteModal({ onClose }) {
+  const currentRouteId = useRouteStore((state) => state.currentRouteId);
+  
   const [stage, setStage] = useState('select');
   const [activityType, setActivityType] = useState(null);
   const [expectedDuration, setExpectedDuration] = useState(null);
@@ -13,6 +17,7 @@ export default function WorkOffRouteModal({ onClose }) {
   const [elapsedTime, setElapsedTime] = useState(0);
   const [startTime, setStartTime] = useState(null);
   const [promptShown2x, setPromptShown2x] = useState(false);
+  const [offRouteSession, setOffRouteSession] = useState(null);
 
   useEffect(() => {
     if (!timerActive) return;
@@ -72,16 +77,64 @@ export default function WorkOffRouteModal({ onClose }) {
     }
   };
 
-  const handleStartActivity = () => {
-    setStartTime(new Date());
-    setTimerActive(true);
-    setElapsedTime(0);
-    setStage('timer-active');
+  const handleStartActivity = async () => {
+    try {
+      if (!currentRouteId) {
+        alert('No route selected. Please start your route first.');
+        return;
+      }
+
+      // Build metadata
+      const metadata = {};
+      if (activityType === 'collections' && location) {
+        metadata.location = location;
+      } else if (activityType === 'relay' && routeId) {
+        metadata.helping_route = routeId;
+      }
+
+      console.log('Starting off-route activity:', {
+        type: activityType,
+        duration: expectedDuration,
+        routeId: currentRouteId,
+        metadata
+      });
+
+      // ADDED: Call offRouteService to pause 721 and start 732/736
+      const result = await offRouteService.startOffRouteActivity(
+        activityType,
+        expectedDuration,
+        currentRouteId,
+        metadata
+      );
+
+      setOffRouteSession(result.offRouteSession);
+      setStartTime(new Date(result.offRouteSession.start_time));
+      setTimerActive(true);
+      setElapsedTime(0);
+      setStage('timer-active');
+
+      console.log('✓ Off-route activity started:', result);
+    } catch (error) {
+      console.error('Error starting off-route activity:', error);
+      alert(`Failed to start activity: ${error.message}`);
+    }
   };
 
-  const handleEndActivity = () => {
-    setTimerActive(false);
-    setStage('completed');
+  const handleEndActivity = async () => {
+    try {
+      console.log('Ending off-route activity...');
+
+      // ADDED: Call offRouteService to end 732/736 and resume 721
+      const result = await offRouteService.endOffRouteActivity();
+
+      setTimerActive(false);
+      setStage('completed');
+
+      console.log('✓ Off-route activity ended:', result);
+    } catch (error) {
+      console.error('Error ending off-route activity:', error);
+      alert(`Failed to end activity: ${error.message}`);
+    }
   };
 
   const handleExtend = () => {
@@ -91,13 +144,26 @@ export default function WorkOffRouteModal({ onClose }) {
     setStage('timer-active');
   };
 
-  const handleCorrectToExpected = () => {
-    setElapsedTime(expectedDuration * 60);
-    setStage('completed');
+  const handleCorrectToExpected = async () => {
+    try {
+      // End the session with corrected time
+      await offRouteService.endOffRouteActivity();
+      setElapsedTime(expectedDuration * 60);
+      setStage('completed');
+    } catch (error) {
+      console.error('Error correcting activity:', error);
+      alert(`Failed to correct activity: ${error.message}`);
+    }
   };
 
-  const handleEndNow = () => {
-    setStage('completed');
+  const handleEndNow = async () => {
+    try {
+      await offRouteService.endOffRouteActivity();
+      setStage('completed');
+    } catch (error) {
+      console.error('Error ending activity:', error);
+      alert(`Failed to end activity: ${error.message}`);
+    }
   };
 
   if (stage === 'select') {
@@ -105,7 +171,10 @@ export default function WorkOffRouteModal({ onClose }) {
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
         <div className="bg-white rounded-lg max-w-md w-full p-6">
           <h2 className="text-xl font-bold text-gray-900 mb-4">Work Off Route</h2>
-          <p className="text-sm text-gray-600 mb-6">Select activity:</p>
+          <p className="text-sm text-gray-600 mb-2">Select activity:</p>
+          <p className="text-xs text-blue-600 mb-4">
+            ⏸️ This will pause your route timer (721)
+          </p>
 
           <div className="space-y-3">
             <button
@@ -259,6 +328,8 @@ export default function WorkOffRouteModal({ onClose }) {
   }
 
   if (stage === 'timer-active') {
+    const code = activityType === 'collections' ? '732' : '736';
+    
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
         <div className="bg-white rounded-lg max-w-md w-full p-6">
@@ -285,6 +356,19 @@ export default function WorkOffRouteModal({ onClose }) {
                 {formatTime(elapsedTime)}
               </div>
               <p className="text-sm text-gray-600">(Timer counts UP)</p>
+            </div>
+          </Card>
+
+          <Card className="mb-4 bg-blue-50 border border-blue-200">
+            <div className="space-y-1 text-sm">
+              <div className="flex items-center gap-2 text-blue-700">
+                <span>⏸️</span>
+                <span>Route timer (721) PAUSED</span>
+              </div>
+              <div className="flex items-center gap-2 text-orange-700">
+                <span>⏱️</span>
+                <span>Off-route timer ({code}) ACTIVE</span>
+              </div>
             </div>
           </Card>
 
@@ -375,6 +459,7 @@ export default function WorkOffRouteModal({ onClose }) {
 
   if (stage === 'completed') {
     const duration = Math.round(elapsedTime / 60);
+    const code = activityType === 'collections' ? '732' : '736';
 
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -385,6 +470,7 @@ export default function WorkOffRouteModal({ onClose }) {
           <div className="text-center py-4 mb-6">
             <div className="text-6xl mb-4">✅</div>
             <p className="text-sm text-gray-600 mb-2">Recorded!</p>
+            <p className="text-xs text-green-600">✓ Route timer (721) resumed</p>
           </div>
 
           <div className="bg-gray-50 rounded-lg p-4 mb-4">
@@ -402,7 +488,7 @@ export default function WorkOffRouteModal({ onClose }) {
             </p>
             <p className="text-sm text-gray-700 mb-2">Duration: {duration} minutes</p>
             <p className="text-xs text-gray-500">
-              Op Code {activityType === 'collections' ? '732' : '736'} - {activityType === 'collections' ? 'Collections' : 'Relay Assistance'}
+              Op Code {code} - {activityType === 'collections' ? 'Collections' : 'Relay Assistance'}
             </p>
           </div>
 
