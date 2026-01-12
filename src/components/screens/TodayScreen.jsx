@@ -172,10 +172,16 @@ export default function TodayScreen() {
 
   useEffect(() => {
     async function loadPrediction() {
+      console.log('[TodayScreen] loadPrediction triggered');
+      console.log('[TodayScreen] todayInputs:', todayInputs);
+      
       const hasInput = todayInputs.dps || todayInputs.flats || todayInputs.letters ||
                        todayInputs.parcels || todayInputs.sprs;
 
+      console.log('[TodayScreen] hasInput:', hasInput);
+
       if (!hasInput) {
+        console.log('[TodayScreen] No input, setting prediction to null');
         setPrediction(null);
         return;
       }
@@ -192,10 +198,15 @@ export default function TodayScreen() {
       };
 
       const routeConfig = getCurrentRouteConfig();
+      console.log('[TodayScreen] routeConfig:', routeConfig);
+      
       const routeHistory = history || [];
+      console.log('[TodayScreen] history length:', routeHistory.length);
 
       try {
+        console.log('[TodayScreen] Calling calculateFullDayPrediction...');
         const pred = await calculateFullDayPrediction(todayMail, routeConfig, routeHistory, waypoints, currentRouteId);
+        console.log('[TodayScreen] Prediction result:', pred);
         setPrediction(pred);
       } catch (error) {
         console.error('[TodayScreen] Error calculating prediction:', error);
@@ -684,8 +695,13 @@ export default function TodayScreen() {
       </Card>
 
       {prediction && (
-        <HowAmIDoingSection prediction={prediction} />
+        <>
+          {console.log('[TodayScreen] Rendering HowAmIDoingSection with prediction:', prediction)}
+          <HowAmIDoingSection prediction={prediction} />
+        </>
       )}
+
+      {!prediction && console.log('[TodayScreen] No prediction - card will not render')}
 
       {showBannerNudge && (
         <Card className="bg-yellow-50 border-2 border-yellow-400 mb-4">
