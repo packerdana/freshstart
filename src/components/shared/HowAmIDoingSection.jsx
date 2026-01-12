@@ -3,23 +3,15 @@ import Card from './Card';
 import { formatMinutesAsTime } from '../../utils/time';
 
 export default function HowAmIDoingSection({ prediction }) {
-  console.log('[HowAmIDoingSection] Component rendered with prediction:', prediction);
-  
   if (!prediction) {
-    console.log('[HowAmIDoingSection] No prediction provided, returning null');
     return null;
   }
 
   // Validate prediction has required properties
-  if (!prediction.leaveTime || !prediction.returnTime || !prediction.clockOutTime) {
-    console.error('[HowAmIDoingSection] Prediction missing required time properties:', {
-      hasLeaveTime: !!prediction.leaveTime,
-      hasReturnTime: !!prediction.returnTime,
-      hasClockOutTime: !!prediction.clockOutTime
-    });
+  if (!prediction.leaveOfficeTime || !prediction.clockOutTime) {
+    console.error('[HowAmIDoingSection] Prediction missing required time properties');
+    return null;
   }
-
-  console.log('[HowAmIDoingSection] Rendering prediction card');
 
   // Calculate variance from evaluation (8.5 hours = 510 minutes)
   const evaluationMinutes = 510;
@@ -28,16 +20,17 @@ export default function HowAmIDoingSection({ prediction }) {
   const isOvertime = varianceMinutes > 0;
   const isUndertime = varianceMinutes < -15; // More than 15 min under
 
-  // Format times
-  const leaveTime = prediction.leaveTime
-    ? new Date(prediction.leaveTime).toLocaleTimeString('en-US', {
+  // Format times - use leaveOfficeTime instead of leaveTime
+  const leaveTime = prediction.leaveOfficeTime
+    ? new Date(prediction.leaveOfficeTime).toLocaleTimeString('en-US', {
         hour: 'numeric',
         minute: '2-digit'
       })
     : 'N/A';
 
-  const returnTime = prediction.returnTime
-    ? new Date(prediction.returnTime).toLocaleTimeString('en-US', {
+  // Calculate returnTime from leaveOfficeTime + streetTime
+  const returnTime = prediction.leaveOfficeTime
+    ? new Date(new Date(prediction.leaveOfficeTime).getTime() + (prediction.streetTime * 60000)).toLocaleTimeString('en-US', {
         hour: 'numeric',
         minute: '2-digit'
       })
@@ -121,7 +114,7 @@ export default function HowAmIDoingSection({ prediction }) {
             <span className="text-sm font-semibold text-gray-700">🕐 Clock Out</span>
             <span className="text-lg font-bold text-purple-600">{clockOutTime}</span>
           </div>
-          {prediction.pmOfficeTime > 0 && (
+          {prediction.pmOfficeTime && prediction.pmOfficeTime > 0 && (
             <div className="text-xs text-gray-600 mt-1">
               PM Office: {formatMinutesAsTime(prediction.pmOfficeTime)}
             </div>
