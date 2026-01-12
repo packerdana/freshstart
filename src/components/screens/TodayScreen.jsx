@@ -5,7 +5,6 @@ import Card from '../shared/Card';
 import Button from '../shared/Button';
 import Input from '../shared/Input';
 import HowAmIDoingSection from '../shared/HowAmIDoingSection';
-import PackageProgressCard from '../shared/PackageProgressCard';
 import RouteCompletionDialog from '../shared/RouteCompletionDialog';
 import WorkOffRouteModal from '../shared/WorkOffRouteModal';
 import EndOfDayReport from '../shared/EndOfDayReport';
@@ -634,7 +633,7 @@ export default function TodayScreen() {
             placeholder="0"
           />
           <Input
-            label="Flats (Trays)"
+            label="Flats (Ft)"
             type="number"
             step="0.1"
             value={todayInputs.flats || ''}
@@ -642,7 +641,7 @@ export default function TodayScreen() {
             placeholder="0.0"
           />
           <Input
-            label="Letters (Trays)"
+            label="Letters (Ft)"
             type="number"
             step="0.1"
             value={todayInputs.letters || ''}
@@ -685,10 +684,7 @@ export default function TodayScreen() {
       </Card>
 
       {prediction && (
-        <>
-          <HowAmIDoingSection prediction={prediction} />
-          <PackageProgressCard prediction={prediction} />
-        </>
+        <HowAmIDoingSection prediction={prediction} />
       )}
 
       {showBannerNudge && (
