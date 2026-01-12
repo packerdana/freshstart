@@ -1,219 +1,145 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Clock, TrendingUp, TrendingDown, Minus, Package } from 'lucide-react';
+import { Clock, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import Card from './Card';
-import Input from './Input';
-import useRouteStore from '../../stores/routeStore';
-import { predictWaypointTimes, calculateProgressStatus } from '../../services/waypointPredictionService';
-import { estimatePackageSplit, getPackageEstimationMessage } from '../../services/packageEstimationService';
+import { formatMinutesAsTime } from '../../utils/time';
 
-export default function HowAmIDoingSection() {
-  const { todayInputs, updateTodayInputs, waypoints, getCurrentRouteConfig, history, currentRouteId } = useRouteStore();
-  const [progressStatus, setProgressStatus] = useState(null);
+export default function HowAmIDoingSection({ prediction }) {
+  console.log('[HowAmIDoingSection] Component rendered with prediction:', prediction);
+  
+  if (!prediction) {
+    console.log('[HowAmIDoingSection] No prediction provided, returning null');
+    return null;
+  }
 
-  const scannerTotal = todayInputs.scannerTotal || 0;
-  const parcels = todayInputs.parcels || 0;
-  const sprs = todayInputs.sprs || 0;
-  const packagesManuallyUpdated = todayInputs.packagesManuallyUpdated || false;
-  const routeConfig = getCurrentRouteConfig();
+  // Validate prediction has required properties
+  if (!prediction.leaveTime || !prediction.returnTime || !prediction.clockOutTime) {
+    console.error('[HowAmIDoingSection] Prediction missing required time properties:', {
+      hasLeaveTime: !!prediction.leaveTime,
+      hasReturnTime: !!prediction.returnTime,
+      hasClockOutTime: !!prediction.clockOutTime
+    });
+  }
 
-  const estimation = useMemo(() => {
-    if (!scannerTotal) return null;
-    return estimatePackageSplit(scannerTotal, history);
-  }, [scannerTotal, history]);
+  console.log('[HowAmIDoingSection] Rendering prediction card');
 
-  useEffect(() => {
-    async function loadProgressStatus() {
-      if (!waypoints || waypoints.length === 0 || !currentRouteId) {
-        setProgressStatus(null);
-        return;
-      }
+  // Calculate variance from evaluation (8.5 hours = 510 minutes)
+  const evaluationMinutes = 510;
+  const predictedTotalMinutes = prediction.officeTime + prediction.streetTime;
+  const varianceMinutes = predictedTotalMinutes - evaluationMinutes;
+  const isOvertime = varianceMinutes > 0;
+  const isUndertime = varianceMinutes < -15; // More than 15 min under
 
-      const leaveOfficeTime = todayInputs.leaveOfficeTime || routeConfig?.startTime || '07:30';
+  // Format times
+  const leaveTime = prediction.leaveTime
+    ? new Date(prediction.leaveTime).toLocaleTimeString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit'
+      })
+    : 'N/A';
 
-      try {
-        const predictions = await predictWaypointTimes(waypoints, leaveOfficeTime, currentRouteId);
-        const status = calculateProgressStatus(waypoints, predictions, new Date().toISOString());
-        setProgressStatus(status);
-      } catch (error) {
-        console.error('[HowAmIDoing] Error loading progress status:', error);
-        setProgressStatus(null);
-      }
-    }
+  const returnTime = prediction.returnTime
+    ? new Date(prediction.returnTime).toLocaleTimeString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit'
+      })
+    : 'N/A';
 
-    loadProgressStatus();
-  }, [waypoints, currentRouteId, todayInputs.leaveOfficeTime, routeConfig]);
-
-  useEffect(() => {
-    if (estimation && !packagesManuallyUpdated) {
-      updateTodayInputs({
-        parcels: estimation.parcels,
-        sprs: estimation.sprs
-      });
-    }
-  }, [estimation, packagesManuallyUpdated, updateTodayInputs]);
-
-  const handleScannerTotalChange = (e) => {
-    const value = e.target.value;
-    const numValue = value === '' ? 0 : parseInt(value);
-
-    if (!isNaN(numValue) && numValue >= 0) {
-      updateTodayInputs({
-        scannerTotal: numValue,
-        packagesManuallyUpdated: false
-      });
-    }
-  };
-
-  const handleParcelsChange = (e) => {
-    const value = e.target.value;
-    const numValue = value === '' ? 0 : parseInt(value);
-
-    if (!isNaN(numValue) && numValue >= 0) {
-      const newSprs = Math.max(0, scannerTotal - numValue);
-      updateTodayInputs({
-        parcels: numValue,
-        sprs: newSprs,
-        packagesManuallyUpdated: true
-      });
-    }
-  };
-
-  const handleSprsChange = (e) => {
-    const value = e.target.value;
-    const numValue = value === '' ? 0 : parseInt(value);
-
-    if (!isNaN(numValue) && numValue >= 0) {
-      const newParcels = Math.max(0, scannerTotal - numValue);
-      updateTodayInputs({
-        sprs: numValue,
-        parcels: newParcels,
-        packagesManuallyUpdated: true
-      });
-    }
-  };
+  const clockOutTime = prediction.clockOutTime
+    ? new Date(prediction.clockOutTime).toLocaleTimeString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit'
+      })
+    : 'N/A';
 
   return (
-    <Card className="bg-gradient-to-br from-green-50 to-emerald-50 border-2 border-green-200">
+    <Card className={`border-2 ${
+      isOvertime
+        ? 'bg-gradient-to-br from-red-50 to-orange-50 border-red-300'
+        : isUndertime
+        ? 'bg-gradient-to-br from-blue-50 to-cyan-50 border-blue-300'
+        : 'bg-gradient-to-br from-green-50 to-emerald-50 border-green-300'
+    }`}>
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-bold text-gray-900">Package Tracking</h3>
-        <Package className="text-green-600" size={24} />
+        <h3 className="text-lg font-bold text-gray-900">📊 Today's Prediction</h3>
+        {isOvertime && <TrendingUp className="text-red-600" size={24} />}
+        {isUndertime && <TrendingDown className="text-blue-600" size={24} />}
+        {!isOvertime && !isUndertime && <Minus className="text-green-600" size={24} />}
       </div>
 
-      {progressStatus && (
-        <div className={`mb-4 rounded-lg p-4 border-2 ${
-          progressStatus.status === 'ahead'
-            ? 'bg-blue-50 border-blue-300'
-            : progressStatus.status === 'behind'
-            ? 'bg-amber-50 border-amber-300'
-            : 'bg-gray-50 border-gray-300'
-        }`}>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              {progressStatus.status === 'ahead' && <TrendingUp className="text-blue-600" size={20} />}
-              {progressStatus.status === 'behind' && <TrendingDown className="text-amber-600" size={20} />}
-              {progressStatus.status === 'on-schedule' && <Minus className="text-gray-600" size={20} />}
-              <span className={`font-semibold ${
-                progressStatus.status === 'ahead'
-                  ? 'text-blue-700'
-                  : progressStatus.status === 'behind'
-                  ? 'text-amber-700'
-                  : 'text-gray-700'
-              }`}>
-                {progressStatus.message}
-              </span>
-            </div>
-            <Clock className="text-gray-500" size={18} />
-          </div>
-          {progressStatus.lastWaypoint && (
-            <p className="text-xs text-gray-600 mt-2">
-              Last waypoint: {progressStatus.lastWaypoint}
+      {/* Status Banner */}
+      <div className={`mb-4 rounded-lg p-3 border-2 ${
+        isOvertime
+          ? 'bg-red-100 border-red-400'
+          : isUndertime
+          ? 'bg-blue-100 border-blue-400'
+          : 'bg-green-100 border-green-400'
+      }`}>
+        <div className="flex items-center justify-between">
+          <div>
+            <p className={`font-bold text-sm ${
+              isOvertime
+                ? 'text-red-900'
+                : isUndertime
+                ? 'text-blue-900'
+                : 'text-green-900'
+            }`}>
+              {isOvertime && `⚠️ ${formatMinutesAsTime(Math.abs(varianceMinutes))} Over Evaluation`}
+              {isUndertime && `✅ ${formatMinutesAsTime(Math.abs(varianceMinutes))} Under Evaluation`}
+              {!isOvertime && !isUndertime && '✅ On Schedule'}
             </p>
+            <p className="text-xs text-gray-700 mt-1">
+              Predicted tour: {formatMinutesAsTime(predictedTotalMinutes)}
+            </p>
+          </div>
+          <Clock className="text-gray-600" size={20} />
+        </div>
+      </div>
+
+      {/* Time Breakdown */}
+      <div className="space-y-3">
+        <div className="bg-white/70 rounded-lg p-3 border border-gray-300">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm font-semibold text-gray-700">🏢 Leave Office</span>
+            <span className="text-lg font-bold text-blue-600">{leaveTime}</span>
+          </div>
+          <div className="text-xs text-gray-600">
+            Office time: {formatMinutesAsTime(prediction.officeTime)}
+          </div>
+        </div>
+
+        <div className="bg-white/70 rounded-lg p-3 border border-gray-300">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm font-semibold text-gray-700">🚚 Street Time</span>
+            <span className="text-lg font-bold text-green-600">{formatMinutesAsTime(prediction.streetTime)}</span>
+          </div>
+          <div className="text-xs text-gray-600">
+            Predicted return: {returnTime}
+          </div>
+        </div>
+
+        <div className="bg-white/70 rounded-lg p-3 border border-gray-300">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-semibold text-gray-700">🕐 Clock Out</span>
+            <span className="text-lg font-bold text-purple-600">{clockOutTime}</span>
+          </div>
+          {prediction.pmOfficeTime > 0 && (
+            <div className="text-xs text-gray-600 mt-1">
+              PM Office: {formatMinutesAsTime(prediction.pmOfficeTime)}
+            </div>
           )}
         </div>
-      )}
+      </div>
 
-      <div className="space-y-4">
-        <div>
-          <Input
-            label='📱 Scanner Total ("How Am I Doing" → Pkgs Remaining)'
-            type="number"
-            value={scannerTotal || ''}
-            onChange={handleScannerTotalChange}
-            placeholder="103"
-            min="0"
-            inputMode="numeric"
-            className="text-lg font-semibold"
-          />
-          <p className="text-xs text-gray-500 mt-1">
-            Check your scanner for total packages
+      {/* Overtime Warning */}
+      {isOvertime && varianceMinutes > 30 && (
+        <div className="mt-4 bg-amber-50 border border-amber-300 rounded-lg p-3">
+          <p className="text-xs text-amber-800 font-semibold">
+            ⚠️ Route may need inspection under Article 34
+          </p>
+          <p className="text-xs text-amber-700 mt-1">
+            Consistently exceeding 8 hours qualifies for special route inspection
           </p>
         </div>
-
-        {estimation && (
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-            <p className="text-xs text-blue-800 font-medium">
-              {getPackageEstimationMessage(estimation)}
-            </p>
-          </div>
-        )}
-
-        {scannerTotal > 0 && (
-          <div className="bg-white/70 rounded-lg p-4 border-2 border-gray-300 space-y-3">
-            <p className="text-sm font-semibold text-gray-700 mb-2">
-              Package Breakdown {packagesManuallyUpdated && '(Manual)'}
-            </p>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
-                  Parcels
-                </label>
-                <input
-                  type="number"
-                  value={parcels || ''}
-                  onChange={handleParcelsChange}
-                  placeholder="43"
-                  min="0"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-lg font-semibold"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
-                  SPRs
-                </label>
-                <input
-                  type="number"
-                  value={sprs || ''}
-                  onChange={handleSprsChange}
-                  placeholder="60"
-                  min="0"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-lg font-semibold"
-                />
-              </div>
-            </div>
-
-            <p className="text-xs text-gray-500">
-              💡 Adjust these counts when loading truck for accuracy
-            </p>
-
-            <div className="grid grid-cols-3 gap-2 text-center pt-2 border-t border-gray-200">
-              <div>
-                <p className="text-xs text-gray-600">Total</p>
-                <p className="text-lg font-bold text-gray-900">{scannerTotal}</p>
-              </div>
-              <div>
-                <p className="text-xs text-gray-600">Parcels</p>
-                <p className="text-lg font-bold text-blue-600">{parcels}</p>
-              </div>
-              <div>
-                <p className="text-xs text-gray-600">SPRs</p>
-                <p className="text-lg font-bold text-green-600">{sprs}</p>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
+      )}
     </Card>
   );
 }
