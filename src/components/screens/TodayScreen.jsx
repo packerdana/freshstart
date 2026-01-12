@@ -5,6 +5,7 @@ import Card from '../shared/Card';
 import Button from '../shared/Button';
 import Input from '../shared/Input';
 import HowAmIDoingSection from '../shared/HowAmIDoingSection';
+import OfficeTimeBreakdown from '../shared/OfficeTimeBreakdown';
 import RouteCompletionDialog from '../shared/RouteCompletionDialog';
 import WorkOffRouteModal from '../shared/WorkOffRouteModal';
 import EndOfDayReport from '../shared/EndOfDayReport';
@@ -684,7 +685,10 @@ export default function TodayScreen() {
       </Card>
 
       {prediction && (
-        <HowAmIDoingSection prediction={prediction} />
+        <>
+          <OfficeTimeBreakdown prediction={prediction} />
+          <HowAmIDoingSection prediction={prediction} />
+        </>
       )}
 
       {showBannerNudge && (
