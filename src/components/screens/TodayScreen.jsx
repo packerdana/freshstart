@@ -625,6 +625,64 @@ export default function TodayScreen() {
 
       <Card className="mb-6">
         <h3 className="text-lg font-bold text-gray-900 mb-4">Mail Volume</h3>
+        
+        {/* Scanner Total Input */}
+        <div className="mb-4">
+          <Input
+            label='📱 Scanner Total ("How Am I Doing" → Pkgs Remaining)'
+            type="number"
+            value={todayInputs.scannerTotal || ''}
+            onChange={(e) => {
+              const value = parseInt(e.target.value) || 0;
+              updateTodayInputs({ 
+                scannerTotal: value,
+                packagesManuallyUpdated: false
+              });
+              
+              // Auto-split using 56% SPR / 44% Parcel ratio
+              if (value > 0) {
+                const sprs = Math.round(value * 0.56);
+                const parcels = value - sprs;
+                updateTodayInputs({
+                  scannerTotal: value,
+                  sprs: sprs,
+                  parcels: parcels,
+                  packagesManuallyUpdated: false
+                });
+              }
+            }}
+            placeholder="103"
+            helperText="Check your scanner for total packages"
+          />
+          
+          {todayInputs.scannerTotal > 0 && (
+            <div className="mt-2 bg-blue-50 border border-blue-200 rounded-lg p-3">
+              <p className="text-xs text-blue-800 font-medium mb-2">
+                📊 {todayInputs.packagesManuallyUpdated ? 'Manual Split' : 'Auto-Split: 56% SPRs / 44% Parcels'}
+              </p>
+              <div className="grid grid-cols-3 gap-2 text-center">
+                <div>
+                  <p className="text-xs text-gray-600">Total</p>
+                  <p className="text-lg font-bold text-gray-900">{todayInputs.scannerTotal}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-600">SPRs</p>
+                  <p className="text-lg font-bold text-green-600">{todayInputs.sprs || 0}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-600">Parcels</p>
+                  <p className="text-lg font-bold text-blue-600">{todayInputs.parcels || 0}</p>
+                </div>
+              </div>
+              <p className="text-xs text-gray-500 mt-2">
+                💡 {todayInputs.packagesManuallyUpdated 
+                  ? 'Manually adjusted - update as needed' 
+                  : 'Adjust counts below when loading truck for accuracy'}
+              </p>
+            </div>
+          )}
+        </div>
+        
         <div className="grid grid-cols-2 gap-4">
           <Input
             label="DPS"
@@ -653,14 +711,44 @@ export default function TodayScreen() {
             label="Parcels"
             type="number"
             value={todayInputs.parcels || ''}
-            onChange={(e) => handleInputChange('parcels', e.target.value)}
+            onChange={(e) => {
+              const numValue = parseInt(e.target.value) || 0;
+              const scannerTotal = todayInputs.scannerTotal || 0;
+              
+              if (scannerTotal > 0) {
+                // Manual adjustment - recalculate SPRs to match scanner total
+                const newSprs = Math.max(0, scannerTotal - numValue);
+                updateTodayInputs({
+                  parcels: numValue,
+                  sprs: newSprs,
+                  packagesManuallyUpdated: true
+                });
+              } else {
+                handleInputChange('parcels', e.target.value);
+              }
+            }}
             placeholder="0"
           />
           <Input
             label="SPRs"
             type="number"
             value={todayInputs.sprs || ''}
-            onChange={(e) => handleInputChange('sprs', e.target.value)}
+            onChange={(e) => {
+              const numValue = parseInt(e.target.value) || 0;
+              const scannerTotal = todayInputs.scannerTotal || 0;
+              
+              if (scannerTotal > 0) {
+                // Manual adjustment - recalculate Parcels to match scanner total
+                const newParcels = Math.max(0, scannerTotal - numValue);
+                updateTodayInputs({
+                  sprs: numValue,
+                  parcels: newParcels,
+                  packagesManuallyUpdated: true
+                });
+              } else {
+                handleInputChange('sprs', e.target.value);
+              }
+            }}
             placeholder="0"
           />
           <Input
