@@ -3,8 +3,6 @@ import { USPS_STANDARDS } from '../utils/uspsConstants';
 import { parseTime, addMinutes, timeDifference } from '../utils/time';
 import { estimateReturnTime, predictWaypointTimes } from './waypointPredictionService';
 
-const BOXHOLDER_BUNDLE_TIME = 15;
-
 function getStreetTime(day) {
   if (day.streetTimeNormalized != null && day.streetTimeNormalized > 0) {
     return day.streetTimeNormalized;
@@ -55,7 +53,16 @@ export function calculateSimplePrediction(history) {
 }
 
 function calculateVolumeWeightedPrediction(days, todayMail, dayType) {
-  const volumeMatches = days.map(day => {
+  // UPDATED: Filter by boxholder status first
+  const boxholderFiltered = days.filter(day => {
+    // Match boxholder status - boxholder days should only match boxholder days
+    return day.hasBoxholder === todayMail.hasBoxholder;
+  });
+
+  // Use filtered days if we have enough, otherwise use all days
+  const daysToUse = boxholderFiltered.length >= 3 ? boxholderFiltered : days;
+
+  const volumeMatches = daysToUse.map(day => {
     const dpsMatch = 1 - Math.abs(day.dps - todayMail.dps) / Math.max(day.dps, todayMail.dps, 1);
     const flatsMatch = 1 - Math.abs(day.flats - todayMail.flats) / Math.max(day.flats, todayMail.flats, 1);
     const parcelsMatch = 1 - Math.abs(day.parcels - todayMail.parcels) / Math.max(day.parcels, todayMail.parcels, 1);
@@ -109,7 +116,8 @@ function calculateVolumeWeightedPrediction(days, todayMail, dayType) {
     confidence: confidence,
     badge: badge,
     topMatch: top5[0].day,
-    method: 'hybrid'
+    method: 'hybrid',
+    boxholderMatched: boxholderFiltered.length >= 3 // Indicate if boxholder was factored in
   };
 }
 
@@ -199,8 +207,9 @@ export async function calculateFullDayPrediction(todayMail, routeConfig, history
 
   const fixedOfficeTime = TIME_CONSTANTS.FIXED_OFFICE_TIME;
   const safetyTalk = todayMail.safetyTalk || 0;
-  const boxholderTime = todayMail.hasBoxholder ? BOXHOLDER_BUNDLE_TIME : 0;
-  const totalOfficeTime = fixedOfficeTime + caseTime + pullDownTime + safetyTalk + boxholderTime;
+  
+  // FIXED: Boxholder does NOT add to office time - it affects street time through historical matching
+  const totalOfficeTime = fixedOfficeTime + caseTime + pullDownTime + safetyTalk;
 
   const loadTruckTime = ((todayMail.parcels || 0) + (todayMail.sprs || 0)) * USPS_STANDARDS.LOAD_TRUCK_TIME;
 
@@ -273,7 +282,6 @@ export async function calculateFullDayPrediction(todayMail, routeConfig, history
       caseTime,
       pullDownTime,
       safetyTalk,
-      boxholderTime,
     },
     waypointEnhanced,
     returnTimeEstimate,
