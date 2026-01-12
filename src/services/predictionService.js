@@ -245,7 +245,10 @@ export async function calculateFullDayPrediction(todayMail, routeConfig, history
 
   const startTime = parseTime(routeConfig.startTime);
   const leaveOfficeTime = addMinutes(startTime, totalOfficeTime);
-  let clockOutTime = addMinutes(leaveOfficeTime, totalStreetTime + loadTruckTime);
+  
+  // Clock out = leave + street time (load truck is DURING street time, not added separately)
+  // PM office time is NOT added to prediction - carriers should drop and go
+  let clockOutTime = addMinutes(leaveOfficeTime, totalStreetTime);
 
   let waypointEnhanced = false;
   let returnTimeEstimate = null;
