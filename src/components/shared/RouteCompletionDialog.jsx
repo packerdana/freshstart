@@ -74,7 +74,7 @@ export default function RouteCompletionDialog({
           </p>
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {prediction && (
+            {prediction && prediction.streetTime && prediction.clockOutTime && (
               <Card className="bg-blue-50 border border-blue-200">
                 <h3 className="text-sm font-bold text-blue-900 mb-3">Predicted vs. Actual</h3>
                 <div className="space-y-2 text-sm">
