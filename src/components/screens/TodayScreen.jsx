@@ -386,6 +386,7 @@ export default function TodayScreen() {
 
   const handleCompleteRoute = async (completionData) => {
     console.log('handleCompleteRoute - currentRouteId:', currentRouteId);
+    console.log('handleCompleteRoute - prediction:', prediction);
 
     if (!currentRouteId) {
       console.error('No currentRouteId found in store');
@@ -434,7 +435,13 @@ export default function TodayScreen() {
 
       const currentRoute = getCurrentRouteConfig();
 
-      let actualOfficeTime = prediction?.officeTime || 0;
+      // DEFENSIVE: Handle missing prediction gracefully
+      let actualOfficeTime = 0;
+      if (prediction && prediction.officeTime != null) {
+        actualOfficeTime = prediction.officeTime;
+      } else {
+        console.warn('No prediction available, office time will be calculated from street start time');
+      }
       
       const streetStartTimeValue = streetTimeSession?.start_time || streetStartTime;
       
@@ -455,11 +462,11 @@ export default function TodayScreen() {
             actualOfficeTime = calculatedOfficeTime;
             console.log(`✓ Actual 722 office time calculated: ${calculatedOfficeTime} minutes (${routeStartTimeStr} → ${new Date(streetStartTimeValue).toLocaleTimeString()})`);
           } else {
-            console.warn(`Calculated office time (${calculatedOfficeTime} min) seems unreasonable, using prediction instead`);
+            console.warn(`Calculated office time (${calculatedOfficeTime} min) seems unreasonable, using ${actualOfficeTime} minutes`);
           }
         }
       } else {
-        console.log('No street start time available, using predicted office time');
+        console.log('No street start time available, using predicted/default office time:', actualOfficeTime);
       }
       
       const actualStreetTime = completionData.streetTime || streetTimeMinutes || 0;
@@ -489,13 +496,13 @@ export default function TodayScreen() {
         pmOfficeTime: pmOfficeTimeMinutes,
         totalMinutes: actualTotalMinutes,
         overtime: actualOvertime,
-        predictedOfficeTime: prediction?.officeTime || 0,
-        predictedStreetTime: prediction?.streetTime || 0,
-        predictedReturnTime: prediction?.returnTime?.toLocaleTimeString('en-US', {
+        predictedOfficeTime: (prediction && prediction.officeTime != null) ? prediction.officeTime : 0,
+        predictedStreetTime: (prediction && prediction.streetTime != null) ? prediction.streetTime : 0,
+        predictedReturnTime: (prediction && prediction.returnTime) ? prediction.returnTime.toLocaleTimeString('en-US', {
           hour12: false,
           hour: '2-digit',
           minute: '2-digit'
-        }) || null,
+        }) : null,
         actualLeaveTime: actualLeaveTime,
         actualClockOut: completionData.actualClockOut || null,
         auxiliaryAssistance: completionData.auxiliaryAssistance || false,
