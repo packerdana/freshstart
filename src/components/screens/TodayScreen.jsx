@@ -95,7 +95,7 @@ export default function TodayScreen() {
 
   // NEW: Banner nudge detection
   useEffect(() => {
-    if (!prediction || !streetTimeSession || !routeStarted) {
+    if (!prediction || !prediction.clockOutTime || !streetTimeSession || !routeStarted) {
       setShowBannerNudge(false);
       return;
     }
@@ -786,7 +786,7 @@ export default function TodayScreen() {
         </>
       )}
 
-      {showBannerNudge && (
+      {showBannerNudge && prediction && prediction.clockOutTime && (
         <Card className="bg-yellow-50 border-2 border-yellow-400 mb-4">
           <div className="flex items-center gap-3 mb-3">
             <span className="text-3xl">⚠️</span>
