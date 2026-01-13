@@ -440,33 +440,42 @@ export default function TodayScreen() {
       if (prediction && prediction.officeTime != null) {
         actualOfficeTime = prediction.officeTime;
       } else {
-        console.warn('No prediction available, office time will be calculated from street start time');
+        console.warn('No prediction available, office time will be calculated from time-of-day inputs');
       }
       
-      const streetStartTimeValue = streetTimeSession?.start_time || streetStartTime;
+      // FIXED: Calculate 722 office time from time-of-day strings, NOT UTC timestamps
+      // The database timestamp (start_time) is in UTC which causes timezone issues
+      const leaveTimeStr = todayInputs.leaveOfficeTime || currentRoute?.startTime || '07:30';
+      const startTimeStr = currentRoute?.startTime || '07:30';
       
-      if (streetStartTimeValue) {
-        const routeStartTimeStr = todayInputs.leaveOfficeTime || currentRoute?.startTime || '07:30';
-        
-        const timeMatch = routeStartTimeStr.match(/^(\d{1,2}):(\d{2})$/);
-        if (timeMatch) {
-          const routeStartDate = new Date(streetStartTimeValue);
-          routeStartDate.setHours(parseInt(timeMatch[1], 10), parseInt(timeMatch[2], 10), 0, 0);
-          
-          const streetStartDate = new Date(streetStartTimeValue);
-          
-          const officeTimeMs = streetStartDate - routeStartDate;
-          const calculatedOfficeTime = Math.round(officeTimeMs / (1000 * 60));
-          
-          if (calculatedOfficeTime >= 0 && calculatedOfficeTime <= 180) {
-            actualOfficeTime = calculatedOfficeTime;
-            console.log(`✓ Actual 722 office time calculated: ${calculatedOfficeTime} minutes (${routeStartTimeStr} → ${new Date(streetStartTimeValue).toLocaleTimeString()})`);
-          } else {
-            console.warn(`Calculated office time (${calculatedOfficeTime} min) seems unreasonable, using ${actualOfficeTime} minutes`);
-          }
-        }
+      // Helper to parse HH:mm to minutes since midnight
+      const parseTimeToMinutes = (timeStr) => {
+        const match = timeStr.match(/^(\d{1,2}):(\d{2})$/);
+        if (!match) return 0;
+        const hours = parseInt(match[1], 10);
+        const mins = parseInt(match[2], 10);
+        return (hours * 60) + mins;
+      };
+      
+      const leaveMinutes = parseTimeToMinutes(leaveTimeStr);
+      const startMinutes = parseTimeToMinutes(startTimeStr);
+      
+      // Calculate office time with midnight wrap handling
+      let calculatedOfficeTime = leaveMinutes - startMinutes;
+      if (calculatedOfficeTime < 0) {
+        // Wrapped past midnight (e.g., start 23:00, leave 01:00)
+        calculatedOfficeTime += 1440; // 24 hours in minutes
+      }
+      
+      // Sanity check: Office time should be 0-180 minutes (0-3 hours)
+      if (calculatedOfficeTime >= 0 && calculatedOfficeTime <= 180) {
+        actualOfficeTime = calculatedOfficeTime;
+        console.log(`✓ Actual 722 office time calculated from time-of-day: ${calculatedOfficeTime} minutes (${startTimeStr} → ${leaveTimeStr})`);
+      } else if (calculatedOfficeTime > 180) {
+        console.warn(`Calculated office time (${calculatedOfficeTime} min) exceeds 3 hours, using prediction/default: ${actualOfficeTime} minutes`);
+        // Use prediction value or 0 if unreasonable
       } else {
-        console.log('No street start time available, using predicted/default office time:', actualOfficeTime);
+        console.log(`Using predicted office time: ${actualOfficeTime} minutes`);
       }
       
       const actualStreetTime = completionData.streetTime || streetTimeMinutes || 0;
@@ -1052,7 +1061,7 @@ export default function TodayScreen() {
 
       {showCompletionDialog && (
         <RouteCompletionDialog
-          prediction={prediction}
+          prediction={prediction || { officeTime: 0, streetTime: 0, clockOutTime: null, returnTime: null }}
           todayInputs={todayInputs}
           calculatedStreetTime={completedStreetTimeMinutes}
           onComplete={handleCompleteRoute}
