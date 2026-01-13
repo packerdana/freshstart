@@ -734,7 +734,7 @@ export default function StatsScreen() {
               >
                 <div>
                   <p className="font-semibold text-gray-900">
-                    {format(new Date(day.date), 'EEEE, MMM d')}
+                    {format(parseLocalDate(day.date), 'EEEE, MMM d')}
                   </p>
                   <p className="text-xs text-gray-600">
                     {day.dps} DPS • {day.flats} flats • {day.parcels} parcels
