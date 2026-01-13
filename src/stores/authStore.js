@@ -40,6 +40,10 @@ const useAuthStore = create((set, get) => ({
     set({ loading: true, error: null });
     
     try {
+      // CRITICAL FIX: Clear any stale auth data before signing in
+      // This prevents "Invalid Refresh Token" errors
+      await supabase.auth.signOut({ scope: 'local' });
+      
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -51,7 +55,7 @@ const useAuthStore = create((set, get) => ({
         user: data.user,
         session: data.session,
         loading: false,
-        error: null,  // FIXED: Clear any previous errors
+        error: null,
       });
       
       return { data, error: null };
@@ -90,7 +94,15 @@ const useAuthStore = create((set, get) => ({
   
   initializeAuth: () => {
     // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data: { session }, error }) => {
+      // CRITICAL FIX: If error getting session (stale token), clear it
+      if (error) {
+        console.error('Error getting session:', error);
+        supabase.auth.signOut({ scope: 'local' });
+        set({ session: null, user: null, loading: false });
+        return;
+      }
+      
       set({
         session,
         user: session?.user ?? null,
@@ -102,6 +114,14 @@ const useAuthStore = create((set, get) => ({
     const { data: authListener } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         console.log('Auth state changed:', event);
+        
+        // CRITICAL FIX: Handle token refresh errors
+        if (event === 'TOKEN_REFRESHED' && !session) {
+          console.error('Token refresh failed, clearing session');
+          await supabase.auth.signOut({ scope: 'local' });
+          set({ session: null, user: null, loading: false });
+          return;
+        }
         
         // FIXED: Handle different auth events explicitly
         if (event === 'SIGNED_OUT') {
