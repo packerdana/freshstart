@@ -496,13 +496,9 @@ export default function TodayScreen() {
         pmOfficeTime: pmOfficeTimeMinutes,
         totalMinutes: actualTotalMinutes,
         overtime: actualOvertime,
-        predictedOfficeTime: (prediction && prediction.officeTime != null) ? prediction.officeTime : 0,
-        predictedStreetTime: (prediction && prediction.streetTime != null) ? prediction.streetTime : 0,
-        predictedReturnTime: (prediction && prediction.returnTime) ? prediction.returnTime.toLocaleTimeString('en-US', {
-          hour12: false,
-          hour: '2-digit',
-          minute: '2-digit'
-        }) : null,
+        predictedOfficeTime: 0, // ULTRA-SAFE: Always use 0 if prediction unavailable
+        predictedStreetTime: 0, // ULTRA-SAFE: Always use 0 if prediction unavailable
+        predictedReturnTime: null, // ULTRA-SAFE: Always use null if prediction unavailable
         actualLeaveTime: actualLeaveTime,
         actualClockOut: completionData.actualClockOut || null,
         auxiliaryAssistance: completionData.auxiliaryAssistance || false,
@@ -512,6 +508,28 @@ export default function TodayScreen() {
         safetyTalk: todayInputs.safetyTalk || 0,
         hasBoxholder: todayInputs.hasBoxholder || false,
       };
+      
+      // ULTRA-SAFE: Add prediction values only if they're definitely valid
+      try {
+        if (prediction && typeof prediction === 'object') {
+          if (prediction.officeTime != null && !isNaN(prediction.officeTime)) {
+            historyData.predictedOfficeTime = Math.round(prediction.officeTime);
+          }
+          if (prediction.streetTime != null && !isNaN(prediction.streetTime)) {
+            historyData.predictedStreetTime = Math.round(prediction.streetTime);
+          }
+          if (prediction.returnTime && prediction.returnTime instanceof Date && !isNaN(prediction.returnTime.getTime())) {
+            historyData.predictedReturnTime = prediction.returnTime.toLocaleTimeString('en-US', {
+              hour12: false,
+              hour: '2-digit',
+              minute: '2-digit'
+            });
+          }
+        }
+      } catch (predError) {
+        console.warn('Could not add prediction data to history:', predError);
+        // Continue without prediction data - actual data is more important
+      }
 
       console.log('Saving route history:', historyData);
       const savedHistory = await saveRouteHistory(historyData);
