@@ -512,14 +512,20 @@ export default function TodayScreen() {
       // ULTRA-SAFE: Add prediction values only if they're definitely valid
       try {
         if (prediction && typeof prediction === 'object') {
-          if (prediction.officeTime != null && !isNaN(prediction.officeTime)) {
-            historyData.predictedOfficeTime = Math.round(prediction.officeTime);
+          // Capture values FIRST to prevent race conditions
+          const predOfficeTime = prediction.officeTime;
+          const predStreetTime = prediction.streetTime;
+          const predReturnTime = prediction.returnTime;
+          
+          // Then validate the captured values
+          if (predOfficeTime != null && !isNaN(predOfficeTime)) {
+            historyData.predictedOfficeTime = Math.round(predOfficeTime);
           }
-          if (prediction.streetTime != null && !isNaN(prediction.streetTime)) {
-            historyData.predictedStreetTime = Math.round(prediction.streetTime);
+          if (predStreetTime != null && !isNaN(predStreetTime)) {
+            historyData.predictedStreetTime = Math.round(predStreetTime);
           }
-          if (prediction.returnTime && prediction.returnTime instanceof Date && !isNaN(prediction.returnTime.getTime())) {
-            historyData.predictedReturnTime = prediction.returnTime.toLocaleTimeString('en-US', {
+          if (predReturnTime instanceof Date && !isNaN(predReturnTime.getTime())) {
+            historyData.predictedReturnTime = predReturnTime.toLocaleTimeString('en-US', {
               hour12: false,
               hour: '2-digit',
               minute: '2-digit'
