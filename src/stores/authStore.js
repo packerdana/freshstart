@@ -40,16 +40,40 @@ const useAuthStore = create((set, get) => ({
     set({ loading: true, error: null });
     
     try {
-      // CRITICAL FIX: Clear any stale auth data before signing in
-      // This prevents "Invalid Refresh Token" errors
-      await supabase.auth.signOut({ scope: 'local' });
-      
+      // FIXED: Only clear if there's a specific invalid token error
+      // Don't clear blindly - let Supabase handle existing sessions
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
       
-      if (error) throw error;
+      if (error) {
+        // If error is about existing session being invalid, clear and retry
+        if (error.message?.includes('Invalid Refresh Token') || 
+            error.message?.includes('refresh_token_not_found')) {
+          console.log('Clearing stale session and retrying...');
+          await supabase.auth.signOut({ scope: 'local' });
+          
+          // Retry sign in after clearing
+          const retryResult = await supabase.auth.signInWithPassword({
+            email,
+            password,
+          });
+          
+          if (retryResult.error) throw retryResult.error;
+          
+          set({
+            user: retryResult.data.user,
+            session: retryResult.data.session,
+            loading: false,
+            error: null,
+          });
+          
+          return { data: retryResult.data, error: null };
+        }
+        
+        throw error;
+      }
       
       set({
         user: data.user,
@@ -73,7 +97,7 @@ const useAuthStore = create((set, get) => ({
       
       if (error) throw error;
       
-      // FIXED: Clear ALL state on logout
+      // Clear ALL state on logout
       set({
         user: null,
         session: null,
@@ -81,8 +105,7 @@ const useAuthStore = create((set, get) => ({
         error: null,
       });
       
-      // FIXED: Force a full page reload to clear all app state
-      // This ensures all Zustand stores and component state are reset
+      // Force a full page reload to clear all app state
       window.location.href = '/';
       
       return { error: null };
@@ -95,11 +118,23 @@ const useAuthStore = create((set, get) => ({
   initializeAuth: () => {
     // Get initial session
     supabase.auth.getSession().then(({ data: { session }, error }) => {
-      // CRITICAL FIX: If error getting session (stale token), clear it
+      // FIXED: Only clear on specific token errors, not all errors
       if (error) {
         console.error('Error getting session:', error);
-        supabase.auth.signOut({ scope: 'local' });
-        set({ session: null, user: null, loading: false });
+        
+        // Only clear if it's a token-related error
+        if (error.message?.includes('Invalid Refresh Token') || 
+            error.message?.includes('refresh_token_not_found') ||
+            error.message?.includes('invalid_grant')) {
+          console.log('Clearing invalid session...');
+          supabase.auth.signOut({ scope: 'local' });
+        }
+        
+        set({ 
+          session: null, 
+          user: null, 
+          loading: false 
+        });
         return;
       }
       
@@ -115,15 +150,8 @@ const useAuthStore = create((set, get) => ({
       async (event, session) => {
         console.log('Auth state changed:', event);
         
-        // CRITICAL FIX: Handle token refresh errors
-        if (event === 'TOKEN_REFRESHED' && !session) {
-          console.error('Token refresh failed, clearing session');
-          await supabase.auth.signOut({ scope: 'local' });
-          set({ session: null, user: null, loading: false });
-          return;
-        }
-        
-        // FIXED: Handle different auth events explicitly
+        // FIXED: Don't auto-clear on token refresh failures
+        // Let the retry logic in signIn handle it
         if (event === 'SIGNED_OUT') {
           set({
             session: null,
@@ -136,7 +164,13 @@ const useAuthStore = create((set, get) => ({
             user: session?.user ?? null,
             loading: false,
           });
+        } else if (event === 'USER_UPDATED') {
+          set({
+            user: session?.user ?? null,
+            loading: false,
+          });
         } else {
+          // For any other event, just update the session
           set({
             session,
             user: session?.user ?? null,
@@ -146,7 +180,7 @@ const useAuthStore = create((set, get) => ({
       }
     );
     
-    // FIXED: Return unsubscribe function for cleanup
+    // Return unsubscribe function for cleanup
     return () => {
       authListener?.subscription?.unsubscribe();
     };
