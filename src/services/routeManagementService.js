@@ -2,13 +2,13 @@ import { supabase } from '../lib/supabase';
 
 export async function createRoute(routeData) {
   const { data: { session } } = await supabase.auth.getSession();
-
+  
   if (!session?.user) {
     throw new Error('User must be authenticated to create a route');
   }
-
+  
   const user = session.user;
-
+  
   const { data, error } = await supabase
     .from('routes')
     .insert({
@@ -21,25 +21,25 @@ export async function createRoute(routeData) {
       is_active: true,
     })
     .select()
-    .single();
-
+    .maybeSingle();  // FIXED: Changed from .single() to .maybeSingle()
+  
   if (error) {
     console.error('Error creating route:', error);
     throw error;
   }
-
+  
   return data;
 }
 
 export async function updateRoute(routeId, updates) {
   const { data: { session } } = await supabase.auth.getSession();
-
+  
   if (!session?.user) {
     throw new Error('User must be authenticated');
   }
-
+  
   const user = session.user;
-
+  
   const { data, error } = await supabase
     .from('routes')
     .update({
@@ -53,65 +53,67 @@ export async function updateRoute(routeId, updates) {
     .eq('id', routeId)
     .eq('user_id', user.id)
     .select()
-    .single();
-
+    .maybeSingle();  // FIXED: Changed from .single() to .maybeSingle()
+  
   if (error) {
     console.error('Error updating route:', error);
     throw error;
   }
-
+  
   return data;
 }
 
 export async function deleteRoute(routeId) {
   const { data: { session } } = await supabase.auth.getSession();
-
+  
   if (!session?.user) {
     throw new Error('User must be authenticated');
   }
-
+  
   const user = session.user;
-
+  
   const { error } = await supabase
     .from('routes')
     .delete()
     .eq('id', routeId)
     .eq('user_id', user.id);
-
+  
   if (error) {
     console.error('Error deleting route:', error);
     throw error;
   }
-
+  
   return true;
 }
 
 export async function setActiveRoute(routeId) {
   const { data: { session } } = await supabase.auth.getSession();
-
+  
   if (!session?.user) {
     throw new Error('User must be authenticated');
   }
-
+  
   const user = session.user;
-
+  
+  // First, deactivate all routes for this user
   await supabase
     .from('routes')
     .update({ is_active: false })
     .eq('user_id', user.id);
-
+  
+  // Then activate the selected route
   const { data, error } = await supabase
     .from('routes')
     .update({ is_active: true })
     .eq('id', routeId)
     .eq('user_id', user.id)
     .select()
-    .single();
-
+    .maybeSingle();  // FIXED: Changed from .single() to .maybeSingle()
+  
   if (error) {
     console.error('Error setting active route:', error);
     throw error;
   }
-
+  
   return data;
 }
