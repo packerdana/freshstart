@@ -553,13 +553,37 @@ export default function TodayScreen() {
       addHistoryEntry(savedHistory);
 
       const reportData = {
-        ...historyData,
-        predictedClockOut: prediction?.clockOutTime?.toLocaleTimeString('en-US', {
+        date: historyData.date,
+        routeNumber: currentRoute?.routeNumber || 'Unknown',
+        mailVolumes: {
+          parcels: historyData.parcels || 0,
+          flats: historyData.flats || 0,
+          letters: historyData.letters || 0,
+          sprs: historyData.sprs || 0,
+          dps: historyData.dps || 0,
+        },
+        predictedOfficeTime: historyData.predictedOfficeTime || null,
+        actualOfficeTime: historyData.officeTime || 0,
+        officeTime722: historyData.officeTime || 0,
+        officeTime744: historyData.pmOfficeTime || 0,
+        predictedStreetTime: historyData.predictedStreetTime || null,
+        actualStreetTime: historyData.streetTime || 0,
+        evaluatedStreetTime: currentRoute?.manualStreetTime || null,
+        predictedClockOut: prediction?.clockOutTime ? prediction.clockOutTime.toLocaleTimeString('en-US', {
           hour12: false,
           hour: '2-digit',
           minute: '2-digit'
-        }) || null,
-        routeNumber: currentRoute?.routeNumber || 'Unknown',
+        }) : null,
+        actualClockOut: historyData.actualClockOut || null,
+        officeTime: historyData.officeTime || 0,
+        pmOfficeTime: historyData.pmOfficeTime || 0,
+        overtime: historyData.overtime || 0,
+        penaltyOvertime: 0, // TODO: Calculate from weekly hours
+        workOffRouteTime: 0, // TODO: Implement off-route work tracking
+        auxiliaryAssistance: historyData.auxiliaryAssistance || false,
+        mailNotDelivered: historyData.mailNotDelivered || false,
+        notes: historyData.notes || null,
+        weekTotal: 0, // TODO: Calculate from week history
       };
 
       setEodReportData(reportData);
