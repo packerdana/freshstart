@@ -110,7 +110,6 @@ export async function predictWaypointTimes(waypoints, startTime, routeId) {
         const stopsFromLast = index - lastCompletedIndex;
         const predictedMinutes = timeDifference(baseStartTime, lastCompletedTime) + (defaultIncrement * stopsFromLast);
         
-        // FIX: Use native Date math instead of addMinutes utility
         const predictedTime = new Date(baseStartTime.getTime() + predictedMinutes * 60 * 1000);
 
         return {
@@ -132,16 +131,26 @@ export async function predictWaypointTimes(waypoints, startTime, routeId) {
     const historicalMinutesFromStart = average.averageMinutes;
     const adjustedMinutesFromStart = historicalMinutesFromStart + paceAdjustment;
     
-    // FIX: Use native Date math instead of potentially broken addMinutes utility
-    // This creates a new Date by adding milliseconds to the base start time
-    const predictedTime = new Date(baseStartTime.getTime() + adjustedMinutesFromStart * 60 * 1000);
+    // Calculate initial predicted time
+    let predictedTime = new Date(baseStartTime.getTime() + adjustedMinutesFromStart * 60 * 1000);
+    let finalMinutesFromStart = adjustedMinutesFromStart;
+
+    // CRITICAL FIX: Ensure predicted time is AFTER last completed waypoint
+    if (lastCompletedIndex >= 0 && predictedTime <= lastCompletedTime) {
+      // Time would go backwards - use last completed time + reasonable increment
+      const minutesSinceLastCompleted = 6 * (index - lastCompletedIndex); // 6 min per stop
+      predictedTime = new Date(lastCompletedTime.getTime() + minutesSinceLastCompleted * 60 * 1000);
+      finalMinutesFromStart = timeDifference(baseStartTime, predictedTime);
+      
+      console.warn(`[WAYPOINT FIX] ${waypointName}: Would have been ${new Date(baseStartTime.getTime() + adjustedMinutesFromStart * 60 * 1000).toLocaleTimeString()} (before last completed), adjusted to ${predictedTime.toLocaleTimeString()}`);
+    }
 
     console.log(`[PREDICTION] ${waypointName}: ${historicalMinutesFromStart} min from start (adjusted: ${adjustedMinutesFromStart}) → ${predictedTime.toLocaleTimeString()}`);
 
     return {
       ...waypoint,
       predictedTime,
-      predictedMinutes: adjustedMinutesFromStart,
+      predictedMinutes: finalMinutesFromStart,
       confidence: average.confidence,
       sampleSize: average.sampleSize
     };
