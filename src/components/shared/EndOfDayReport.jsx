@@ -1,5 +1,6 @@
-import { CheckCircle, Package, Clock, Calendar, AlertCircle, FileText, TrendingUp } from 'lucide-react';
+import { CheckCircle, Package, Clock, Calendar, AlertCircle, FileText, TrendingUp, Target } from 'lucide-react';
 import { formatMinutesAsTime } from '../../utils/time';
+import { calculatePercentToStandard } from '../../utils/percentToStandard';
 import Card from './Card';
 import Button from './Button';
 
@@ -27,6 +28,16 @@ export default function EndOfDayReport({ reportData, onClose }) {
     notes,
     weekTotal,
   } = reportData;
+
+  // Calculate % to Standard for office performance
+  let officePerformance = null;
+  if (mailVolumes && officeTime722 > 0 && mailVolumes.letters > 0 && mailVolumes.flats > 0) {
+    officePerformance = calculatePercentToStandard(
+      mailVolumes.letters,
+      mailVolumes.flats,
+      officeTime722
+    );
+  }
 
   const formatDate = (dateString) => {
     const d = new Date(dateString + 'T00:00:00');
@@ -274,6 +285,108 @@ export default function EndOfDayReport({ reportData, onClose }) {
                 </div>
               </div>
             </Card>
+
+            {officePerformance && (
+              <Card className="bg-gradient-to-br from-indigo-50 to-blue-50 border-2 border-indigo-200">
+                <div className="flex items-center gap-2 mb-4">
+                  <Target className="w-5 h-5 text-indigo-600" />
+                  <h3 className="font-bold text-gray-900">Office Performance (% to Standard)</h3>
+                </div>
+
+                <div className="bg-white/70 rounded-lg p-4 text-center mb-3">
+                  <p className="text-xs text-gray-600 mb-2">USPS DOIS 18/8 Standard</p>
+                  <p className={`text-4xl font-bold ${
+                    officePerformance.isFast ? 'text-green-600' :
+                    officePerformance.isSlow ? 'text-red-600' : 'text-blue-600'
+                  }`}>
+                    {officePerformance.percentToStandard}% {officePerformance.arrow}
+                  </p>
+                  <p className="text-sm text-gray-700 mt-2">
+                    {officePerformance.isFast ? (
+                      <span className="text-green-700 font-semibold">
+                        {Math.abs(officePerformance.variance)} minutes faster than standard
+                      </span>
+                    ) : officePerformance.isSlow ? (
+                      <span className="text-red-700 font-semibold">
+                        {Math.abs(officePerformance.variance)} minutes slower than standard
+                      </span>
+                    ) : (
+                      <span className="text-blue-700 font-semibold">
+                        On standard
+                      </span>
+                    )}
+                  </p>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b-2 border-gray-300">
+                        <th className="text-left py-2 px-2 font-semibold text-gray-700">Component</th>
+                        <th className="text-right py-2 px-2 font-semibold text-gray-700">Standard</th>
+                        <th className="text-right py-2 px-2 font-semibold text-gray-700">Actual</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr className="border-b border-gray-200">
+                        <td className="py-2 px-2">
+                          <div className="font-medium text-gray-900">Letters</div>
+                          <div className="text-xs text-gray-500">{officePerformance.letterPieces} pcs @ 18/min</div>
+                        </td>
+                        <td className="text-right py-2 px-2 font-semibold text-gray-900 tabular-nums">
+                          {officePerformance.letterMinutes} min
+                        </td>
+                        <td className="text-right py-2 px-2 font-semibold text-gray-900 tabular-nums">
+                          -
+                        </td>
+                      </tr>
+                      <tr className="border-b border-gray-200">
+                        <td className="py-2 px-2">
+                          <div className="font-medium text-gray-900">Flats</div>
+                          <div className="text-xs text-gray-500">{officePerformance.flatPieces} pcs @ 8/min</div>
+                        </td>
+                        <td className="text-right py-2 px-2 font-semibold text-gray-900 tabular-nums">
+                          {officePerformance.flatMinutes} min
+                        </td>
+                        <td className="text-right py-2 px-2 font-semibold text-gray-900 tabular-nums">
+                          -
+                        </td>
+                      </tr>
+                      <tr className="border-b border-gray-200">
+                        <td className="py-2 px-2">
+                          <div className="font-medium text-gray-900">Pull-down</div>
+                          <div className="text-xs text-gray-500">{officePerformance.totalPieces} pcs @ 70/min</div>
+                        </td>
+                        <td className="text-right py-2 px-2 font-semibold text-gray-900 tabular-nums">
+                          {officePerformance.pullDownMinutes} min
+                        </td>
+                        <td className="text-right py-2 px-2 font-semibold text-gray-900 tabular-nums">
+                          -
+                        </td>
+                      </tr>
+                      <tr className="bg-indigo-50">
+                        <td className="py-2 px-2">
+                          <div className="font-bold text-indigo-900">Total</div>
+                        </td>
+                        <td className="text-right py-2 px-2 font-bold text-indigo-700 tabular-nums">
+                          {officePerformance.standardTotal} min
+                        </td>
+                        <td className="text-right py-2 px-2 font-bold text-indigo-700 tabular-nums">
+                          {officePerformance.actualMinutes} min
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="mt-3 p-2 bg-blue-50 border border-blue-300 rounded text-xs">
+                  <p className="text-blue-800">
+                    <strong>Note:</strong> % to Standard is calculated using USPS DOIS formula. 
+                    This is for carrier reference only and is not contractually binding.
+                  </p>
+                </div>
+              </Card>
+            )}
 
             {weekTotal > 0 && (
               <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200">
