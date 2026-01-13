@@ -260,8 +260,27 @@ export async function calculateFullDayPrediction(todayMail, routeConfig, history
     if (returnTimeEstimate && returnTimeEstimate.predictedReturnTime) {
       const hasCompletedWaypoints = waypoints.some(wp => wp.status === 'completed');
 
-      if (hasCompletedWaypoints || returnTimeEstimate.confidence !== 'low') {
-        clockOutTime = returnTimeEstimate.predictedReturnTime;
+      // DEFENSIVE FIX: Validate waypoint prediction before using it
+      const waypointClockOut = returnTimeEstimate.predictedReturnTime;
+      const timeBasedClockOut = clockOutTime;
+      
+      // Reject waypoint prediction if:
+      // 1. It's before leave office time (impossible)
+      // 2. It's more than 2 hours before time-based prediction (suspicious)
+      const isBeforeLeave = waypointClockOut < leaveOfficeTime;
+      const isSuspiciouslyEarly = (timeBasedClockOut - waypointClockOut) > (120 * 60 * 1000); // 2 hours in ms
+      
+      if (isBeforeLeave || isSuspiciouslyEarly) {
+        console.warn('[PREDICTION] Rejecting waypoint prediction - unreasonable time:', {
+          waypointPrediction: waypointClockOut.toLocaleTimeString(),
+          timeBasedPrediction: timeBasedClockOut.toLocaleTimeString(),
+          leaveTime: leaveOfficeTime.toLocaleTimeString(),
+          isBeforeLeave,
+          isSuspiciouslyEarly
+        });
+        // Don't use waypoint prediction - stick with time-based
+      } else if (hasCompletedWaypoints || returnTimeEstimate.confidence !== 'low') {
+        clockOutTime = waypointClockOut;
         waypointEnhanced = true;
       }
     }
