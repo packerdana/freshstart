@@ -547,7 +547,7 @@ export default function TodayScreen() {
       }
 
       console.log('Saving route history:', historyData);
-      const savedHistory = await saveRouteHistory(historyData);
+      const savedHistory = await saveRouteHistory(currentRouteId, historyData);
       console.log('Route history saved:', savedHistory);
 
       addHistoryEntry(savedHistory);
