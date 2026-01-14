@@ -61,6 +61,7 @@ export async function predictWaypointTimes(waypoints, startTime, routeId) {
 
   console.log('Calculated waypoint averages:', allAverages);
 
+  // Find last completed waypoint for pace adjustment
   let lastCompletedIndex = -1;
   let lastCompletedTime = baseStartTime;
   let paceAdjustment = 0;
@@ -72,6 +73,7 @@ export async function predictWaypointTimes(waypoints, startTime, routeId) {
     }
   });
 
+  // Calculate pace adjustment if we have completed waypoints
   if (lastCompletedIndex >= 0) {
     const lastWaypoint = waypoints[lastCompletedIndex];
     const lastWaypointName = lastWaypoint.address || lastWaypoint.name;
@@ -80,15 +82,28 @@ export async function predictWaypointTimes(waypoints, startTime, routeId) {
     if (lastAverage) {
       const actualElapsed = timeDifference(baseStartTime, lastCompletedTime);
       const expectedElapsed = lastAverage.averageMinutes;
-      paceAdjustment = actualElapsed - expectedElapsed;
-      console.log(`Pace adjustment: ${paceAdjustment > 0 ? 'behind' : 'ahead'} by ${Math.abs(paceAdjustment)} minutes`);
+      
+      // CONSERVATIVE: Only apply 50% of variance to prevent cascade errors
+      const rawVariance = actualElapsed - expectedElapsed;
+      paceAdjustment = Math.round(rawVariance * 0.5);
+      
+      console.log(`Pace adjustment: ${paceAdjustment > 0 ? 'behind' : 'ahead'} by ${Math.abs(paceAdjustment)} minutes (50% of ${rawVariance} min variance)`);
     }
   }
 
+  // CRITICAL: Track the PREVIOUS waypoint's time to enforce monotonic ordering
+  // This applies to BOTH completed AND predicted waypoints
+  let previousWaypointTime = baseStartTime;
+
   const predictions = waypoints.map((waypoint, index) => {
+    // If waypoint is already completed, use actual time
     if (waypoint.status === 'completed' && waypoint.delivery_time) {
       const deliveryTime = new Date(waypoint.delivery_time);
       const elapsed = timeDifference(baseStartTime, deliveryTime);
+      
+      // Update previous time for next waypoint
+      previousWaypointTime = deliveryTime;
+      
       return {
         ...waypoint,
         predictedTime: deliveryTime,
@@ -102,54 +117,65 @@ export async function predictWaypointTimes(waypoints, startTime, routeId) {
     const waypointName = waypoint.address || waypoint.name;
     const average = allAverages.find(avg => avg.name === waypointName);
 
+    // No historical data for this waypoint
     if (!average) {
       console.log(`No historical average found for waypoint: "${waypointName}"`);
 
-      if (index > lastCompletedIndex && lastCompletedIndex >= 0) {
-        const defaultIncrement = 6;
-        const stopsFromLast = index - lastCompletedIndex;
-        const predictedMinutes = timeDifference(baseStartTime, lastCompletedTime) + (defaultIncrement * stopsFromLast);
-        
-        const predictedTime = new Date(baseStartTime.getTime() + predictedMinutes * 60 * 1000);
-
-        return {
-          ...waypoint,
-          predictedTime,
-          predictedMinutes,
-          confidence: 'low'
-        };
-      }
+      // Use default increment from previous waypoint
+      const defaultIncrement = 6; // 6 minutes per stop
+      const predictedTime = new Date(previousWaypointTime.getTime() + defaultIncrement * 60 * 1000);
+      const predictedMinutes = timeDifference(baseStartTime, predictedTime);
+      
+      // Update previous time for next waypoint
+      previousWaypointTime = predictedTime;
 
       return {
         ...waypoint,
-        predictedTime: null,
-        predictedMinutes: null,
-        confidence: 'none'
+        predictedTime,
+        predictedMinutes,
+        confidence: 'low'
       };
     }
 
+    // Calculate prediction from historical average
     const historicalMinutesFromStart = average.averageMinutes;
     const adjustedMinutesFromStart = historicalMinutesFromStart + paceAdjustment;
     
-    // Calculate initial predicted time
-    let predictedTime = new Date(baseStartTime.getTime() + adjustedMinutesFromStart * 60 * 1000);
-    let finalMinutesFromStart = adjustedMinutesFromStart;
+    // Calculate initial predicted time from historical data
+    let calculatedTime = new Date(baseStartTime.getTime() + adjustedMinutesFromStart * 60 * 1000);
 
-    // CRITICAL FIX: Ensure predicted time is AFTER last completed waypoint
-    if (lastCompletedIndex >= 0 && predictedTime <= lastCompletedTime) {
-      // Time would go backwards - use last completed time + reasonable increment
-      const minutesSinceLastCompleted = 6 * (index - lastCompletedIndex); // 6 min per stop
-      predictedTime = new Date(lastCompletedTime.getTime() + minutesSinceLastCompleted * 60 * 1000);
-      finalMinutesFromStart = timeDifference(baseStartTime, predictedTime);
+    // ✅ FIX: ENFORCE MONOTONIC TIME
+    // Prediction MUST be after the previous waypoint (completed OR predicted)
+    const minimumIncrement = 3; // At least 3 minutes between waypoints
+    const earliestAllowedTime = new Date(previousWaypointTime.getTime() + minimumIncrement * 60 * 1000);
+    
+    if (calculatedTime < earliestAllowedTime) {
+      const originalTime = new Date(calculatedTime);
+      calculatedTime = earliestAllowedTime;
       
-      console.warn(`[WAYPOINT FIX] ${waypointName}: Would have been ${new Date(baseStartTime.getTime() + adjustedMinutesFromStart * 60 * 1000).toLocaleTimeString()} (before last completed), adjusted to ${predictedTime.toLocaleTimeString()}`);
+      console.warn(
+        `[MONOTONIC FIX] ${waypointName}: ` +
+        `Historical prediction ${originalTime.toLocaleTimeString()} ` +
+        `would be before previous waypoint ${previousWaypointTime.toLocaleTimeString()}, ` +
+        `adjusted to ${calculatedTime.toLocaleTimeString()}`
+      );
     }
+    
+    const finalMinutesFromStart = timeDifference(baseStartTime, calculatedTime);
+    
+    // Update previous time for next waypoint
+    previousWaypointTime = calculatedTime;
 
-    console.log(`[PREDICTION] ${waypointName}: ${historicalMinutesFromStart} min from start (adjusted: ${adjustedMinutesFromStart}) → ${predictedTime.toLocaleTimeString()}`);
+    console.log(
+      `[PREDICTION] ${waypointName}: ` +
+      `${historicalMinutesFromStart} min from start ` +
+      `(pace adjusted: ${adjustedMinutesFromStart}) → ` +
+      `${calculatedTime.toLocaleTimeString()} (${finalMinutesFromStart} min)`
+    );
 
     return {
       ...waypoint,
-      predictedTime,
+      predictedTime: calculatedTime,
       predictedMinutes: finalMinutesFromStart,
       confidence: average.confidence,
       sampleSize: average.sampleSize
