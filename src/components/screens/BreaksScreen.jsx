@@ -29,12 +29,24 @@ export default function BreaksScreen() {
   const endLoadTruck = useBreakStore((state) => state.endLoadTruck);
   const getExpectedLoadTime = useBreakStore((state) => state.getExpectedLoadTime);
   const loadSmartLoadHistory = useBreakStore((state) => state.loadSmartLoadHistory);
+  
+  // ADDED: Get initialization function and status
+  const initialized = useBreakStore((state) => state.initialized);
+  const initializeFromDatabase = useBreakStore((state) => state.initializeFromDatabase);
 
   const routeStarted = useRouteStore((state) => state.routeStarted);
   const user = useAuthStore((state) => state.user);
 
   const [packageCount, setPackageCount] = useState('');
   const [expectedMins, setExpectedMins] = useState(null);
+
+  // ADDED: Initialize break timers from database on mount (restores timers after minimize)
+  useEffect(() => {
+    if (!initialized) {
+      console.log('Initializing break timers from database...');
+      initializeFromDatabase();
+    }
+  }, [initialized, initializeFromDatabase]);
 
   useEffect(() => {
     if (user?.id) {
