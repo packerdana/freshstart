@@ -53,12 +53,23 @@ function groupDeliveriesByDate(deliveries) {
   const result = [];
 
   Object.entries(dateGroups).forEach(([date, dayDeliveries]) => {
+    // Sort by sequence number to ensure proper order
     dayDeliveries.sort((a, b) => a.sequence_number - b.sequence_number);
 
-    const startDelivery = dayDeliveries.find(d =>
+    // Filter to only completed deliveries with valid times
+    const completedDeliveries = dayDeliveries.filter(d => d.delivery_time);
+
+    if (completedDeliveries.length === 0) {
+      console.warn(`[WAYPOINT HISTORY] No completed deliveries for ${date}, skipping`);
+      return;
+    }
+
+    // Find the start waypoint (sequence 0 or first with "leave"/"post office")
+    const startDelivery = completedDeliveries.find(d =>
+      d.sequence_number === 0 ||
       d.address.toLowerCase().includes('leave') ||
       d.address.toLowerCase().includes('post office')
-    ) || dayDeliveries[0];
+    ) || completedDeliveries[0];
 
     if (!startDelivery || !startDelivery.delivery_time) {
       console.warn(`[WAYPOINT HISTORY] No valid start time for ${date}, skipping`);
@@ -67,20 +78,35 @@ function groupDeliveriesByDate(deliveries) {
 
     const startTime = new Date(startDelivery.delivery_time);
 
-    const waypoint_timings = dayDeliveries
-      .filter(d => d.delivery_time)
-      .map(delivery => {
-        const deliveryTime = new Date(delivery.delivery_time);
-        const elapsedMs = deliveryTime - startTime;
-        const elapsedMinutes = Math.round(elapsedMs / (1000 * 60));
+    // ✅ FIX: Calculate duration FROM PREVIOUS WAYPOINT, not from start
+    const waypoint_timings = [];
+    let previousTime = startTime;
 
-        return {
-          name: delivery.address,
-          elapsedMinutes: Math.max(0, elapsedMinutes),
-          timestamp: delivery.delivery_time,
-          sequence: delivery.sequence_number
-        };
+    completedDeliveries.forEach((delivery, index) => {
+      const deliveryTime = new Date(delivery.delivery_time);
+      
+      // Calculate duration from PREVIOUS waypoint (not from start!)
+      const durationFromPreviousMs = deliveryTime - previousTime;
+      const durationFromPreviousMinutes = Math.round(durationFromPreviousMs / (1000 * 60));
+      
+      // Also calculate cumulative time from start (for reference/debugging)
+      const cumulativeMs = deliveryTime - startTime;
+      const cumulativeMinutes = Math.round(cumulativeMs / (1000 * 60));
+
+      waypoint_timings.push({
+        name: delivery.address,
+        durationFromPrevious: Math.max(0, durationFromPreviousMinutes), // ← DURATION!
+        cumulativeFromStart: Math.max(0, cumulativeMinutes), // ← For reference
+        timestamp: delivery.delivery_time,
+        sequence: delivery.sequence_number,
+        isStart: index === 0
       });
+
+      // Update previous time for next waypoint
+      previousTime = deliveryTime;
+    });
+
+    console.log(`[WAYPOINT HISTORY] ${date}: Calculated durations for ${waypoint_timings.length} waypoints`);
 
     result.push({
       date,
@@ -97,15 +123,16 @@ export function calculateWaypointAveragesFromDeliveries(history, waypointName = 
     return null;
   }
 
-  console.log(`[WAYPOINT HISTORY] Calculating averages from ${history.length} days of data`);
+  console.log(`[WAYPOINT HISTORY] Calculating duration averages from ${history.length} days of data`);
 
   if (waypointName) {
+    // Calculate average for single waypoint
     const waypointData = [];
 
     history.forEach(day => {
       const waypoint = day.waypoint_timings?.find(w => w.name === waypointName);
-      if (waypoint && typeof waypoint.elapsedMinutes === 'number') {
-        waypointData.push(waypoint.elapsedMinutes);
+      if (waypoint && typeof waypoint.durationFromPrevious === 'number') {
+        waypointData.push(waypoint.durationFromPrevious);
       }
     });
 
@@ -113,16 +140,17 @@ export function calculateWaypointAveragesFromDeliveries(history, waypointName = 
       return null;
     }
 
-    const avgTime = waypointData.reduce((sum, time) => sum + time, 0) / waypointData.length;
+    const avgDuration = waypointData.reduce((sum, time) => sum + time, 0) / waypointData.length;
 
     return {
       name: waypointName,
-      averageMinutes: Math.round(avgTime),
+      averageDuration: Math.round(avgDuration), // ← DURATION FROM PREVIOUS!
       sampleSize: waypointData.length,
       confidence: waypointData.length >= 10 ? 'high' : waypointData.length >= 5 ? 'medium' : 'low'
     };
   }
 
+  // Calculate averages for all waypoints
   const waypointMap = new Map();
 
   history.forEach(day => {
@@ -132,27 +160,28 @@ export function calculateWaypointAveragesFromDeliveries(history, waypointName = 
       if (!waypointMap.has(waypoint.name)) {
         waypointMap.set(waypoint.name, []);
       }
-      if (typeof waypoint.elapsedMinutes === 'number') {
-        waypointMap.get(waypoint.name).push(waypoint.elapsedMinutes);
+      if (typeof waypoint.durationFromPrevious === 'number') {
+        waypointMap.get(waypoint.name).push(waypoint.durationFromPrevious);
       }
     });
   });
 
   const averages = [];
-  waypointMap.forEach((times, name) => {
-    if (times.length === 0) return;
+  waypointMap.forEach((durations, name) => {
+    if (durations.length === 0) return;
 
-    const avgTime = times.reduce((sum, time) => sum + time, 0) / times.length;
+    const avgDuration = durations.reduce((sum, time) => sum + time, 0) / durations.length;
+    
     averages.push({
       name,
-      averageMinutes: Math.round(avgTime),
-      sampleSize: times.length,
-      confidence: times.length >= 10 ? 'high' : times.length >= 5 ? 'medium' : 'low'
+      averageDuration: Math.round(avgDuration), // ← DURATION FROM PREVIOUS!
+      sampleSize: durations.length,
+      confidence: durations.length >= 10 ? 'high' : durations.length >= 5 ? 'medium' : 'low'
     });
   });
 
-  console.log(`[WAYPOINT HISTORY] Calculated averages for ${averages.length} waypoints:`,
-    averages.map(a => `${a.name}: ${a.averageMinutes}min (n=${a.sampleSize})`).join(', '));
+  console.log(`[WAYPOINT HISTORY] Calculated duration averages for ${averages.length} waypoints:`,
+    averages.map(a => `${a.name}: ${a.averageDuration}min from prev (n=${a.sampleSize})`).join(', '));
 
   return averages;
 }
