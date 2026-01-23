@@ -232,14 +232,20 @@ export default function TodayScreen() {
       setCompletedStreetTimeMinutes(null);
       setStreetStartTime(null);
       setRouteStarted(true);
-      
+
+      // ✅ FIX: Store 721 timer start time for waypoint predictions
+      updateTodayInputs({ 
+        streetTimerStartTime: session.start_time 
+      });
+
       if (preRouteLoadingMinutes > 0) {
         useRouteStore.getState().setPreRouteLoadingMinutes(0);
         console.log('✓ Pre-route loading time cleared from state');
       }
-      
+
       console.log('Route started with data:', todayInputs);
       console.log('Street time tracking started:', session);
+      console.log('✓ 721 street timer start captured for waypoint predictions:', session.start_time);
     } catch (error) {
       console.error('Error starting route:', error);
       alert(error.message || 'Failed to start street time tracking');
@@ -266,6 +272,7 @@ export default function TodayScreen() {
         setStreetStartTime(streetTimeSession.start_time);
         console.log(`✓ Street time preserved: ${durationMinutes} minutes (started at ${streetTimeSession.start_time})`);
         setStreetTime(0);
+        setStreetTimeSession(null); // ✅ CRITICAL FIX: Clear the session state
         streetTimeEnded = true;
         console.log('Street time ended:', durationMinutes, 'minutes');
       }
@@ -592,6 +599,12 @@ export default function TodayScreen() {
       setRouteStarted(false);
       setCompletedStreetTimeMinutes(null);
       setStreetStartTime(null);
+      
+      // ✅ FIX: Clear street timer start time from state
+      updateTodayInputs({ 
+        streetTimerStartTime: null 
+      });
+      console.log('✓ Cleared 721 timer start time from state');
 
       console.log('Route completed successfully');
     } catch (error) {
@@ -1105,7 +1118,20 @@ export default function TodayScreen() {
       )}
 
       {showWorkOffRouteModal && (
-        <WorkOffRouteModal onClose={() => setShowWorkOffRouteModal(false)} />
+        <WorkOffRouteModal 
+          onClose={() => {
+            setShowWorkOffRouteModal(false);
+            // Reload sessions when modal closes
+            loadStreetTimeSession();
+            loadOffRouteSession();
+          }}
+          onSessionChange={() => {
+            // ✅ FIX: Reload sessions immediately when off-route work starts/ends
+            console.log('🔄 Off-route session changed - reloading timers...');
+            loadStreetTimeSession();
+            loadOffRouteSession();
+          }}
+        />
       )}
 
       {showEodReport && eodReportData && (
