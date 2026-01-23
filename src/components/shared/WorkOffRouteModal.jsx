@@ -4,7 +4,7 @@ import Button from './Button';
 import { offRouteService } from '../../services/offRouteService';
 import useRouteStore from '../../stores/routeStore';
 
-export default function WorkOffRouteModal({ onClose }) {
+export default function WorkOffRouteModal({ onClose, onSessionChange }) {
   const currentRouteId = useRouteStore((state) => state.currentRouteId);
   
   const [stage, setStage] = useState('select');
@@ -99,7 +99,7 @@ export default function WorkOffRouteModal({ onClose }) {
         metadata
       });
 
-      // ADDED: Call offRouteService to pause 721 and start 732/736
+      // Call offRouteService to pause 721 and start 732/736
       const result = await offRouteService.startOffRouteActivity(
         activityType,
         expectedDuration,
@@ -114,6 +114,11 @@ export default function WorkOffRouteModal({ onClose }) {
       setStage('timer-active');
 
       console.log('✓ Off-route activity started:', result);
+      
+      // ✅ FIX: Notify parent that sessions changed
+      if (onSessionChange) {
+        onSessionChange();
+      }
     } catch (error) {
       console.error('Error starting off-route activity:', error);
       alert(`Failed to start activity: ${error.message}`);
@@ -124,13 +129,18 @@ export default function WorkOffRouteModal({ onClose }) {
     try {
       console.log('Ending off-route activity...');
 
-      // ADDED: Call offRouteService to end 732/736 and resume 721
+      // Call offRouteService to end 732/736 and resume 721
       const result = await offRouteService.endOffRouteActivity();
 
       setTimerActive(false);
       setStage('completed');
 
       console.log('✓ Off-route activity ended:', result);
+      
+      // ✅ FIX: Notify parent that sessions changed
+      if (onSessionChange) {
+        onSessionChange();
+      }
     } catch (error) {
       console.error('Error ending off-route activity:', error);
       alert(`Failed to end activity: ${error.message}`);
@@ -150,6 +160,11 @@ export default function WorkOffRouteModal({ onClose }) {
       await offRouteService.endOffRouteActivity();
       setElapsedTime(expectedDuration * 60);
       setStage('completed');
+      
+      // ✅ FIX: Notify parent that sessions changed
+      if (onSessionChange) {
+        onSessionChange();
+      }
     } catch (error) {
       console.error('Error correcting activity:', error);
       alert(`Failed to correct activity: ${error.message}`);
@@ -160,6 +175,11 @@ export default function WorkOffRouteModal({ onClose }) {
     try {
       await offRouteService.endOffRouteActivity();
       setStage('completed');
+      
+      // ✅ FIX: Notify parent that sessions changed
+      if (onSessionChange) {
+        onSessionChange();
+      }
     } catch (error) {
       console.error('Error ending activity:', error);
       alert(`Failed to end activity: ${error.message}`);
