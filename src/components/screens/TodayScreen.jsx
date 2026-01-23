@@ -46,6 +46,9 @@ export default function TodayScreen() {
   // NEW: Off-route tracking
   const [offRouteSession, setOffRouteSession] = useState(null);
   const [offRouteTime, setOffRouteTime] = useState(0);
+  
+  // ✅ NEW: Track accumulated street time from completed segments
+  const [accumulatedStreetSeconds, setAccumulatedStreetSeconds] = useState(0);
 
   useEffect(() => {
     const timer = setInterval(() => setDate(new Date()), 60000);
@@ -70,16 +73,22 @@ export default function TodayScreen() {
     return () => clearInterval(interval);
   }, [pmOfficeSession]);
 
+  // ✅ FIXED: Calculate total street time (accumulated + current segment)
   useEffect(() => {
-    if (!streetTimeSession) return;
+    if (!streetTimeSession) {
+      // No active session - just show accumulated time
+      setStreetTime(accumulatedStreetSeconds);
+      return;
+    }
 
     const interval = setInterval(() => {
-      const duration = streetTimeService.calculateCurrentDuration(streetTimeSession);
-      setStreetTime(duration);
+      const currentSegmentDuration = streetTimeService.calculateCurrentDuration(streetTimeSession);
+      // Total = accumulated from previous segments + current segment
+      setStreetTime(accumulatedStreetSeconds + currentSegmentDuration);
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [streetTimeSession]);
+  }, [streetTimeSession, accumulatedStreetSeconds]);
 
   // NEW: Off-route timer effect
   useEffect(() => {
@@ -132,26 +141,37 @@ export default function TodayScreen() {
     }
   };
 
+  // ✅ COMPLETE loadStreetTimeSession function with debugging
   const loadStreetTimeSession = async () => {
-  try {
-    console.log('📊 [loadStreetTimeSession] Getting active session...');
-    const session = await streetTimeService.getActiveSession();
-    setStreetTimeSession(session);
-    console.log('📊 [loadStreetTimeSession] Active session:', session ? 'Found' : 'None');
-    
-    console.log('📊 [loadStreetTimeSession] Getting total street time for today...');
-    const totalMinutes = await offRouteService.getTotalStreetTimeToday();
-    const totalSeconds = totalMinutes * 60;
-    console.log('📊 [loadStreetTimeSession] Total:', totalMinutes, 'min =', totalSeconds, 'sec');
-    
-    if (session) {
-      const currentSegmentDuration = streetTimeService.calculateCurrentDuration(session);
-      const accumulated = Math.max(0, totalSeconds - currentSegmentDuration);
-      console.log('📊 [loadStreetTimeSession] Current segment duration:', currentSegmentDuration, 'sec');
-      console.log('📊 [loadStreetTimeSession] Accumulated:', accumulated, 'sec');
-      setAccumulatedStreetSeconds(accumulated);
-      setRouteStarted(true);
+    try {
+      console.log('📊 [loadStreetTimeSession] Getting active session...');
+      const session = await streetTimeService.getActiveSession();
+      setStreetTimeSession(session);
+      console.log('📊 [loadStreetTimeSession] Active session:', session ? 'Found' : 'None');
+      
+      console.log('📊 [loadStreetTimeSession] Getting total street time for today...');
+      const totalMinutes = await offRouteService.getTotalStreetTimeToday();
+      const totalSeconds = totalMinutes * 60;
+      console.log('📊 [loadStreetTimeSession] Total:', totalMinutes, 'min =', totalSeconds, 'sec');
+      
+      if (session) {
+        const currentSegmentDuration = streetTimeService.calculateCurrentDuration(session);
+        const accumulated = Math.max(0, totalSeconds - currentSegmentDuration);
+        console.log('📊 [loadStreetTimeSession] Current segment duration:', currentSegmentDuration, 'sec');
+        console.log('📊 [loadStreetTimeSession] Accumulated:', accumulated, 'sec');
+        setAccumulatedStreetSeconds(accumulated);
+        setRouteStarted(true);
+      } else {
+        // No active session - all time is accumulated
+        setAccumulatedStreetSeconds(totalSeconds);
+        if (routeStarted && !session && !pmOfficeSession) {
+          setRouteStarted(false);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading street time session:', error);
     }
+  };
 
   // NEW: Load off-route session
   const loadOffRouteSession = async () => {
@@ -233,12 +253,13 @@ export default function TodayScreen() {
 
       const session = await streetTimeService.startSession(currentRouteId, preRouteLoadingMinutes);
       setStreetTimeSession(session);
+      setAccumulatedStreetSeconds(0); // ✅ Reset accumulated time on fresh start
       setStreetTime(0);
       setCompletedStreetTimeMinutes(null);
       setStreetStartTime(null);
       setRouteStarted(true);
 
-      // ✅ FIX: Store 721 timer start time for waypoint predictions
+      // Store 721 timer start time for waypoint predictions
       updateTodayInputs({ 
         streetTimerStartTime: session.start_time 
       });
@@ -277,7 +298,7 @@ export default function TodayScreen() {
         setStreetStartTime(streetTimeSession.start_time);
         console.log(`✓ Street time preserved: ${durationMinutes} minutes (started at ${streetTimeSession.start_time})`);
         setStreetTime(0);
-        setStreetTimeSession(null); // ✅ CRITICAL FIX: Clear the session state
+        setStreetTimeSession(null);
         streetTimeEnded = true;
         console.log('Street time ended:', durationMinutes, 'minutes');
       }
@@ -361,7 +382,6 @@ export default function TodayScreen() {
     return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
   };
 
-  // NEW: Complete route click handler - ends timer FIRST
   const handleCompleteRouteClick = async () => {
     try {
       let actualStreetMinutes = 0;
@@ -380,7 +400,6 @@ export default function TodayScreen() {
         setStreetTime(0);
       }
       
-      // Check if running long (forgot route detection)
       const predictedStreetMinutes = Math.round(prediction?.streetTime || 0);
       const runningLong = actualStreetMinutes > (predictedStreetMinutes + 15);
       
@@ -420,7 +439,6 @@ export default function TodayScreen() {
           setCompletedStreetTimeMinutes(streetTimeMinutes);
           setStreetStartTime(streetTimeSession.start_time);
           console.log(`✓ Street time preserved during completion: ${streetTimeMinutes} minutes (started at ${streetTimeSession.start_time})`);
-          console.log(`Street time (721) automatically ended: ${streetTimeMinutes} minutes`);
           
           setStreetTimeSession(null);
           setStreetTime(0);
@@ -444,23 +462,16 @@ export default function TodayScreen() {
       }
 
       const today = getLocalDateString();
-
       const currentRoute = getCurrentRouteConfig();
 
-      // DEFENSIVE: Handle missing prediction gracefully
       let actualOfficeTime = 0;
       if (prediction && prediction.officeTime != null) {
         actualOfficeTime = prediction.officeTime;
-      } else {
-        console.warn('No prediction available, office time will be calculated from time-of-day inputs');
       }
       
-      // FIXED: Calculate 722 office time from time-of-day strings, NOT UTC timestamps
-      // The database timestamp (start_time) is in UTC which causes timezone issues
       const leaveTimeStr = todayInputs.leaveOfficeTime || currentRoute?.startTime || '07:30';
       const startTimeStr = currentRoute?.startTime || '07:30';
       
-      // Helper to parse HH:mm to minutes since midnight
       const parseTimeToMinutes = (timeStr) => {
         const match = timeStr.match(/^(\d{1,2}):(\d{2})$/);
         if (!match) return 0;
@@ -472,22 +483,14 @@ export default function TodayScreen() {
       const leaveMinutes = parseTimeToMinutes(leaveTimeStr);
       const startMinutes = parseTimeToMinutes(startTimeStr);
       
-      // Calculate office time with midnight wrap handling
       let calculatedOfficeTime = leaveMinutes - startMinutes;
       if (calculatedOfficeTime < 0) {
-        // Wrapped past midnight (e.g., start 23:00, leave 01:00)
-        calculatedOfficeTime += 1440; // 24 hours in minutes
+        calculatedOfficeTime += 1440;
       }
       
-      // Sanity check: Office time should be 0-180 minutes (0-3 hours)
       if (calculatedOfficeTime >= 0 && calculatedOfficeTime <= 180) {
         actualOfficeTime = calculatedOfficeTime;
         console.log(`✓ Actual 722 office time calculated from time-of-day: ${calculatedOfficeTime} minutes (${startTimeStr} → ${leaveTimeStr})`);
-      } else if (calculatedOfficeTime > 180) {
-        console.warn(`Calculated office time (${calculatedOfficeTime} min) exceeds 3 hours, using prediction/default: ${actualOfficeTime} minutes`);
-        // Use prediction value or 0 if unreasonable
-      } else {
-        console.log(`Using predicted office time: ${actualOfficeTime} minutes`);
       }
       
       const actualStreetTime = completionData.streetTime || streetTimeMinutes || 0;
@@ -517,9 +520,9 @@ export default function TodayScreen() {
         pmOfficeTime: pmOfficeTimeMinutes,
         totalMinutes: actualTotalMinutes,
         overtime: actualOvertime,
-        predictedOfficeTime: 0, // ULTRA-SAFE: Always use 0 if prediction unavailable
-        predictedStreetTime: 0, // ULTRA-SAFE: Always use 0 if prediction unavailable
-        predictedReturnTime: null, // ULTRA-SAFE: Always use null if prediction unavailable
+        predictedOfficeTime: 0,
+        predictedStreetTime: 0,
+        predictedReturnTime: null,
         actualLeaveTime: actualLeaveTime,
         actualClockOut: completionData.actualClockOut || null,
         auxiliaryAssistance: completionData.auxiliaryAssistance || false,
@@ -530,15 +533,12 @@ export default function TodayScreen() {
         hasBoxholder: todayInputs.hasBoxholder || false,
       };
       
-      // ULTRA-SAFE: Add prediction values only if they're definitely valid
       try {
         if (prediction && typeof prediction === 'object') {
-          // Capture values FIRST to prevent race conditions
           const predOfficeTime = prediction.officeTime;
           const predStreetTime = prediction.streetTime;
           const predReturnTime = prediction.returnTime;
           
-          // Then validate the captured values
           if (predOfficeTime != null && !isNaN(predOfficeTime)) {
             historyData.predictedOfficeTime = Math.round(predOfficeTime);
           }
@@ -555,7 +555,6 @@ export default function TodayScreen() {
         }
       } catch (predError) {
         console.warn('Could not add prediction data to history:', predError);
-        // Continue without prediction data - actual data is more important
       }
 
       console.log('Saving route history:', historyData);
@@ -590,12 +589,12 @@ export default function TodayScreen() {
         officeTime: historyData.officeTime || 0,
         pmOfficeTime: historyData.pmOfficeTime || 0,
         overtime: historyData.overtime || 0,
-        penaltyOvertime: 0, // TODO: Calculate from weekly hours
-        workOffRouteTime: 0, // TODO: Implement off-route work tracking
+        penaltyOvertime: 0,
+        workOffRouteTime: 0,
         auxiliaryAssistance: historyData.auxiliaryAssistance || false,
         mailNotDelivered: historyData.mailNotDelivered || false,
         notes: historyData.notes || null,
-        weekTotal: 0, // TODO: Calculate from week history
+        weekTotal: 0,
       };
 
       setEodReportData(reportData);
@@ -605,7 +604,6 @@ export default function TodayScreen() {
       setCompletedStreetTimeMinutes(null);
       setStreetStartTime(null);
       
-      // ✅ FIX: Clear street timer start time from state
       updateTodayInputs({ 
         streetTimerStartTime: null 
       });
@@ -614,24 +612,14 @@ export default function TodayScreen() {
       console.log('Route completed successfully');
     } catch (error) {
       console.error('Error completing route:', error);
-      console.error('Error details:', {
-        message: error.message,
-        code: error.code,
-        details: error.details,
-        hint: error.hint,
-        full: error
-      });
-      alert(`Failed to save route data: ${error.message || 'Unknown error'}. Check console for details.`);
+      alert(`Failed to save route data: ${error.message || 'Unknown error'}.`);
     }
   };
 
-  // NEW: Forgot route handlers
   const handleForgotRouteCorrect = async (correctionData) => {
     try {
       console.log('Applying route correction:', correctionData);
-      
       setCompletedStreetTimeMinutes(correctionData.correctedStreetMinutes);
-      
       setShowForgotRouteDialog(false);
       setShowCompletionDialog(true);
     } catch (error) {
@@ -649,7 +637,6 @@ export default function TodayScreen() {
     setShowForgotRouteDialog(false);
   };
 
-  // NEW: Banner nudge handlers
   const handleBannerSnooze = () => {
     setBannerSnoozedUntil(Date.now() + (30 * 60 * 1000));
     setShowBannerNudge(false);
@@ -708,7 +695,6 @@ export default function TodayScreen() {
       <Card className="mb-6">
         <h3 className="text-lg font-bold text-gray-900 mb-4">Mail Volume</h3>
         
-        {/* Scanner Total Input */}
         <div className="mb-4">
           <Input
             label='📱 Scanner Total ("How Am I Doing" → Pkgs Remaining)'
@@ -721,7 +707,6 @@ export default function TodayScreen() {
                 packagesManuallyUpdated: false
               });
               
-              // Auto-split using 56% SPR / 44% Parcel ratio
               if (value > 0) {
                 const sprs = Math.round(value * 0.56);
                 const parcels = value - sprs;
@@ -798,7 +783,6 @@ export default function TodayScreen() {
               const scannerTotal = todayInputs.scannerTotal || 0;
               
               if (scannerTotal > 0) {
-                // Manual adjustment - recalculate SPRs to match scanner total
                 const newSprs = Math.max(0, scannerTotal - numValue);
                 updateTodayInputs({
                   parcels: numValue,
@@ -820,7 +804,6 @@ export default function TodayScreen() {
               const scannerTotal = todayInputs.scannerTotal || 0;
               
               if (scannerTotal > 0) {
-                // Manual adjustment - recalculate Parcels to match scanner total
                 const newParcels = Math.max(0, scannerTotal - numValue);
                 updateTodayInputs({
                   sprs: numValue,
@@ -951,7 +934,7 @@ export default function TodayScreen() {
             <div className="space-y-1 text-sm">
               <div className="flex items-center gap-2 text-blue-700">
                 <span>⏸️</span>
-                <span>Route timer (721) PAUSED</span>
+                <span>Route timer (721) PAUSED at {streetTimeService.formatDuration(streetTime)}</span>
               </div>
               <div className="flex items-center gap-2 text-orange-700">
                 <span>⏱️</span>
@@ -961,7 +944,7 @@ export default function TodayScreen() {
           </div>
 
           <p className="text-xs text-orange-700 text-center">
-            Route timer will resume automatically when off-route work ends
+            Route timer will resume from {streetTimeService.formatDuration(streetTime)} when off-route work ends
           </p>
         </Card>
       )}
@@ -1123,31 +1106,40 @@ export default function TodayScreen() {
       )}
 
       {showWorkOffRouteModal && (
-  <WorkOffRouteModal 
-    onClose={() => {
-      setShowWorkOffRouteModal(false);
-      setTimeout(() => {
-        loadStreetTimeSession();
-        loadOffRouteSession();
-      }, 100);
-    }}
-    onSessionChange={() => {
-      console.log('🔄 Off-route session changed - scheduling reload...');
-      
-      // Use setTimeout instead of Promise
-      setTimeout(async () => {
-        console.log('🔄 [After 1s delay] Now reloading sessions...');
-        
-        try {
-          await loadStreetTimeSession();
-          console.log('✅ Street time session reloaded');
-          
-          await loadOffRouteSession();
-          console.log('✅ Off-route session reloaded');
-        } catch (error) {
-          console.error('❌ Error reloading sessions:', error);
-        }
-      }, 1000); // 1 second delay
-    }}
-  />
-)}
+        <WorkOffRouteModal 
+          onClose={() => {
+            setShowWorkOffRouteModal(false);
+            setTimeout(() => {
+              loadStreetTimeSession();
+              loadOffRouteSession();
+            }, 100);
+          }}
+          onSessionChange={() => {
+            console.log('🔄 Off-route session changed - scheduling reload...');
+            
+            setTimeout(async () => {
+              console.log('🔄 [After 1s delay] Now reloading sessions...');
+              
+              try {
+                await loadStreetTimeSession();
+                console.log('✅ Street time session reloaded');
+                
+                await loadOffRouteSession();
+                console.log('✅ Off-route session reloaded');
+              } catch (error) {
+                console.error('❌ Error reloading sessions:', error);
+              }
+            }, 1000);
+          }}
+        />
+      )}
+
+      {showEodReport && eodReportData && (
+        <EndOfDayReport
+          reportData={eodReportData}
+          onClose={() => setShowEodReport(false)}
+        />
+      )}
+    </div>
+  );
+}
