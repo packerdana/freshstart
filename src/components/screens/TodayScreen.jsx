@@ -133,20 +133,25 @@ export default function TodayScreen() {
   };
 
   const loadStreetTimeSession = async () => {
-    try {
-      const session = await streetTimeService.getActiveSession();
-      setStreetTimeSession(session);
-      if (session) {
-        const duration = streetTimeService.calculateCurrentDuration(session);
-        setStreetTime(duration);
-        setRouteStarted(true);
-      } else if (routeStarted && !session && !pmOfficeSession) {
-        setRouteStarted(false);
-      }
-    } catch (error) {
-      console.error('Error loading street time session:', error);
+  try {
+    console.log('📊 [loadStreetTimeSession] Getting active session...');
+    const session = await streetTimeService.getActiveSession();
+    setStreetTimeSession(session);
+    console.log('📊 [loadStreetTimeSession] Active session:', session ? 'Found' : 'None');
+    
+    console.log('📊 [loadStreetTimeSession] Getting total street time for today...');
+    const totalMinutes = await offRouteService.getTotalStreetTimeToday();
+    const totalSeconds = totalMinutes * 60;
+    console.log('📊 [loadStreetTimeSession] Total:', totalMinutes, 'min =', totalSeconds, 'sec');
+    
+    if (session) {
+      const currentSegmentDuration = streetTimeService.calculateCurrentDuration(session);
+      const accumulated = Math.max(0, totalSeconds - currentSegmentDuration);
+      console.log('📊 [loadStreetTimeSession] Current segment duration:', currentSegmentDuration, 'sec');
+      console.log('📊 [loadStreetTimeSession] Accumulated:', accumulated, 'sec');
+      setAccumulatedStreetSeconds(accumulated);
+      setRouteStarted(true);
     }
-  };
 
   // NEW: Load off-route session
   const loadOffRouteSession = async () => {
@@ -1118,28 +1123,31 @@ export default function TodayScreen() {
       )}
 
       {showWorkOffRouteModal && (
-        <WorkOffRouteModal 
-          onClose={() => {
-            setShowWorkOffRouteModal(false);
-            // Reload sessions when modal closes
-            loadStreetTimeSession();
-            loadOffRouteSession();
-          }}
-          onSessionChange={() => {
-            // ✅ FIX: Reload sessions immediately when off-route work starts/ends
-            console.log('🔄 Off-route session changed - reloading timers...');
-            loadStreetTimeSession();
-            loadOffRouteSession();
-          }}
-        />
-      )}
-
-      {showEodReport && eodReportData && (
-        <EndOfDayReport
-          reportData={eodReportData}
-          onClose={() => setShowEodReport(false)}
-        />
-      )}
-    </div>
-  );
-}
+  <WorkOffRouteModal 
+    onClose={() => {
+      setShowWorkOffRouteModal(false);
+      setTimeout(() => {
+        loadStreetTimeSession();
+        loadOffRouteSession();
+      }, 100);
+    }}
+    onSessionChange={() => {
+      console.log('🔄 Off-route session changed - scheduling reload...');
+      
+      // Use setTimeout instead of Promise
+      setTimeout(async () => {
+        console.log('🔄 [After 1s delay] Now reloading sessions...');
+        
+        try {
+          await loadStreetTimeSession();
+          console.log('✅ Street time session reloaded');
+          
+          await loadOffRouteSession();
+          console.log('✅ Off-route session reloaded');
+        } catch (error) {
+          console.error('❌ Error reloading sessions:', error);
+        }
+      }, 1000); // 1 second delay
+    }}
+  />
+)}
