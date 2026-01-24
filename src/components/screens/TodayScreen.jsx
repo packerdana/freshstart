@@ -151,7 +151,7 @@ export default function TodayScreen() {
       
       console.log('📊 [loadStreetTimeSession] Getting total street time for today...');
       const totalMinutes = await offRouteService.getTotalStreetTimeToday();
-      const totalSeconds = totalMinutes * 60;
+      const totalSeconds = Math.floor(totalMinutes * 60); // ✅ Force to whole seconds
       console.log('📊 [loadStreetTimeSession] Total:', totalMinutes, 'min =', totalSeconds, 'sec');
       
       if (session) {
