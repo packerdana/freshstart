@@ -384,6 +384,17 @@ export default function TodayScreen() {
 
   const handleCompleteRouteClick = async () => {
     try {
+      // ✅ NEW: Auto-end any active off-route timers first
+      const activeOffRoute = await offRouteService.getActiveOffRouteSession();
+      if (activeOffRoute) {
+        console.log('⚠️ Found active off-route session during route completion - ending it automatically...');
+        await offRouteService.endOffRouteActivity();
+        console.log('✓ Off-route timer auto-ended');
+      
+      // Reload sessions to update UI
+      await loadStreetTimeSession();
+      await loadOffRouteSession();
+    }
       let actualStreetMinutes = 0;
       
       if (streetTimeSession && !streetTimeSession.end_time) {
