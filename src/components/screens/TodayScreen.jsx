@@ -156,7 +156,7 @@ export default function TodayScreen() {
       
       if (session) {
         const currentSegmentDuration = streetTimeService.calculateCurrentDuration(session);
-        const accumulated = Math.max(0, totalSeconds - currentSegmentDuration);
+        const accumulated = Math.floor(Math.max(0, totalSeconds - currentSegmentDuration)); // ✅ Force to whole seconds
         console.log('📊 [loadStreetTimeSession] Current segment duration:', currentSegmentDuration, 'sec');
         console.log('📊 [loadStreetTimeSession] Accumulated:', accumulated, 'sec');
         setAccumulatedStreetSeconds(accumulated);
