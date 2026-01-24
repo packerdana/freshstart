@@ -84,7 +84,6 @@ export default function WorkOffRouteModal({ onClose, onSessionChange }) {
         return;
       }
 
-      // Build metadata
       const metadata = {};
       if (activityType === 'collections' && location) {
         metadata.location = location;
@@ -99,7 +98,6 @@ export default function WorkOffRouteModal({ onClose, onSessionChange }) {
         metadata
       });
 
-      // Call offRouteService to pause 721 and start 732/736
       const result = await offRouteService.startOffRouteActivity(
         activityType,
         expectedDuration,
@@ -115,7 +113,6 @@ export default function WorkOffRouteModal({ onClose, onSessionChange }) {
 
       console.log('✓ Off-route activity started:', result);
       
-      // ✅ FIX: Notify parent that sessions changed
       if (onSessionChange) {
         onSessionChange();
       }
@@ -129,7 +126,6 @@ export default function WorkOffRouteModal({ onClose, onSessionChange }) {
     try {
       console.log('Ending off-route activity...');
 
-      // Call offRouteService to end 732/736 and resume 721
       const result = await offRouteService.endOffRouteActivity();
 
       setTimerActive(false);
@@ -137,7 +133,6 @@ export default function WorkOffRouteModal({ onClose, onSessionChange }) {
 
       console.log('✓ Off-route activity ended:', result);
       
-      // ✅ FIX: Notify parent that sessions changed
       if (onSessionChange) {
         onSessionChange();
       }
@@ -156,12 +151,10 @@ export default function WorkOffRouteModal({ onClose, onSessionChange }) {
 
   const handleCorrectToExpected = async () => {
     try {
-      // End the session with corrected time
       await offRouteService.endOffRouteActivity();
       setElapsedTime(expectedDuration * 60);
       setStage('completed');
       
-      // ✅ FIX: Notify parent that sessions changed
       if (onSessionChange) {
         onSessionChange();
       }
@@ -176,7 +169,6 @@ export default function WorkOffRouteModal({ onClose, onSessionChange }) {
       await offRouteService.endOffRouteActivity();
       setStage('completed');
       
-      // ✅ FIX: Notify parent that sessions changed
       if (onSessionChange) {
         onSessionChange();
       }
@@ -184,6 +176,23 @@ export default function WorkOffRouteModal({ onClose, onSessionChange }) {
       console.error('Error ending activity:', error);
       alert(`Failed to end activity: ${error.message}`);
     }
+  };
+
+  // ✅ NEW: Prevent closing modal while timer is active
+  const handleClose = () => {
+    if (timerActive) {
+      if (confirm('⚠️ WARNING: Off-route timer is still running!\n\nYou must END the activity before closing this window.\n\nClick OK to force stop the timer, or Cancel to go back.')) {
+        // Force stop the timer
+        handleEndActivity().then(() => {
+          onClose();
+        });
+      }
+      // Don't close if they clicked Cancel
+      return;
+    }
+    
+    // Safe to close - no active timer
+    onClose();
   };
 
   if (stage === 'select') {
@@ -215,7 +224,7 @@ export default function WorkOffRouteModal({ onClose, onSessionChange }) {
           </div>
 
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="w-full mt-4 py-2 text-gray-600 hover:text-gray-800"
           >
             Cancel
@@ -353,12 +362,9 @@ export default function WorkOffRouteModal({ onClose, onSessionChange }) {
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
         <div className="bg-white rounded-lg max-w-md w-full p-6">
+          {/* ✅ FIXED: Changed close behavior */}
           <button
-            onClick={() => {
-              if (confirm('Are you sure you want to cancel?')) {
-                onClose();
-              }
-            }}
+            onClick={handleClose}
             className="text-blue-600 font-medium mb-6"
           >
             ← Back
@@ -402,9 +408,21 @@ export default function WorkOffRouteModal({ onClose, onSessionChange }) {
             <p>Started: {startTime?.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</p>
           </div>
 
-          <Button onClick={handleEndActivity} className="w-full">
+          <Button onClick={handleEndActivity} className="w-full bg-green-600 hover:bg-green-700">
             ✅ END {activityType === 'collections' ? 'COLLECTIONS' : 'RELAY ASSISTANCE'}
           </Button>
+          
+          {/* ✅ NEW: Emergency force stop button */}
+          <button
+            onClick={() => {
+              if (confirm('⚠️ Force stop this timer?\n\nThis will end the activity immediately.')) {
+                handleEndActivity();
+              }
+            }}
+            className="w-full mt-2 py-2 text-red-600 hover:text-red-800 text-sm font-medium"
+          >
+            🛑 Force Stop
+          </button>
         </div>
       </div>
     );
@@ -469,7 +487,7 @@ export default function WorkOffRouteModal({ onClose, onSessionChange }) {
           <p className="text-xs text-gray-500 mb-6">
             You can edit this in the End of Day Report if needed.
           </p>
-          <Button onClick={onClose} className="w-full">
+          <Button onClick={handleClose} className="w-full">
             ✅ OK
           </Button>
         </div>
@@ -512,7 +530,7 @@ export default function WorkOffRouteModal({ onClose, onSessionChange }) {
             </p>
           </div>
 
-          <Button onClick={onClose} className="w-full">
+          <Button onClick={handleClose} className="w-full">
             ✅ DONE
           </Button>
         </div>
