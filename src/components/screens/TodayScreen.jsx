@@ -84,7 +84,7 @@ export default function TodayScreen() {
     const interval = setInterval(() => {
       const currentSegmentDuration = streetTimeService.calculateCurrentDuration(streetTimeSession);
       // Total = accumulated from previous segments + current segment
-      setStreetTime(accumulatedStreetSeconds + currentSegmentDuration);
+     setStreetTime(Math.floor(accumulatedStreetSeconds + currentSegmentDuration)); // ✅ Force to whole seconds
     }, 1000);
 
     return () => clearInterval(interval);
