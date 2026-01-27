@@ -3,6 +3,7 @@ import TodayScreen from './components/screens/TodayScreen';
 import RoutesScreen from './components/screens/RoutesScreen';
 import WaypointsScreen from './components/screens/WaypointsScreen';
 import WaypointHistoryScreen from './components/screens/WaypointHistoryScreen';
+import StreetTimeHistoryScreen from './components/screens/StreetTimeHistoryScreen';
 import BreaksScreen from './components/screens/BreaksScreen';
 import StatsScreen from './components/screens/StatsScreen';
 import SettingsScreen from './components/screens/SettingsScreen';
@@ -69,6 +70,8 @@ function App() {
         return <WaypointsScreen />;
       case 'history':
         return <WaypointHistoryScreen />;
+      case 'street-time-history':
+        return <StreetTimeHistoryScreen />;
       case 'timers':
         return <BreaksScreen />;
       case 'stats':
@@ -86,11 +89,9 @@ function App() {
         <h1 className="text-xl font-bold">RouteWise</h1>
         <p className="text-sm text-blue-100">Route {currentRoute}</p>
       </header>
-
       <main className="flex-1 overflow-auto">
         {renderScreen()}
       </main>
-
       <BottomNav activeTab={activeTab} onTabChange={setActiveTab} />
     </div>
   );
