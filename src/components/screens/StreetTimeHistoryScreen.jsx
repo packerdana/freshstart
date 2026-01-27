@@ -3,6 +3,7 @@ import { History, Calendar, Clock, ChevronDown, ChevronUp, Search, TrendingUp, T
 import Card from '../shared/Card';
 import Button from '../shared/Button';
 import useRouteStore from '../../stores/routeStore';
+import { supabase } from '../../lib/supabase';
 import { getStreetTimeSummaryByDate, getOperationCodesForDate, CODE_NAMES, formatDuration } from '../../services/streetTimeHistoryService';
 import { useDayDeletion } from '../../hooks/useDayDeletion';
 import { format, parseISO, differenceInDays } from 'date-fns';
@@ -18,13 +19,41 @@ export default function StreetTimeHistoryScreen() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [dayToDelete, setDayToDelete] = useState(null);
   const [deleteResult, setDeleteResult] = useState(null);
+  const [routeName, setRouteName] = useState(null);
 
   const { currentRouteId } = useRouteStore();
-  const { currentRouteId, currentRoute } = useRouteStore();
+  
   const {
     deletingDate,
     deleteStreetTimeDay,
   } = useDayDeletion();
+
+  // Fetch route name from database
+  useEffect(() => {
+    const fetchRouteName = async () => {
+      if (!currentRouteId) return;
+      
+      try {
+        const { data, error } = await supabase
+          .from('routes')
+          .select('route_number, route_name')
+          .eq('id', currentRouteId)
+          .single();
+        
+        if (error) throw error;
+        
+        // Use route_number if available, fallback to route_name, or show truncated UUID
+        const displayName = data.route_number || data.route_name || currentRouteId.substring(0, 8) + '...';
+        setRouteName(displayName);
+        console.log('[STREET TIME SCREEN] Route name:', displayName);
+      } catch (error) {
+        console.error('Failed to fetch route name:', error);
+        setRouteName(currentRouteId.substring(0, 8) + '...');
+      }
+    };
+    
+    fetchRouteName();
+  }, [currentRouteId]);
 
   useEffect(() => {
     if (currentRouteId) {
@@ -250,11 +279,11 @@ export default function StreetTimeHistoryScreen() {
                     {formatDuration(dayToDelete.total_minutes)}
                   </span>
                 </div>
-                {dayToDelete.route_id && (
+                {routeName && (
                   <div className="flex justify-between">
                     <span className="text-gray-600">Route:</span>
-                    <span className="font-semibold text-gray-900 text-xs truncate">
-                      {dayToDelete.route_id.substring(0, 8)}...
+                    <span className="font-semibold text-gray-900">
+                      {routeName}
                     </span>
                   </div>
                 )}
@@ -384,9 +413,9 @@ export default function StreetTimeHistoryScreen() {
                       <p className="text-xs text-gray-500">
                         {daysAgo === 0 ? 'Today' : daysAgo === 1 ? 'Yesterday' : `${daysAgo} days ago`}
                       </p>
-                      {item.route_id && (
+                      {routeName && (
                         <p className="text-xs text-gray-500 mt-1">
-                          Route: {currentRoute || item.route_id.substring(0, 8) + '...'}
+                          Route: {routeName}
                         </p>
                       )}
                     </div>
