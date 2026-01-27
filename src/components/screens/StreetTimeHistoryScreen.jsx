@@ -37,24 +37,50 @@ export default function StreetTimeHistoryScreen() {
   }, [sessionId]);
 
   const getSessionId = async () => {
-    try {
-      // Get from localStorage (app.js pattern)
-      const stored = localStorage.getItem('routewiseData');
-      if (stored) {
+  try {
+    // CORRECT KEY: routewise-storage (not routewiseData!)
+    const stored = localStorage.getItem('routewise-storage');
+    if (stored) {
+      try {
         const data = JSON.parse(stored);
-        if (data.sessionId) {
-          setSessionId(data.sessionId);
+        console.log('[STREET TIME] Parsed storage:', data);
+        
+        // The structure might have sessionId nested - check common locations
+        const sessionId = data.sessionId || 
+                         data.state?.sessionId || 
+                         data.session?.id;
+        
+        if (sessionId) {
+          console.log('[STREET TIME] Found session ID:', sessionId);
+          setSessionId(sessionId);
           return;
         }
+      } catch (parseError) {
+        console.error('[STREET TIME] Failed to parse routewise-storage:', parseError);
       }
-
-      // Fallback: generate new session ID (matches app.js pattern)
-      const newSessionId = `rw_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      setSessionId(newSessionId);
-    } catch (error) {
-      console.error('Failed to get session ID:', error);
     }
-  };
+
+    // Fallback: Try routewise-auth
+    const authStored = localStorage.getItem('routewise-auth');
+    if (authStored) {
+      try {
+        const authData = JSON.parse(authStored);
+        if (authData.sessionId) {
+          console.log('[STREET TIME] Found session from auth:', authData.sessionId);
+          setSessionId(authData.sessionId);
+          return;
+        }
+      } catch (e) {
+        console.error('[STREET TIME] Failed to parse routewise-auth:', e);
+      }
+    }
+
+    console.error('[STREET TIME] No session ID found!');
+    alert('Unable to find session. Please refresh the page.');
+  } catch (error) {
+    console.error('Failed to get session ID:', error);
+  }
+};
 
   const loadHistorySummary = async () => {
     setLoading(true);
