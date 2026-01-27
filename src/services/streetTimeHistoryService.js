@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 /**
  * Street Time History Service
  * Manages operation codes (722, 721, 736, 732, 744) history retrieval
- * Filters to only packerdana sessions
+ * Filters by current route ID to show only relevant data
  */
 
 const CODE_NAMES = {
@@ -16,22 +16,28 @@ const CODE_NAMES = {
 
 /**
  * Get street time summary grouped by date
- * Filters to only packerdana sessions
+ * Filters to current route only
+ * @param {string} currentRouteId - UUID of current route
  * @returns {Promise<Array>} Array of date summaries
  */
-export async function getStreetTimeSummaryByDate() {
+export async function getStreetTimeSummaryByDate(currentRouteId) {
   try {
-    // Filter to ONLY packerdana sessions
+    if (!currentRouteId) {
+      console.warn('[STREET TIME SERVICE] No route ID provided');
+      return [];
+    }
+
+    // Filter by CURRENT ROUTE only
     const { data, error } = await supabase
       .from('operation_codes')
       .select('date, code, duration_minutes, route_id, session_id')
-      .like('session_id', '%packerdana%')  // ← CRITICAL FILTER
+      .eq('route_id', currentRouteId)
       .not('end_time', 'is', null)
       .order('date', { ascending: false });
 
     if (error) throw error;
 
-    console.log('[STREET TIME SERVICE] Loaded', data.length, 'operation codes for packerdana');
+    console.log('[STREET TIME SERVICE] Loaded', data.length, 'operation codes for route', currentRouteId);
 
     // Group by date and sum durations by code
     const dateMap = new Map();
@@ -41,6 +47,7 @@ export async function getStreetTimeSummaryByDate() {
         dateMap.set(record.date, {
           date: record.date,
           route_id: record.route_id,
+          session_id: record.session_id,
           total_minutes: 0,
           codes: {
             '722': 0,
@@ -57,11 +64,6 @@ export async function getStreetTimeSummaryByDate() {
       
       daySummary.codes[record.code] = (daySummary.codes[record.code] || 0) + duration;
       daySummary.total_minutes += duration;
-      
-      // Update route_id if not set yet
-      if (!daySummary.route_id && record.route_id) {
-        daySummary.route_id = record.route_id;
-      }
     });
 
     const result = Array.from(dateMap.values());
@@ -76,26 +78,29 @@ export async function getStreetTimeSummaryByDate() {
 
 /**
  * Get detailed operation codes for a specific date
- * Filters to only packerdana sessions
- * @param {string} sessionId - Ignored (kept for API compatibility)
+ * Filters to current route only
+ * @param {string} currentRouteId - UUID of current route
  * @param {string} date - Date in YYYY-MM-DD format
  * @returns {Promise<Array>} Array of operation code records
  */
-export async function getOperationCodesForDate(sessionId, date) {
+export async function getOperationCodesForDate(currentRouteId, date) {
   try {
-    // Filter to ONLY packerdana sessions for this date
+    if (!currentRouteId) {
+      console.warn('[STREET TIME SERVICE] No route ID provided for date', date);
+      return [];
+    }
+
     const { data, error } = await supabase
       .from('operation_codes')
       .select('*')
-      .like('session_id', '%packerdana%')  // ← CRITICAL FILTER
+      .eq('route_id', currentRouteId)
       .eq('date', date)
       .order('start_time', { ascending: true });
 
     if (error) throw error;
 
-    console.log('[STREET TIME SERVICE] Loaded', data.length, 'codes for date', date);
+    console.log('[STREET TIME SERVICE] Loaded', data.length, 'codes for route', currentRouteId, 'date', date);
 
-    // Add code names and format durations
     return data.map(record => ({
       ...record,
       code_name: CODE_NAMES[record.code] || 'Unknown',
@@ -109,16 +114,17 @@ export async function getOperationCodesForDate(sessionId, date) {
 
 /**
  * Check if day_state_backup exists for a date
- * @param {string} sessionId - User's session ID
+ * @param {string} currentRouteId - UUID of current route (not used, kept for compatibility)
  * @param {string} date - Date in YYYY-MM-DD format
  * @returns {Promise<boolean>} True if day state exists
  */
-export async function hasDayStateBackup(sessionId, date) {
+export async function hasDayStateBackup(currentRouteId, date) {
   try {
+    // Note: day_state_backup uses session_id, not route_id
+    // Check if ANY backup exists for this date
     const { data, error } = await supabase
       .from('day_state_backup')
       .select('id')
-      .like('session_id', '%packerdana%')  // ← Filter here too
       .eq('date', date)
       .maybeSingle();
 
