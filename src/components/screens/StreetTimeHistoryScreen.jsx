@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { History, Calendar, Clock, ChevronDown, ChevronUp, Search, TrendingUp, Trash2, AlertCircle, Check } from 'lucide-react';
 import Card from '../shared/Card';
 import Button from '../shared/Button';
+import useRouteStore from '../../stores/routeStore';
 import { getStreetTimeSummaryByDate, getOperationCodesForDate, CODE_NAMES, formatDuration } from '../../services/streetTimeHistoryService';
 import { useDayDeletion } from '../../hooks/useDayDeletion';
 import { format, parseISO, differenceInDays } from 'date-fns';
@@ -18,19 +19,23 @@ export default function StreetTimeHistoryScreen() {
   const [dayToDelete, setDayToDelete] = useState(null);
   const [deleteResult, setDeleteResult] = useState(null);
 
+  const { currentRouteId } = useRouteStore();
+  
   const {
     deletingDate,
     deleteStreetTimeDay,
   } = useDayDeletion();
 
   useEffect(() => {
-    loadHistorySummary();
-  }, []);
+    if (currentRouteId) {
+      loadHistorySummary();
+    }
+  }, [currentRouteId]);
 
   const loadHistorySummary = async () => {
     setLoading(true);
     try {
-      const summary = await getStreetTimeSummaryByDate();
+      const summary = await getStreetTimeSummaryByDate(currentRouteId);
       setHistorySummary(summary);
       console.log('[STREET TIME SCREEN] Loaded', summary.length, 'days');
     } catch (error) {
@@ -51,7 +56,7 @@ export default function StreetTimeHistoryScreen() {
     setLoadingDetails(true);
     setExpandedDate(date);
     try {
-      const codes = await getOperationCodesForDate(null, date);
+      const codes = await getOperationCodesForDate(currentRouteId, date);
       setExpandedCodes(codes);
     } catch (error) {
       console.error('Failed to load codes for date:', error);
@@ -153,6 +158,25 @@ export default function StreetTimeHistoryScreen() {
       default: return 'bg-gray-50 text-gray-700 border-gray-200';
     }
   };
+
+  if (!currentRouteId) {
+    return (
+      <div className="p-4 max-w-2xl mx-auto pb-20">
+        <div className="mb-6">
+          <h2 className="text-2xl font-bold text-gray-900">Street Time History</h2>
+        </div>
+        <Card>
+          <div className="text-center py-8">
+            <History className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+            <p className="text-gray-600 mb-1">No route configured</p>
+            <p className="text-sm text-gray-500">
+              Go to Settings to create your first route
+            </p>
+          </div>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 max-w-2xl mx-auto pb-20">
