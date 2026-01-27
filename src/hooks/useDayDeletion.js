@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { supabase } from '../../lib/supabase';
+import { supabase } from '../lib/supabase';
 
 /**
  * Hook for deleting waypoint and street time days with swipe-to-delete UI
