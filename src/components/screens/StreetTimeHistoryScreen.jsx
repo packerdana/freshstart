@@ -5,7 +5,6 @@ import Button from '../shared/Button';
 import { getStreetTimeSummaryByDate, getOperationCodesForDate, CODE_NAMES, formatDuration } from '../../services/streetTimeHistoryService';
 import { useDayDeletion } from '../../hooks/useDayDeletion';
 import { format, parseISO, differenceInDays } from 'date-fns';
-import { supabase } from '../../lib/supabase';
 
 export default function StreetTimeHistoryScreen() {
   const [loading, setLoading] = useState(false);
@@ -18,75 +17,22 @@ export default function StreetTimeHistoryScreen() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [dayToDelete, setDayToDelete] = useState(null);
   const [deleteResult, setDeleteResult] = useState(null);
-  const [sessionId, setSessionId] = useState(null);
 
   const {
     deletingDate,
     deleteStreetTimeDay,
   } = useDayDeletion();
 
-  // Get session ID on mount
   useEffect(() => {
-    getSessionId();
+    loadHistorySummary();
   }, []);
-
-  useEffect(() => {
-    if (sessionId) {
-      loadHistorySummary();
-    }
-  }, [sessionId]);
-
-  const getSessionId = async () => {
-  try {
-    // CORRECT KEY: routewise-storage (not routewiseData!)
-    const stored = localStorage.getItem('routewise-storage');
-    if (stored) {
-      try {
-        const data = JSON.parse(stored);
-        console.log('[STREET TIME] Parsed storage:', data);
-        
-        // The structure might have sessionId nested - check common locations
-        const sessionId = data.sessionId || 
-                         data.state?.sessionId || 
-                         data.session?.id;
-        
-        if (sessionId) {
-          console.log('[STREET TIME] Found session ID:', sessionId);
-          setSessionId(sessionId);
-          return;
-        }
-      } catch (parseError) {
-        console.error('[STREET TIME] Failed to parse routewise-storage:', parseError);
-      }
-    }
-
-    // Fallback: Try routewise-auth
-    const authStored = localStorage.getItem('routewise-auth');
-    if (authStored) {
-      try {
-        const authData = JSON.parse(authStored);
-        if (authData.sessionId) {
-          console.log('[STREET TIME] Found session from auth:', authData.sessionId);
-          setSessionId(authData.sessionId);
-          return;
-        }
-      } catch (e) {
-        console.error('[STREET TIME] Failed to parse routewise-auth:', e);
-      }
-    }
-
-    console.error('[STREET TIME] No session ID found!');
-    alert('Unable to find session. Please refresh the page.');
-  } catch (error) {
-    console.error('Failed to get session ID:', error);
-  }
-};
 
   const loadHistorySummary = async () => {
     setLoading(true);
     try {
-      const summary = await getStreetTimeSummaryByDate(sessionId);
+      const summary = await getStreetTimeSummaryByDate();
       setHistorySummary(summary);
+      console.log('[STREET TIME SCREEN] Loaded', summary.length, 'days');
     } catch (error) {
       console.error('Failed to load street time history:', error);
       setHistorySummary([]);
@@ -105,7 +51,7 @@ export default function StreetTimeHistoryScreen() {
     setLoadingDetails(true);
     setExpandedDate(date);
     try {
-      const codes = await getOperationCodesForDate(sessionId, date);
+      const codes = await getOperationCodesForDate(null, date);
       setExpandedCodes(codes);
     } catch (error) {
       console.error('Failed to load codes for date:', error);
@@ -208,22 +154,6 @@ export default function StreetTimeHistoryScreen() {
     }
   };
 
-  if (!sessionId) {
-    return (
-      <div className="p-4 max-w-2xl mx-auto pb-20">
-        <div className="mb-6">
-          <h2 className="text-2xl font-bold text-gray-900">Street Time History</h2>
-        </div>
-        <Card>
-          <div className="text-center py-8">
-            <History className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-            <p className="text-gray-600 mb-1">Loading session...</p>
-          </div>
-        </Card>
-      </div>
-    );
-  }
-
   return (
     <div className="p-4 max-w-2xl mx-auto pb-20">
       {/* Success/Error Toast */}
@@ -299,8 +229,8 @@ export default function StreetTimeHistoryScreen() {
                 {dayToDelete.route_id && (
                   <div className="flex justify-between">
                     <span className="text-gray-600">Route:</span>
-                    <span className="font-semibold text-gray-900">
-                      {dayToDelete.route_id}
+                    <span className="font-semibold text-gray-900 text-xs truncate">
+                      {dayToDelete.route_id.substring(0, 8)}...
                     </span>
                   </div>
                 )}
@@ -432,7 +362,7 @@ export default function StreetTimeHistoryScreen() {
                       </p>
                       {item.route_id && (
                         <p className="text-xs text-gray-500 mt-1">
-                          Route: {item.route_id}
+                          Route: {item.route_id.substring(0, 8)}...
                         </p>
                       )}
                     </div>
