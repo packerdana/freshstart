@@ -3,7 +3,7 @@ import { History, Calendar, MapPin, Check, Clock, Copy, ChevronDown, ChevronUp, 
 import Card from '../shared/Card';
 import Button from '../shared/Button';
 import useRouteStore from '../../stores/routeStore';
-import { getWaypointSummaryByDate, copyWaypointsToToday, getHistoricalWaypoints } from '../../services/waypointRecoveryService';
+import { fetchWaypointHistory, calculateWaypointAveragesFromDeliveries } from '../../services/waypointHistoryService';
 import { useDayDeletion } from '../../hooks/useDayDeletion';
 import { format, parseISO, differenceInDays } from 'date-fns';
 
