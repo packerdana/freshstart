@@ -6,6 +6,7 @@ export default function BottomNav({ activeTab, onTabChange }) {
     { id: 'routes', label: 'Routes', icon: Route },
     { id: 'waypoints', label: 'Waypts', icon: MapPin },
     { id: 'history', label: 'History', icon: History },
+    { id: 'street-time-history', label: 'Time', icon: Clock }, // ✅ ADD THIS LINE
     { id: 'timers', label: 'Timers', icon: Timer },
     { id: 'stats', label: 'Stats', icon: BarChart3 },
     { id: 'settings', label: 'Settings', icon: Settings },
@@ -17,7 +18,7 @@ export default function BottomNav({ activeTab, onTabChange }) {
         {tabs.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
-
+          
           return (
             <button
               key={tab.id}
