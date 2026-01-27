@@ -1,147 +1,110 @@
 import { useState, useEffect } from 'react';
-import { History, Calendar, MapPin, Check, Clock, Copy, ChevronDown, ChevronUp, Search, TrendingUp, Trash2, AlertCircle } from 'lucide-react';
+import { History, Calendar, MapPin, Check, Clock, ChevronDown, ChevronUp, Search, TrendingUp, Trash2, AlertCircle } from 'lucide-react';
 import Card from '../shared/Card';
 import Button from '../shared/Button';
 import useRouteStore from '../../stores/routeStore';
-import { fetchWaypointHistory, calculateWaypointAveragesFromDeliveries } from '../../services/waypointHistoryService';
-import { useDayDeletion } from '../../hooks/useDayDeletion';
+import { fetchWaypointHistory } from '../../services/waypointHistoryService';
 import { format, parseISO, differenceInDays } from 'date-fns';
+import { supabase } from '../../lib/supabase';
 
 export default function WaypointHistoryScreen() {
   const [loading, setLoading] = useState(false);
-  const [historySummary, setHistorySummary] = useState([]);
+  const [historyData, setHistoryData] = useState([]);
   const [expandedDate, setExpandedDate] = useState(null);
-  const [expandedWaypoints, setExpandedWaypoints] = useState([]);
-  const [loadingDetails, setLoadingDetails] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [dateFilter, setDateFilter] = useState('all');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [dayToDelete, setDayToDelete] = useState(null);
   const [deleteResult, setDeleteResult] = useState(null);
+  const [deleting, setDeleting] = useState(false);
 
-  const { currentRouteId, loadWaypoints } = useRouteStore();
-  const {
-    deletingDate,
-    swipedDate,
-    deleteWaypointDay,
-    isWaypointDayEmpty,
-    handleTouchStart,
-    handleTouchMove,
-    handleTouchEnd,
-    getSwipeOffset,
-    cancelSwipe,
-  } = useDayDeletion();
+  const { currentRouteId } = useRouteStore();
 
   useEffect(() => {
     if (currentRouteId) {
-      loadHistorySummary();
+      loadHistoryData();
     }
   }, [currentRouteId]);
 
-  const loadHistorySummary = async () => {
+  const loadHistoryData = async () => {
     setLoading(true);
     try {
-      const summary = await getWaypointSummaryByDate(currentRouteId);
-      setHistorySummary(summary);
+      const history = await fetchWaypointHistory(currentRouteId, 90); // 90 days back
+      setHistoryData(history);
+      console.log('[WAYPOINT HISTORY] Loaded', history.length, 'days');
     } catch (error) {
       console.error('Failed to load waypoint history:', error);
-      setHistorySummary([]);
+      setHistoryData([]);
     } finally {
       setLoading(false);
     }
   };
 
-  const loadWaypointsForDate = async (date) => {
-    if (expandedDate === date) {
-      setExpandedDate(null);
-      setExpandedWaypoints([]);
-      return;
-    }
-
-    setLoadingDetails(true);
-    setExpandedDate(date);
-    try {
-      const waypoints = await getHistoricalWaypoints(currentRouteId, date, date);
-      setExpandedWaypoints(waypoints);
-    } catch (error) {
-      console.error('Failed to load waypoints for date:', error);
-      setExpandedWaypoints([]);
-    } finally {
-      setLoadingDetails(false);
-    }
+  const toggleExpanded = (date) => {
+    setExpandedDate(expandedDate === date ? null : date);
   };
 
-  const handleCopyToToday = async (date, count) => {
-    if (!confirm(`Copy ${count} waypoints from ${format(parseISO(date), 'MMMM d, yyyy')} to today? This will replace today's waypoints.`)) {
-      return;
-    }
-
-    try {
-      const result = await copyWaypointsToToday(currentRouteId, date);
-      alert(`Successfully recovered ${result.count} waypoints to today!`);
-      await loadWaypoints();
-    } catch (error) {
-      console.error('Failed to copy waypoints:', error);
-      alert('Failed to copy waypoints. Please try again.');
-    }
-  };
-
-  const handleDeleteClick = (e, item) => {
+  const handleDeleteClick = async (e, dayData) => {
     e.stopPropagation();
     
-    // Check if day is empty
-    if (!isWaypointDayEmpty(item)) {
+    // Check if day has any completed waypoints
+    const completedCount = dayData.waypoint_timings?.length || 0;
+    
+    if (completedCount > 0) {
       alert(
         `Cannot Delete Day\n\n` +
-        `This day has ${item.completed} completed waypoints.\n\n` +
-        `Only empty days (0 completed waypoints) can be deleted.\n\n` +
-        `If you need to remove this data, please contact support.`
+        `This day has ${completedCount} completed waypoints.\n\n` +
+        `Only empty days can be deleted.`
       );
-      cancelSwipe();
       return;
     }
 
-    // Show confirmation dialog
-    setDayToDelete(item);
+    // Show confirmation for empty days
+    setDayToDelete(dayData);
     setShowDeleteConfirm(true);
   };
 
   const confirmDelete = async () => {
     if (!dayToDelete) return;
 
-    try {
-      const result = await deleteWaypointDay(
-        currentRouteId,
-        dayToDelete.date,
-        dayToDelete
-      );
+    setDeleting(true);
 
-      // Show success message
+    try {
+      // Delete all waypoints for this date and route
+      const { error } = await supabase
+        .from('waypoints')
+        .delete()
+        .eq('route_id', currentRouteId)
+        .eq('date', dayToDelete.date);
+
+      if (error) throw error;
+
+      // Show success
       setDeleteResult({
         success: true,
-        message: result.message,
-        waypointsDeleted: result.waypointsDeleted
+        message: 'Day deleted successfully'
       });
 
-      // Reload history
-      await loadHistorySummary();
+      // Reload data
+      await loadHistoryData();
 
-      // Auto-hide success message after 3 seconds
+      // Auto-hide after 3 seconds
       setTimeout(() => {
         setDeleteResult(null);
       }, 3000);
+
     } catch (error) {
-      // Show error message
+      console.error('Failed to delete day:', error);
       setDeleteResult({
         success: false,
         message: error.message || 'Failed to delete day'
       });
 
-      // Auto-hide error message after 5 seconds
       setTimeout(() => {
         setDeleteResult(null);
       }, 5000);
     } finally {
+      setDeleting(false);
       setShowDeleteConfirm(false);
       setDayToDelete(null);
     }
@@ -150,12 +113,11 @@ export default function WaypointHistoryScreen() {
   const cancelDelete = () => {
     setShowDeleteConfirm(false);
     setDayToDelete(null);
-    cancelSwipe();
   };
 
   const getFilteredHistory = () => {
     const today = new Date();
-    return historySummary.filter(item => {
+    return historyData.filter(item => {
       if (searchQuery) {
         const dateStr = format(parseISO(item.date), 'MMMM d, yyyy');
         if (!dateStr.toLowerCase().includes(searchQuery.toLowerCase())) {
@@ -180,13 +142,6 @@ export default function WaypointHistoryScreen() {
   };
 
   const filteredHistory = getFilteredHistory();
-
-  const getCompletionColor = (rate) => {
-    if (rate === 100) return 'text-green-600 bg-green-50';
-    if (rate >= 80) return 'text-blue-600 bg-blue-50';
-    if (rate >= 50) return 'text-amber-600 bg-amber-50';
-    return 'text-red-600 bg-red-50';
-  };
 
   if (!currentRouteId) {
     return (
@@ -229,11 +184,6 @@ export default function WaypointHistoryScreen() {
                 {deleteResult.success ? 'Day Deleted' : 'Delete Failed'}
               </p>
               <p className="text-sm opacity-90">{deleteResult.message}</p>
-              {deleteResult.success && deleteResult.waypointsDeleted > 0 && (
-                <p className="text-xs opacity-75 mt-1">
-                  {deleteResult.waypointsDeleted} waypoint(s) removed
-                </p>
-              )}
             </div>
           </div>
         </div>
@@ -266,15 +216,9 @@ export default function WaypointHistoryScreen() {
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-600">Total Waypoints:</span>
+                  <span className="text-gray-600">Waypoints:</span>
                   <span className="font-semibold text-gray-900">
-                    {dayToDelete.total}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Completed:</span>
-                  <span className="font-semibold text-green-600">
-                    {dayToDelete.completed}
+                    {dayToDelete.waypoint_timings?.length || 0}
                   </span>
                 </div>
               </div>
@@ -285,16 +229,16 @@ export default function WaypointHistoryScreen() {
                 onClick={cancelDelete}
                 variant="secondary"
                 className="flex-1"
-                disabled={deletingDate === dayToDelete.date}
+                disabled={deleting}
               >
                 Cancel
               </Button>
               <Button
                 onClick={confirmDelete}
                 className="flex-1 bg-red-600 hover:bg-red-700"
-                disabled={deletingDate === dayToDelete.date}
+                disabled={deleting}
               >
-                {deletingDate === dayToDelete.date ? (
+                {deleting ? (
                   <span className="flex items-center gap-2">
                     <div className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-solid border-white border-r-transparent"></div>
                     Deleting...
@@ -314,9 +258,6 @@ export default function WaypointHistoryScreen() {
           {filteredHistory.length > 0
             ? `${filteredHistory.length} day(s) of waypoint data`
             : 'No historical data yet'}
-        </p>
-        <p className="text-xs text-gray-400 mt-1">
-          💡 Swipe left on any day to delete empty days
         </p>
       </div>
 
@@ -375,148 +316,114 @@ export default function WaypointHistoryScreen() {
         </Card>
       ) : (
         <div className="space-y-3">
-          {filteredHistory.map((item) => {
-            const completionRate = item.total > 0
-              ? Math.round((item.completed / item.total) * 100)
-              : 0;
-            const isExpanded = expandedDate === item.date;
-            const daysAgo = differenceInDays(new Date(), parseISO(item.date));
-            const isSwiped = swipedDate === item.date;
-            const isEmpty = isWaypointDayEmpty(item);
+          {filteredHistory.map((dayData) => {
+            const isExpanded = expandedDate === dayData.date;
+            const daysAgo = differenceInDays(new Date(), parseISO(dayData.date));
+            const waypointCount = dayData.waypoint_timings?.length || 0;
+            const isEmpty = waypointCount === 0;
 
             return (
-              <div key={item.date} className="relative overflow-hidden">
-                {/* Delete Button (Hidden Behind) */}
-                {isSwiped && (
-                  <div className="absolute inset-y-0 right-0 flex items-center justify-end pr-4 bg-red-600">
-                    <button
-                      onClick={(e) => handleDeleteClick(e, item)}
-                      className="text-white font-semibold flex items-center gap-2 px-4"
-                      disabled={!isEmpty}
-                    >
-                      <Trash2 className="w-5 h-5" />
-                      Delete
-                    </button>
-                  </div>
-                )}
-
-                {/* Main Card (Swipeable) */}
-                <Card
-                  className={`transition-transform duration-200 ${
-                    isSwiped ? '-translate-x-32' : 'translate-x-0'
-                  } ${!isEmpty ? 'cursor-not-allowed opacity-75' : ''}`}
-                  style={{
-                    transform: isSwiped ? 'translateX(-128px)' : 'translateX(0)',
-                  }}
-                  onTouchStart={(e) => handleTouchStart(e, item.date)}
-                  onTouchMove={handleTouchMove}
-                  onTouchEnd={() => handleTouchEnd(item.date)}
+              <Card key={dayData.date} className="overflow-hidden">
+                <div
+                  className="cursor-pointer"
+                  onClick={() => toggleExpanded(dayData.date)}
                 >
-                  <div
-                    className="cursor-pointer"
-                    onClick={() => !isSwiped && loadWaypointsForDate(item.date)}
-                  >
-                    <div className="flex items-start justify-between gap-3 mb-3">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <Calendar className="w-5 h-5 text-gray-600" />
-                          <h3 className="font-semibold text-gray-900">
-                            {format(parseISO(item.date), 'EEEE, MMMM d, yyyy')}
-                          </h3>
-                          {isEmpty && (
-                            <span className="text-xs px-2 py-0.5 bg-gray-200 text-gray-600 rounded">
-                              Empty
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-xs text-gray-500">
-                          {daysAgo === 0 ? 'Today' : daysAgo === 1 ? 'Yesterday' : `${daysAgo} days ago`}
-                        </p>
+                  <div className="flex items-start justify-between gap-3 mb-3">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Calendar className="w-5 h-5 text-gray-600" />
+                        <h3 className="font-semibold text-gray-900">
+                          {format(parseISO(dayData.date), 'EEEE, MMMM d, yyyy')}
+                        </h3>
+                        {isEmpty && (
+                          <span className="text-xs px-2 py-0.5 bg-gray-200 text-gray-600 rounded">
+                            Empty
+                          </span>
+                        )}
                       </div>
-                      {!isSwiped && (
-                        <>
-                          {isExpanded ? (
-                            <ChevronUp className="w-5 h-5 text-gray-400" />
-                          ) : (
-                            <ChevronDown className="w-5 h-5 text-gray-400" />
-                          )}
-                        </>
+                      <p className="text-xs text-gray-500">
+                        {daysAgo === 0 ? 'Today' : daysAgo === 1 ? 'Yesterday' : `${daysAgo} days ago`}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="text-right">
+                        <div className="text-lg font-bold text-blue-600">
+                          {waypointCount}
+                        </div>
+                        <div className="text-xs text-gray-500">stops</div>
+                      </div>
+                      {isExpanded ? (
+                        <ChevronUp className="w-5 h-5 text-gray-400" />
+                      ) : (
+                        <ChevronDown className="w-5 h-5 text-gray-400" />
                       )}
                     </div>
-
-                    <div className="flex items-center gap-4 mb-3">
-                      <div className="flex items-center gap-2">
-                        <MapPin className="w-4 h-4 text-gray-500" />
-                        <span className="text-sm text-gray-700">{item.total} stops</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Check className="w-4 h-4 text-green-600" />
-                        <span className="text-sm text-gray-700">{item.completed} completed</span>
-                      </div>
-                      <div className={`ml-auto px-3 py-1 rounded-full text-xs font-semibold ${getCompletionColor(completionRate)}`}>
-                        {completionRate}%
-                      </div>
-                    </div>
                   </div>
+                </div>
 
-                  {isExpanded && !isSwiped && (
-                    <div className="border-t border-gray-200 pt-3 mt-3">
-                      {loadingDetails ? (
-                        <div className="text-center py-4">
-                          <div className="inline-block h-6 w-6 animate-spin rounded-full border-2 border-solid border-blue-600 border-r-transparent"></div>
-                        </div>
-                      ) : expandedWaypoints.length > 0 ? (
-                        <>
-                          <div className="space-y-2 mb-3 max-h-64 overflow-y-auto">
-                            {expandedWaypoints.map((waypoint) => (
-                              <div
-                                key={waypoint.id}
-                                className="flex items-start gap-2 p-2 bg-gray-50 rounded-lg"
-                              >
-                                {waypoint.status === 'completed' ? (
-                                  <Check className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" />
-                                ) : (
-                                  <Clock className="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
-                                )}
-                                <div className="flex-1 min-w-0">
+                {isExpanded && (
+                  <div className="border-t border-gray-200 pt-3 mt-3">
+                    {waypointCount > 0 ? (
+                      <>
+                        <div className="space-y-2 mb-3 max-h-64 overflow-y-auto">
+                          {dayData.waypoint_timings.map((waypoint, index) => (
+                            <div
+                              key={index}
+                              className="flex items-start gap-2 p-2 bg-gray-50 rounded-lg"
+                            >
+                              <Check className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" />
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center justify-between gap-2 mb-1">
                                   <div className="flex items-center gap-2">
                                     <span className="text-xs font-medium text-gray-500">
-                                      #{waypoint.sequence_number}
+                                      #{waypoint.sequence}
                                     </span>
                                     <p className="text-sm text-gray-900 truncate">
-                                      {waypoint.address}
+                                      {waypoint.name}
                                     </p>
                                   </div>
-                                  {waypoint.delivery_time && (
-                                    <p className="text-xs text-gray-500">
-                                      {format(parseISO(waypoint.delivery_time), 'h:mm a')}
-                                    </p>
+                                  {waypoint.durationFromPrevious > 0 && (
+                                    <span className="text-xs text-blue-600 font-medium whitespace-nowrap">
+                                      +{waypoint.durationFromPrevious}min
+                                    </span>
                                   )}
                                 </div>
+                                {waypoint.timestamp && (
+                                  <p className="text-xs text-gray-500">
+                                    {format(parseISO(waypoint.timestamp), 'h:mm a')}
+                                  </p>
+                                )}
                               </div>
-                            ))}
-                          </div>
-                          <Button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleCopyToToday(item.date, item.total);
-                            }}
-                            variant="secondary"
-                            className="w-full flex items-center justify-center gap-2"
-                          >
-                            <Copy className="w-4 h-4" />
-                            Copy to Today
-                          </Button>
-                        </>
-                      ) : (
-                        <p className="text-sm text-gray-500 text-center py-4">
-                          No waypoint details available
+                            </div>
+                          ))}
+                        </div>
+
+                        <div className="text-xs text-gray-500 mb-3 p-2 bg-blue-50 rounded">
+                          💡 Durations show time from previous waypoint
+                        </div>
+                      </>
+                    ) : (
+                      <div className="text-center py-4">
+                        <p className="text-sm text-gray-500 mb-3">
+                          No completed waypoints for this day
                         </p>
-                      )}
-                    </div>
-                  )}
-                </Card>
-              </div>
+                      </div>
+                    )}
+
+                    {/* Delete Button - only for empty days */}
+                    {isEmpty && (
+                      <Button
+                        onClick={(e) => handleDeleteClick(e, dayData)}
+                        variant="danger"
+                        className="w-full flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        Delete Empty Day
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </Card>
             );
           })}
         </div>
@@ -536,32 +443,13 @@ export default function WaypointHistoryScreen() {
             <div className="flex justify-between text-sm">
               <span className="text-gray-600">Total Waypoints:</span>
               <span className="font-semibold text-gray-900">
-                {filteredHistory.reduce((sum, item) => sum + item.total, 0)}
-              </span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-600">Total Completed:</span>
-              <span className="font-semibold text-green-600">
-                {filteredHistory.reduce((sum, item) => sum + item.completed, 0)}
-              </span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-600">Average Completion:</span>
-              <span className="font-semibold text-blue-600">
-                {filteredHistory.length > 0
-                  ? Math.round(
-                      (filteredHistory.reduce((sum, item) => sum + item.completed, 0) /
-                        filteredHistory.reduce((sum, item) => sum + item.total, 0)) *
-                        100
-                    )
-                  : 0}
-                %
+                {filteredHistory.reduce((sum, day) => sum + (day.waypoint_timings?.length || 0), 0)}
               </span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-gray-600">Empty Days:</span>
               <span className="font-semibold text-gray-400">
-                {filteredHistory.filter(item => isWaypointDayEmpty(item)).length}
+                {filteredHistory.filter(day => (day.waypoint_timings?.length || 0) === 0).length}
               </span>
             </div>
           </div>
