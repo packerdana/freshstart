@@ -11,37 +11,43 @@ export function useDayDeletion() {
   const [touchCurrent, setTouchCurrent] = useState(null);
 
   /**
-   * Get session ID from most recent operation code for current route
+   * Get session ID for a specific date and route
+   * CRITICAL: Must get session for the SPECIFIC DATE being deleted
    * @param {string} currentRouteId - Current route UUID
+   * @param {string} date - Date in YYYY-MM-DD format
    * @returns {string|null} Session ID or null
    */
-  const getSessionId = async (currentRouteId) => {
+  const getSessionId = async (currentRouteId, date) => {
     try {
-      if (!currentRouteId) {
-        console.error('[DELETE] No current route ID provided');
+      if (!currentRouteId || !date) {
+        console.error('[DELETE] Missing route ID or date');
         return null;
       }
 
-      // Get session_id from most recent operation code for this route
+      // Get session_id from operation code for THIS SPECIFIC DATE
       const { data, error } = await supabase
         .from('operation_codes')
         .select('session_id')
         .eq('route_id', currentRouteId)
-        .order('created_at', { ascending: false })
+        .eq('date', date)
         .limit(1)
-        .single();
+        .maybeSingle();
 
-      if (error) {
-        console.error('[DELETE] Failed to get session from operation_codes:', error);
+      if (error && error.code !== 'PGRST116') {
+        console.error('[DELETE] Failed to get session:', error);
+        return null;
+      }
+
+      if (!data) {
+        console.error('[DELETE] No operation codes found for date:', date);
         return null;
       }
 
       if (data?.session_id) {
-        console.log('[DELETE] Found session ID:', data.session_id);
+        console.log('[DELETE] Found session ID for date', date, ':', data.session_id);
         return data.session_id;
       }
 
-      console.error('[DELETE] No session ID found in operation_codes');
       return null;
     } catch (e) {
       console.error('[DELETE] Error getting session ID:', e);
@@ -70,9 +76,9 @@ export function useDayDeletion() {
     setDeletingDate(date);
 
     try {
-      const sessionId = await getSessionId(routeId);
+      const sessionId = await getSessionId(routeId, date);
       if (!sessionId) {
-        throw new Error('Unable to find session ID for this route');
+        throw new Error('Unable to find session ID for this date');
       }
 
       console.log('[DELETE] Deleting waypoint day:', date);
@@ -107,9 +113,9 @@ export function useDayDeletion() {
     setDeletingDate(date);
 
     try {
-      const sessionId = await getSessionId(routeId);
+      const sessionId = await getSessionId(routeId, date);
       if (!sessionId) {
-        throw new Error('Unable to find session ID for this route');
+        throw new Error('Unable to find session ID for this date');
       }
 
       console.log('[DELETE] Deleting street time day:', date, 'session:', sessionId);
