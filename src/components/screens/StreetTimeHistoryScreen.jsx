@@ -20,7 +20,7 @@ export default function StreetTimeHistoryScreen() {
   const [deleteResult, setDeleteResult] = useState(null);
 
   const { currentRouteId } = useRouteStore();
-  
+  const { currentRouteId, currentRoute } = useRouteStore();
   const {
     deletingDate,
     deleteStreetTimeDay,
@@ -386,7 +386,7 @@ export default function StreetTimeHistoryScreen() {
                       </p>
                       {item.route_id && (
                         <p className="text-xs text-gray-500 mt-1">
-                          Route: {item.route_id.substring(0, 8)}...
+                          Route: {currentRoute || item.route_id.substring(0, 8) + '...'}
                         </p>
                       )}
                     </div>
