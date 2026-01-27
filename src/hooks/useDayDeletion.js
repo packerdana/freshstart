@@ -1,70 +1,16 @@
 import { useState } from 'react';
 import { supabase } from '../lib/supabase';
 
-/**
- * Hook for deleting waypoint and street time days
- */
 export function useDayDeletion() {
   const [deletingDate, setDeletingDate] = useState(null);
   const [swipedDate, setSwipedDate] = useState(null);
   const [touchStart, setTouchStart] = useState(null);
   const [touchCurrent, setTouchCurrent] = useState(null);
 
-  /**
-   * Get session ID for a specific date and route
-   * CRITICAL: Must get session for the SPECIFIC DATE being deleted
-   * @param {string} currentRouteId - Current route UUID
-   * @param {string} date - Date in YYYY-MM-DD format
-   * @returns {string|null} Session ID or null
-   */
-  const getSessionId = async (currentRouteId, date) => {
-    try {
-      if (!currentRouteId || !date) {
-        console.error('[DELETE] Missing route ID or date');
-        return null;
-      }
-
-      // Get session_id from operation code for THIS SPECIFIC DATE
-      const { data, error } = await supabase
-        .from('operation_codes')
-        .select('session_id')
-        .eq('route_id', currentRouteId)
-        .eq('date', date)
-        .limit(1)
-        .maybeSingle();
-
-      if (error && error.code !== 'PGRST116') {
-        console.error('[DELETE] Failed to get session:', error);
-        return null;
-      }
-
-      if (!data) {
-        console.error('[DELETE] No operation codes found for date:', date);
-        return null;
-      }
-
-      if (data?.session_id) {
-        console.log('[DELETE] Found session ID for date', date, ':', data.session_id);
-        return data.session_id;
-      }
-
-      return null;
-    } catch (e) {
-      console.error('[DELETE] Error getting session ID:', e);
-      return null;
-    }
-  };
-
-  /**
-   * Check if a waypoint day is empty (no completed waypoints)
-   */
   const isWaypointDayEmpty = (daySummary) => {
     return daySummary.completed === 0;
   };
 
-  /**
-   * Delete a waypoint day (empty days only)
-   */
   const deleteWaypointDay = async (routeId, date, daySummary) => {
     if (!isWaypointDayEmpty(daySummary)) {
       throw new Error(
@@ -76,17 +22,12 @@ export function useDayDeletion() {
     setDeletingDate(date);
 
     try {
-      const sessionId = await getSessionId(routeId, date);
-      if (!sessionId) {
-        throw new Error('Unable to find session ID for this date');
-      }
-
       console.log('[DELETE] Deleting waypoint day:', date);
 
       const { data, error } = await supabase.rpc('delete_waypoint_day', {
         p_route_id: routeId,
         p_date: date,
-        p_session_id: sessionId
+        p_session_id: 'dummy'
       });
 
       if (error) throw error;
@@ -106,50 +47,27 @@ export function useDayDeletion() {
     }
   };
 
-  /**
-   * Delete a street time day
-   */
   const deleteStreetTimeDay = async (date, routeId) => {
-  setDeletingDate(date);
+    setDeletingDate(date);
 
-  try {
-    console.log('[DELETE] Deleting:', date, routeId);
+    try {
+      console.log('[DELETE] Deleting:', date, routeId);
 
-    const { data, error } = await supabase.rpc('delete_day_by_route', {
-      p_date: date,
-      p_route_id: routeId
-    });
-
-    if (error) throw error;
-
-    return {
-      success: true,
-      message: 'Day deleted',
-      operationCodesDeleted: data.operation_codes_deleted,
-      date: date
-    };
-  } catch (error) {
-    console.error('[DELETE] Error:', error);
-    throw error;
-  } finally {
-    setDeletingDate(null);
-  }
-};
+      const { data, error } = await supabase.rpc('delete_day_by_route', {
+        p_date: date,
+        p_route_id: routeId
+      });
 
       if (error) throw error;
 
-      console.log('[DELETE] Delete successful:', data);
-
       return {
         success: true,
-        message: data?.message || 'Street time day deleted successfully',
-        operationCodesDeleted: data?.operation_codes_deleted || 0,
-        dayStateMoved: data?.day_state_moved || false,
-        recoverableUntil: data?.recoverable_until || null,
+        message: 'Day deleted',
+        operationCodesDeleted: data.operation_codes_deleted,
         date: date
       };
     } catch (error) {
-      console.error('Error deleting street time day:', error);
+      console.error('[DELETE] Error:', error);
       throw error;
     } finally {
       setDeletingDate(null);
