@@ -110,20 +110,31 @@ export function useDayDeletion() {
    * Delete a street time day
    */
   const deleteStreetTimeDay = async (date, routeId) => {
-    setDeletingDate(date);
+  setDeletingDate(date);
 
-    try {
-      const sessionId = await getSessionId(routeId, date);
-      if (!sessionId) {
-        throw new Error('Unable to find session ID for this date');
-      }
+  try {
+    console.log('[DELETE] Deleting:', date, routeId);
 
-      console.log('[DELETE] Deleting street time day:', date, 'session:', sessionId);
+    const { data, error } = await supabase.rpc('delete_day_by_route', {
+      p_date: date,
+      p_route_id: routeId
+    });
 
-      const { data, error } = await supabase.rpc('delete_street_time_day', {
-        p_date: date,
-        p_session_id: sessionId
-      });
+    if (error) throw error;
+
+    return {
+      success: true,
+      message: 'Day deleted',
+      operationCodesDeleted: data.operation_codes_deleted,
+      date: date
+    };
+  } catch (error) {
+    console.error('[DELETE] Error:', error);
+    throw error;
+  } finally {
+    setDeletingDate(null);
+  }
+};
 
       if (error) throw error;
 
