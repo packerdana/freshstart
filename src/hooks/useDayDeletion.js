@@ -2,8 +2,7 @@ import { useState } from 'react';
 import { supabase } from '../lib/supabase';
 
 /**
- * Hook for deleting waypoint and street time days with swipe-to-delete UI
- * Follows RouteWise non-negotiables: minimal changes, strong guardrails, accuracy over speed
+ * Hook for deleting waypoint and street time days
  */
 export function useDayDeletion() {
   const [deletingDate, setDeletingDate] = useState(null);
@@ -12,55 +11,46 @@ export function useDayDeletion() {
   const [touchCurrent, setTouchCurrent] = useState(null);
 
   /**
-   * Get session ID from multiple possible sources
+   * Get session ID from most recent operation code for current route
+   * @param {string} currentRouteId - Current route UUID
    * @returns {string|null} Session ID or null
    */
-  const getSessionId = async () => {
-    // Method 1: Try localStorage (routewise-storage)
+  const getSessionId = async (currentRouteId) => {
     try {
-      const stored = localStorage.getItem('routewise-storage');
-      if (stored) {
-        const data = JSON.parse(stored);
-        const sessionId = data.sessionId || data.state?.sessionId;
-        if (sessionId) {
-          console.log('[DELETE] Found session ID in routewise-storage');
-          return sessionId;
-        }
+      if (!currentRouteId) {
+        console.error('[DELETE] No current route ID provided');
+        return null;
       }
-    } catch (e) {
-      console.warn('[DELETE] Failed to parse routewise-storage:', e);
-    }
 
-    // Method 2: Try Supabase auth
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user?.id) {
-        console.log('[DELETE] Found session ID from Supabase auth');
-        return session.user.id;
+      // Get session_id from most recent operation code for this route
+      const { data, error } = await supabase
+        .from('operation_codes')
+        .select('session_id')
+        .eq('route_id', currentRouteId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (error) {
+        console.error('[DELETE] Failed to get session from operation_codes:', error);
+        return null;
       }
-    } catch (e) {
-      console.warn('[DELETE] Failed to get Supabase session:', e);
-    }
 
-    // Method 3: Try direct sessionId key
-    try {
-      const directId = localStorage.getItem('sessionId');
-      if (directId) {
-        console.log('[DELETE] Found session ID in sessionId key');
-        return directId;
+      if (data?.session_id) {
+        console.log('[DELETE] Found session ID:', data.session_id);
+        return data.session_id;
       }
-    } catch (e) {
-      console.warn('[DELETE] Failed to get direct sessionId:', e);
-    }
 
-    console.error('[DELETE] No session ID found in any location');
-    return null;
+      console.error('[DELETE] No session ID found in operation_codes');
+      return null;
+    } catch (e) {
+      console.error('[DELETE] Error getting session ID:', e);
+      return null;
+    }
   };
 
   /**
    * Check if a waypoint day is empty (no completed waypoints)
-   * @param {Object} daySummary - Summary object with {total, completed} counts
-   * @returns {boolean} True if day is empty or has no completed waypoints
    */
   const isWaypointDayEmpty = (daySummary) => {
     return daySummary.completed === 0;
@@ -68,13 +58,8 @@ export function useDayDeletion() {
 
   /**
    * Delete a waypoint day (empty days only)
-   * @param {string} routeId - UUID of the route
-   * @param {string} date - Date in YYYY-MM-DD format
-   * @param {Object} daySummary - Summary object with {total, completed} counts
-   * @returns {Promise<Object>} Result object
    */
   const deleteWaypointDay = async (routeId, date, daySummary) => {
-    // Validate: Day must be empty
     if (!isWaypointDayEmpty(daySummary)) {
       throw new Error(
         `Cannot delete day with ${daySummary.completed} completed waypoints. ` +
@@ -85,26 +70,20 @@ export function useDayDeletion() {
     setDeletingDate(date);
 
     try {
-      const sessionId = await getSessionId();
+      const sessionId = await getSessionId(routeId);
       if (!sessionId) {
-        throw new Error('Not authenticated - no session ID found');
+        throw new Error('Unable to find session ID for this route');
       }
 
-      console.log('[DELETE] Deleting waypoint day:', date, 'with session:', sessionId);
+      console.log('[DELETE] Deleting waypoint day:', date);
 
-      // Call RPC function
       const { data, error } = await supabase.rpc('delete_waypoint_day', {
         p_route_id: routeId,
         p_date: date,
         p_session_id: sessionId
       });
 
-      if (error) {
-        console.error('[DELETE] RPC error:', error);
-        throw error;
-      }
-
-      console.log('[DELETE] Waypoint day deleted successfully:', data);
+      if (error) throw error;
 
       return {
         success: true,
@@ -122,34 +101,27 @@ export function useDayDeletion() {
   };
 
   /**
-   * Delete a street time day (always allowed with confirmation)
-   * @param {string} date - Date in YYYY-MM-DD format
-   * @param {Object} daySummary - Summary object with street time data
-   * @returns {Promise<Object>} Result object
+   * Delete a street time day
    */
-  const deleteStreetTimeDay = async (date, daySummary) => {
+  const deleteStreetTimeDay = async (date, routeId) => {
     setDeletingDate(date);
 
     try {
-      const sessionId = await getSessionId();
+      const sessionId = await getSessionId(routeId);
       if (!sessionId) {
-        throw new Error('Not authenticated - no session ID found');
+        throw new Error('Unable to find session ID for this route');
       }
 
-      console.log('[DELETE] Deleting street time day:', date, 'with session:', sessionId);
+      console.log('[DELETE] Deleting street time day:', date, 'session:', sessionId);
 
-      // Call RPC function
       const { data, error } = await supabase.rpc('delete_street_time_day', {
         p_date: date,
         p_session_id: sessionId
       });
 
-      if (error) {
-        console.error('[DELETE] RPC error:', error);
-        throw error;
-      }
+      if (error) throw error;
 
-      console.log('[DELETE] Street time day deleted successfully:', data);
+      console.log('[DELETE] Delete successful:', data);
 
       return {
         success: true,
@@ -168,46 +140,30 @@ export function useDayDeletion() {
     }
   };
 
-  /**
-   * Handle touch start for swipe-to-delete
-   * @param {TouchEvent} e - Touch event
-   * @param {string} date - Date being swiped
-   */
   const handleTouchStart = (e, date) => {
     setTouchStart(e.touches[0].clientX);
     setTouchCurrent(e.touches[0].clientX);
   };
 
-  /**
-   * Handle touch move for swipe-to-delete
-   * @param {TouchEvent} e - Touch event
-   */
   const handleTouchMove = (e) => {
     if (touchStart === null) return;
     setTouchCurrent(e.touches[0].clientX);
   };
 
-  /**
-   * Handle touch end for swipe-to-delete
-   * @param {string} date - Date being swiped
-   * @returns {boolean} True if swipe threshold was met
-   */
   const handleTouchEnd = (date) => {
     if (touchStart === null || touchCurrent === null) return false;
 
     const diff = touchStart - touchCurrent;
-    const SWIPE_THRESHOLD = 100; // pixels
+    const SWIPE_THRESHOLD = 100;
 
     setTouchStart(null);
     setTouchCurrent(null);
 
-    // Swipe left to reveal delete
     if (diff > SWIPE_THRESHOLD) {
       setSwipedDate(date);
       return true;
     }
 
-    // Swipe right to cancel
     if (diff < -50) {
       setSwipedDate(null);
       return false;
@@ -216,34 +172,22 @@ export function useDayDeletion() {
     return false;
   };
 
-  /**
-   * Get swipe offset for animation
-   * @returns {number} Offset in pixels
-   */
   const getSwipeOffset = () => {
     if (touchStart === null || touchCurrent === null) return 0;
     const diff = touchStart - touchCurrent;
-    return Math.max(0, Math.min(diff, 150)); // Clamp between 0-150px
+    return Math.max(0, Math.min(diff, 150));
   };
 
-  /**
-   * Cancel swipe (close delete button)
-   */
   const cancelSwipe = () => {
     setSwipedDate(null);
   };
 
   return {
-    // State
     deletingDate,
     swipedDate,
-    
-    // Deletion functions
     deleteWaypointDay,
     deleteStreetTimeDay,
     isWaypointDayEmpty,
-    
-    // Swipe handlers
     handleTouchStart,
     handleTouchMove,
     handleTouchEnd,
