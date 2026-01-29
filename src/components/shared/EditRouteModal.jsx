@@ -6,6 +6,8 @@ import Input from './Input';
 export default function EditRouteModal({ isOpen, onClose, onUpdateRoute, route }) {
   const [formData, setFormData] = useState({
     routeNumber: '',
+    routeType: 'mixed',
+    startTime: '07:30',
     stops: '',
   });
   const [loading, setLoading] = useState(false);
@@ -15,6 +17,8 @@ export default function EditRouteModal({ isOpen, onClose, onUpdateRoute, route }
     if (route && isOpen) {
       setFormData({
         routeNumber: route.routeNumber || route.route_number || '',
+        routeType: route.routeType || route.route_type || 'mixed',
+        startTime: route.startTime || route.start_time || '07:30',
         stops: route.stops ?? route.stops === 0 ? String(route.stops) : '',
       });
     }
@@ -45,9 +49,10 @@ export default function EditRouteModal({ isOpen, onClose, onUpdateRoute, route }
     try {
       await onUpdateRoute(route.id, {
         routeNumber: formData.routeNumber.trim(),
+        routeType: formData.routeType,
+        startTime: formData.startTime,
         stops,
         // keep existing defaults on backend for now
-        startTime: route.startTime || route.start_time || '07:30',
         tourLength: route.tourLength || route.tour_length || 8.5,
         lunchDuration: route.lunchDuration || route.lunch_duration || 30,
         comfortStopDuration: route.comfortStopDuration || route.comfort_stop_duration || 10,
@@ -97,7 +102,36 @@ export default function EditRouteModal({ isOpen, onClose, onUpdateRoute, route }
               type="text"
               value={formData.routeNumber}
               onChange={(e) => setFormData({ ...formData, routeNumber: e.target.value })}
-              placeholder="e.g., 1234"
+              placeholder="e.g., C12"
+              disabled={loading}
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Route Type
+            </label>
+            <select
+              value={formData.routeType}
+              onChange={(e) => setFormData({ ...formData, routeType: e.target.value })}
+              disabled={loading}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              <option value="mixed">Mixed</option>
+              <option value="mounted">Mounted</option>
+              <option value="walking">Walking</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Start Time
+            </label>
+            <Input
+              type="time"
+              value={formData.startTime}
+              onChange={(e) => setFormData({ ...formData, startTime: e.target.value })}
               disabled={loading}
               required
             />

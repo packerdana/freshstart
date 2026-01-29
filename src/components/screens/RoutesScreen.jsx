@@ -87,7 +87,13 @@ export default function RoutesScreen() {
                       </span>
                     )}
                   </div>
-                  <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
+                  <div className="grid grid-cols-2 md:grid-cols-6 gap-4 text-sm">
+                    <div>
+                      <span className="text-gray-500">Type</span>
+                      <p className="font-medium text-gray-700" style={{ textTransform: 'capitalize' }}>
+                        {route.routeType || 'mixed'}
+                      </p>
+                    </div>
                     <div>
                       <span className="text-gray-500">Start Time</span>
                       <p className="font-medium text-gray-700">{route.startTime}</p>

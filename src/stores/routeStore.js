@@ -93,6 +93,7 @@ const useRouteStore = create(
               routesMap[route.id] = {
                 id: route.id,
                 routeNumber: route.route_number,
+                routeType: route.route_type || 'mixed',
                 startTime: route.start_time,
                 tourLength: route.tour_length,
                 lunchDuration: route.lunch_duration,
@@ -406,6 +407,7 @@ const useRouteStore = create(
           const routeForStore = {
             id: newRoute.id,
             routeNumber: newRoute.route_number,
+            routeType: newRoute.route_type || 'mixed',
             startTime: newRoute.start_time,
             tourLength: newRoute.tour_length,
             lunchDuration: newRoute.lunch_duration,
@@ -447,6 +449,7 @@ const useRouteStore = create(
               [routeId]: {
                 ...state.routes[routeId],
                 routeNumber: updatedRoute.route_number,
+                routeType: updatedRoute.route_type || state.routes[routeId]?.routeType || 'mixed',
                 startTime: updatedRoute.start_time,
                 tourLength: updatedRoute.tour_length,
                 lunchDuration: updatedRoute.lunch_duration,
