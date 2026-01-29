@@ -20,7 +20,7 @@ function App() {
   const loadUserRoutes = useRouteStore((state) => state.loadUserRoutes);
   const checkAndResetDailyData = useRouteStore((state) => state.checkAndResetDailyData);
   const autoPopulateWaypointsIfNeeded = useRouteStore((state) => state.autoPopulateWaypointsIfNeeded);
-  const { user, loading, initializeAuth } = useAuthStore();
+  const { user, loading, error, initializeAuth } = useAuthStore();
   const currentRoute = useRouteStore((state) => state.currentRoute);
 
   useBreakTimer();
@@ -40,6 +40,17 @@ function App() {
       });
     }
   }, [user, loadUserRoutes, checkAndResetDailyData, autoPopulateWaypointsIfNeeded]);
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-red-50 to-red-100 flex items-center justify-center p-6">
+        <div className="max-w-md w-full bg-white rounded-xl shadow-lg p-6">
+          <h2 className="text-lg font-bold text-red-700 mb-2">Setup needed</h2>
+          <p className="text-gray-700 text-sm whitespace-pre-line">{error}</p>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
