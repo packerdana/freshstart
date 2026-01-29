@@ -3,18 +3,18 @@ import { format } from 'date-fns';
 import Card from '../shared/Card';
 import Button from '../shared/Button';
 import useRouteStore from '../../stores/routeStore';
-import { pmOfficeService } from '../../services/pmOfficeService';
+// pmOfficeService removed (744 PM Office Time card removed)
 import { routeProtectionService } from '../../services/routeProtectionService';
 import { formatMinutesAsTime, parseLocalDate } from '../../utils/time';
 import { getWorkweekStart } from '../../utils/uspsConstants';
 import { calculateRecordDays, formatRecordValue, formatRecordDate } from '../../services/recordStatsService';
 import { calculateAveragePerformance } from '../../utils/percentToStandard';
-import { Clock, TrendingUp, Calendar, Package, Timer, Target, Activity, Award, FileText, AlertTriangle, Shield, Trophy } from 'lucide-react';
+import { Clock, TrendingUp, Calendar, Package, Timer, Target, Activity, Award, AlertTriangle, Shield, Trophy } from 'lucide-react';
 
 export default function StatsScreen() {
   const { history, averages, currentRoute, todayInputs, loading, activeRoute } = useRouteStore();
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [pmOfficeStats, setPmOfficeStats] = useState(null);
+  // PM Office stats removed
   const [protectionStatus, setProtectionStatus] = useState(null);
   const [weeklyStats, setWeeklyStats] = useState(null);
 
@@ -24,31 +24,10 @@ export default function StatsScreen() {
   }, []);
 
   useEffect(() => {
-    loadPmOfficeStats();
     loadProtectionData();
   }, [activeRoute?.id]);
 
-  const loadPmOfficeStats = async () => {
-    try {
-      const [todayTotal, weekTotal, monthTotal, stats] = await Promise.all([
-        pmOfficeService.getTodayTotal(),
-        pmOfficeService.getWeekTotal(),
-        pmOfficeService.getMonthTotal(),
-        pmOfficeService.getStatistics(30)
-      ]);
-
-      setPmOfficeStats({
-        todayTotal,
-        weekTotal,
-        monthTotal,
-        totalSessions: stats.totalSessions,
-        averageSeconds: stats.averageSeconds,
-        dailyTotals: stats.dailyTotals
-      });
-    } catch (error) {
-      console.error('Error loading PM Office stats:', error);
-    }
-  };
+  // PM office stats section removed
 
   const loadProtectionData = async () => {
     if (!activeRoute?.id) return;
@@ -368,46 +347,7 @@ export default function StatsScreen() {
         </Card>
       )}
 
-      {pmOfficeStats && (pmOfficeStats.todayTotal > 0 || pmOfficeStats.weekTotal > 0 || pmOfficeStats.monthTotal > 0) && (
-        <Card className="bg-gradient-to-br from-green-50 to-emerald-50 border-2 border-green-200">
-          <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-            <FileText className="w-5 h-5 text-green-600" />
-            744 PM Office Time
-          </h3>
-          <div className="grid grid-cols-3 gap-3 mb-4">
-            <div className="bg-white/70 rounded-lg p-3 text-center">
-              <p className="text-xs text-gray-600 mb-1">Today</p>
-              <p className="text-xl font-bold text-green-600">
-                {Math.floor(pmOfficeStats.todayTotal / 3600)}:{String(Math.floor((pmOfficeStats.todayTotal % 3600) / 60)).padStart(2, '0')}
-              </p>
-            </div>
-            <div className="bg-white/70 rounded-lg p-3 text-center">
-              <p className="text-xs text-gray-600 mb-1">This Week</p>
-              <p className="text-xl font-bold text-green-600">
-                {Math.floor(pmOfficeStats.weekTotal / 3600)}:{String(Math.floor((pmOfficeStats.weekTotal % 3600) / 60)).padStart(2, '0')}
-              </p>
-            </div>
-            <div className="bg-white/70 rounded-lg p-3 text-center">
-              <p className="text-xs text-gray-600 mb-1">This Month</p>
-              <p className="text-xl font-bold text-green-600">
-                {Math.floor(pmOfficeStats.monthTotal / 3600)}:{String(Math.floor((pmOfficeStats.monthTotal % 3600) / 60)).padStart(2, '0')}
-              </p>
-            </div>
-          </div>
-          {pmOfficeStats.totalSessions > 0 && (
-            <div className="bg-white/70 rounded-lg p-3">
-              <div className="flex justify-between items-center">
-                <span className="text-sm font-semibold text-gray-700">
-                  Average Session ({pmOfficeStats.totalSessions} total)
-                </span>
-                <span className="text-lg font-bold text-green-600">
-                  {Math.round(pmOfficeStats.averageSeconds / 60)} min
-                </span>
-              </div>
-            </div>
-          )}
-        </Card>
-      )}
+      {/* 744 PM Office Time removed */}
 
       {casingStats && (
         <Card className="bg-gradient-to-br from-violet-50 to-purple-50 border-2 border-violet-200">
