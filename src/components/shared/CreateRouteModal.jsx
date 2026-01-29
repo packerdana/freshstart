@@ -6,10 +6,7 @@ import Input from './Input';
 export default function CreateRouteModal({ isOpen, onClose, onCreateRoute }) {
   const [formData, setFormData] = useState({
     routeNumber: '',
-    startTime: '07:30',
-    tourLength: '8.5',
-    lunchDuration: '30',
-    comfortStopDuration: '10',
+    stops: '', // optional
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -25,40 +22,31 @@ export default function CreateRouteModal({ isOpen, onClose, onCreateRoute }) {
       return;
     }
 
-    const tourLength = parseFloat(formData.tourLength);
-    if (isNaN(tourLength) || tourLength <= 0) {
-      setError('Tour length must be a positive number');
-      return;
-    }
-
-    const lunchDuration = parseInt(formData.lunchDuration);
-    if (isNaN(lunchDuration) || lunchDuration < 0) {
-      setError('Lunch duration must be a non-negative number');
-      return;
-    }
-
-    const comfortStopDuration = parseInt(formData.comfortStopDuration);
-    if (isNaN(comfortStopDuration) || comfortStopDuration < 0) {
-      setError('Comfort stop duration must be a non-negative number');
-      return;
+    let stops = null;
+    if (String(formData.stops).trim() !== '') {
+      const parsed = parseInt(formData.stops, 10);
+      if (isNaN(parsed) || parsed < 0) {
+        setError('# of stops must be a non-negative number');
+        return;
+      }
+      stops = parsed;
     }
 
     setLoading(true);
     try {
       await onCreateRoute({
         routeNumber: formData.routeNumber.trim(),
-        startTime: formData.startTime,
-        tourLength,
-        lunchDuration,
-        comfortStopDuration,
+        stops,
+        // defaults for now
+        startTime: '07:30',
+        tourLength: 8.5,
+        lunchDuration: 30,
+        comfortStopDuration: 10,
       });
 
       setFormData({
         routeNumber: '',
-        startTime: '07:30',
-        tourLength: '8.5',
-        lunchDuration: '30',
-        comfortStopDuration: '10',
+        stops: '',
       });
       onClose();
     } catch (err) {
@@ -72,10 +60,7 @@ export default function CreateRouteModal({ isOpen, onClose, onCreateRoute }) {
     if (!loading) {
       setFormData({
         routeNumber: '',
-        startTime: '07:30',
-        tourLength: '8.5',
-        lunchDuration: '30',
-        comfortStopDuration: '10',
+        stops: '',
       });
       setError('');
       onClose();
@@ -97,6 +82,9 @@ export default function CreateRouteModal({ isOpen, onClose, onCreateRoute }) {
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <p className="text-sm text-gray-600">
+            First, create at least one route. If you’re a swing/CCA/unassigned regular, you can add multiple routes.
+          </p>
           {error && (
             <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
               {error}
@@ -119,55 +107,18 @@ export default function CreateRouteModal({ isOpen, onClose, onCreateRoute }) {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Start Time
-            </label>
-            <Input
-              type="time"
-              value={formData.startTime}
-              onChange={(e) => setFormData({ ...formData, startTime: e.target.value })}
-              disabled={loading}
-              required
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Tour Length (hours)
+              # of Stops (optional)
             </label>
             <Input
               type="number"
-              step="0.1"
-              value={formData.tourLength}
-              onChange={(e) => setFormData({ ...formData, tourLength: e.target.value })}
+              value={formData.stops}
+              onChange={(e) => setFormData({ ...formData, stops: e.target.value })}
+              placeholder="e.g., 450"
               disabled={loading}
-              required
             />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Lunch Duration (minutes)
-            </label>
-            <Input
-              type="number"
-              value={formData.lunchDuration}
-              onChange={(e) => setFormData({ ...formData, lunchDuration: e.target.value })}
-              disabled={loading}
-              required
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Comfort Stop Duration (minutes)
-            </label>
-            <Input
-              type="number"
-              value={formData.comfortStopDuration}
-              onChange={(e) => setFormData({ ...formData, comfortStopDuration: e.target.value })}
-              disabled={loading}
-              required
-            />
+            <p className="text-xs text-gray-500 mt-1">
+              If you’re not sure, leave it blank.
+            </p>
           </div>
 
           <div className="flex gap-3 pt-4">

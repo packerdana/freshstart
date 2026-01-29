@@ -87,7 +87,7 @@ export default function RoutesScreen() {
                       </span>
                     )}
                   </div>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
                     <div>
                       <span className="text-gray-500">Start Time</span>
                       <p className="font-medium text-gray-700">{route.startTime}</p>
@@ -103,6 +103,10 @@ export default function RoutesScreen() {
                     <div>
                       <span className="text-gray-500">Comfort</span>
                       <p className="font-medium text-gray-700">{route.comfortStopDuration}m</p>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">Stops</span>
+                      <p className="font-medium text-gray-700">{route.stops ?? '—'}</p>
                     </div>
                   </div>
                 </div>

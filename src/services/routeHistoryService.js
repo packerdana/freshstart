@@ -258,7 +258,7 @@ export async function getUserRoutes() {
     .from('routes')
     .select('*')
     .eq('user_id', user.id)
-    .eq('is_active', true)
+    .order('is_active', { ascending: false })
     .order('created_at', { ascending: false });
 
   if (error) {

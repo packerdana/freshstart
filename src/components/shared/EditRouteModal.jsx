@@ -6,10 +6,7 @@ import Input from './Input';
 export default function EditRouteModal({ isOpen, onClose, onUpdateRoute, route }) {
   const [formData, setFormData] = useState({
     routeNumber: '',
-    startTime: '07:30',
-    tourLength: '8.5',
-    lunchDuration: '30',
-    comfortStopDuration: '10',
+    stops: '',
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -18,10 +15,7 @@ export default function EditRouteModal({ isOpen, onClose, onUpdateRoute, route }
     if (route && isOpen) {
       setFormData({
         routeNumber: route.routeNumber || route.route_number || '',
-        startTime: route.startTime || route.start_time || '07:30',
-        tourLength: String(route.tourLength || route.tour_length || 8.5),
-        lunchDuration: String(route.lunchDuration || route.lunch_duration || 30),
-        comfortStopDuration: String(route.comfortStopDuration || route.comfort_stop_duration || 10),
+        stops: route.stops ?? route.stops === 0 ? String(route.stops) : '',
       });
     }
   }, [route, isOpen]);
@@ -37,32 +31,26 @@ export default function EditRouteModal({ isOpen, onClose, onUpdateRoute, route }
       return;
     }
 
-    const tourLength = parseFloat(formData.tourLength);
-    if (isNaN(tourLength) || tourLength <= 0) {
-      setError('Tour length must be a positive number');
-      return;
-    }
-
-    const lunchDuration = parseInt(formData.lunchDuration);
-    if (isNaN(lunchDuration) || lunchDuration < 0) {
-      setError('Lunch duration must be a non-negative number');
-      return;
-    }
-
-    const comfortStopDuration = parseInt(formData.comfortStopDuration);
-    if (isNaN(comfortStopDuration) || comfortStopDuration < 0) {
-      setError('Comfort stop duration must be a non-negative number');
-      return;
+    let stops = null;
+    if (String(formData.stops).trim() !== '') {
+      const parsed = parseInt(formData.stops, 10);
+      if (isNaN(parsed) || parsed < 0) {
+        setError('# of stops must be a non-negative number');
+        return;
+      }
+      stops = parsed;
     }
 
     setLoading(true);
     try {
       await onUpdateRoute(route.id, {
         routeNumber: formData.routeNumber.trim(),
-        startTime: formData.startTime,
-        tourLength,
-        lunchDuration,
-        comfortStopDuration,
+        stops,
+        // keep existing defaults on backend for now
+        startTime: route.startTime || route.start_time || '07:30',
+        tourLength: route.tourLength || route.tour_length || 8.5,
+        lunchDuration: route.lunchDuration || route.lunch_duration || 30,
+        comfortStopDuration: route.comfortStopDuration || route.comfort_stop_duration || 10,
       });
 
       onClose();
@@ -117,54 +105,14 @@ export default function EditRouteModal({ isOpen, onClose, onUpdateRoute, route }
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Start Time
-            </label>
-            <Input
-              type="time"
-              value={formData.startTime}
-              onChange={(e) => setFormData({ ...formData, startTime: e.target.value })}
-              disabled={loading}
-              required
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Tour Length (hours)
+              # of Stops (optional)
             </label>
             <Input
               type="number"
-              step="0.1"
-              value={formData.tourLength}
-              onChange={(e) => setFormData({ ...formData, tourLength: e.target.value })}
+              value={formData.stops}
+              onChange={(e) => setFormData({ ...formData, stops: e.target.value })}
+              placeholder="e.g., 450"
               disabled={loading}
-              required
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Lunch Duration (minutes)
-            </label>
-            <Input
-              type="number"
-              value={formData.lunchDuration}
-              onChange={(e) => setFormData({ ...formData, lunchDuration: e.target.value })}
-              disabled={loading}
-              required
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Comfort Stop Duration (minutes)
-            </label>
-            <Input
-              type="number"
-              value={formData.comfortStopDuration}
-              onChange={(e) => setFormData({ ...formData, comfortStopDuration: e.target.value })}
-              disabled={loading}
-              required
             />
           </div>
 

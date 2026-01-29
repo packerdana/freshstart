@@ -97,6 +97,7 @@ const useRouteStore = create(
                 tourLength: route.tour_length,
                 lunchDuration: route.lunch_duration,
                 comfortStopDuration: route.comfort_stop_duration,
+                stops: route.stops ?? null,
                 manualStreetTime: route.manual_street_time,
                 evaluatedStreetTime: route.evaluated_street_time,
                 evaluatedOfficeTime: route.evaluated_office_time,
@@ -409,6 +410,7 @@ const useRouteStore = create(
             tourLength: newRoute.tour_length,
             lunchDuration: newRoute.lunch_duration,
             comfortStopDuration: newRoute.comfort_stop_duration,
+            stops: newRoute.stops ?? null,
             manualStreetTime: newRoute.manual_street_time,
             evaluatedStreetTime: newRoute.evaluated_street_time,
             evaluatedOfficeTime: newRoute.evaluated_office_time,
@@ -449,6 +451,7 @@ const useRouteStore = create(
                 tourLength: updatedRoute.tour_length,
                 lunchDuration: updatedRoute.lunch_duration,
                 comfortStopDuration: updatedRoute.comfort_stop_duration,
+                stops: updatedRoute.stops ?? null,
               },
             },
           }));

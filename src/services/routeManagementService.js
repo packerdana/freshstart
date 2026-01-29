@@ -37,6 +37,7 @@ export async function createRoute(routeData) {
       .insert({
         user_id: user.id,
         route_number: routeData.routeNumber,
+        stops: routeData.stops ?? null,
         start_time: routeData.startTime || '07:30',
         tour_length: parseFloat(routeData.tourLength) || 8.5,
         lunch_duration: parseInt(routeData.lunchDuration) || 30,
@@ -76,6 +77,7 @@ export async function updateRoute(routeId, updates) {
       .from('routes')
       .update({
         route_number: updates.routeNumber,
+        stops: updates.stops ?? null,
         start_time: updates.startTime,
         tour_length: parseFloat(updates.tourLength),
         lunch_duration: parseInt(updates.lunchDuration),
