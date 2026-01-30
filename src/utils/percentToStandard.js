@@ -1,18 +1,20 @@
 /**
  * Calculate % to Standard (USPS DOIS formula)
- * 
+ *
  * USPS Standards:
  * - Letters: 18 pieces per minute
- * - Flats: 8 pieces per minute  
+ * - Flats: 8 pieces per minute
  * - Pull-down: 70 pieces per minute
- * 
+ *
  * Formula: % to Standard = (Actual Time / Standard Time) × 100
- * 
- * Interpretation:
- * - <100% = Faster than standard (efficient)
- * - =100% = Exactly on standard
- * - >100% = Slower than standard
+ *
+ * IMPORTANT:
+ * DOIS "% to standard" is based on time to CASE + WITHDRAW mail.
+ * RouteWise's "office time" (722) includes other fixed tasks (stand-up, accountables, etc.).
+ * If we feed total 722 minutes into this formula, % will look wildly high.
  */
+
+import { TIME_CONSTANTS } from './constants';
 
 /**
  * Convert feet to pieces using USPS standards
@@ -165,13 +167,25 @@ export function calculateAveragePerformance(historyRecords) {
     return office;
   };
 
+  const getCasingWithdrawalMinutes = (day) => {
+    const officeMinutes = getOfficeMinutes(day);
+    const safetyTalk = toNum(day.safetyTalk ?? day.safety_talk);
+
+    // RouteWise uses a fixed office-time baseline in predictionService.
+    // For % to standard, we want just casing + withdrawal time.
+    const fixed = toNum(TIME_CONSTANTS.FIXED_OFFICE_TIME);
+
+    const casingWithdrawal = officeMinutes - fixed - safetyTalk;
+    return casingWithdrawal;
+  };
+
   const validRecords = historyRecords.filter((day) => {
     const lettersFeet = toNum(day.letters);
     const flatsFeet = toNum(day.flats);
-    const officeMinutes = getOfficeMinutes(day);
+    const casingWithdrawalMinutes = getCasingWithdrawalMinutes(day);
 
-    // Need some mail volume (otherwise standard time is ~0) and an actual office time.
-    return (lettersFeet > 0 || flatsFeet > 0) && officeMinutes > 0;
+    // Need some mail volume (otherwise standard time is ~0) and some casing/withdrawal time.
+    return (lettersFeet > 0 || flatsFeet > 0) && casingWithdrawalMinutes > 0;
   });
 
   if (validRecords.length === 0) {
@@ -182,12 +196,14 @@ export function calculateAveragePerformance(historyRecords) {
     .map((day) => {
       const lettersFeet = toNum(day.letters);
       const flatsFeet = toNum(day.flats);
-      const officeMinutes = getOfficeMinutes(day);
 
-      const perf = calculatePercentToStandard(lettersFeet, flatsFeet, officeMinutes);
+      // % to standard should be based on casing+withdrawal minutes, not total 722.
+      const casingWithdrawalMinutesRaw = getCasingWithdrawalMinutes(day);
+      const casingWithdrawalMinutes = Math.max(1, Math.round(casingWithdrawalMinutesRaw));
+
+      const perf = calculatePercentToStandard(lettersFeet, flatsFeet, casingWithdrawalMinutes);
       if (!perf) return null;
 
-      // Guard against NaN if something weird slips in.
       if (!Number.isFinite(perf.percentToStandard)) return null;
       return perf;
     })
