@@ -251,11 +251,12 @@ export default function TodayScreen() {
       }
 
       const preRouteLoadingMinutes = useRouteStore.getState().preRouteLoadingMinutes || 0;
-      
+
       if (preRouteLoadingMinutes > 0) {
         console.log(`Including ${preRouteLoadingMinutes} minutes of pre-route loading time in 721 street time`);
       }
 
+      // Start 721 street time
       const session = await streetTimeService.startSession(currentRouteId, preRouteLoadingMinutes);
       setStreetTimeSession(session);
       setAccumulatedStreetSeconds(0); // ✅ Reset accumulated time on fresh start
@@ -264,9 +265,34 @@ export default function TodayScreen() {
       setStreetStartTime(null);
       setRouteStarted(true);
 
-      // Store 721 timer start time for waypoint predictions
-      updateTodayInputs({ 
-        streetTimerStartTime: session.start_time 
+      // Capture the actual "leave office" moment (721 start) as the end of 722 (AM office) for today.
+      const leaveDate = new Date(session.start_time);
+      const actualLeaveHHMM = leaveDate.toLocaleTimeString('en-US', {
+        hour12: false,
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+
+      const routeConfig = getCurrentRouteConfig();
+      const startTimeStr = todayInputs.startTimeOverride || routeConfig?.startTime || '07:30';
+
+      const parseHHMMToMinutes = (timeStr) => {
+        const match = String(timeStr || '').match(/^(\d{1,2}):(\d{2})$/);
+        if (!match) return 0;
+        const h = parseInt(match[1], 10);
+        const m = parseInt(match[2], 10);
+        return (h * 60) + m;
+      };
+
+      const startMinutes = parseHHMMToMinutes(startTimeStr);
+      const leaveMinutes = (leaveDate.getHours() * 60) + leaveDate.getMinutes();
+      let officeMinutes = leaveMinutes - startMinutes;
+      if (officeMinutes < 0) officeMinutes += 1440;
+
+      updateTodayInputs({
+        streetTimerStartTime: session.start_time,
+        leaveOfficeTime: actualLeaveHHMM,
+        actualOfficeTime: Math.round(officeMinutes),
       });
 
       if (preRouteLoadingMinutes > 0) {
@@ -276,7 +302,8 @@ export default function TodayScreen() {
 
       console.log('Route started with data:', todayInputs);
       console.log('Street time tracking started:', session);
-      console.log('✓ 721 street timer start captured for waypoint predictions:', session.start_time);
+      console.log('✓ 721 start captured as Actual Leave Time:', actualLeaveHHMM);
+      console.log('✓ Actual 722 office minutes captured:', officeMinutes);
     } catch (error) {
       console.error('Error starting route:', error);
       alert(error.message || 'Failed to start street time tracking');
@@ -481,10 +508,15 @@ export default function TodayScreen() {
       const currentRoute = getCurrentRouteConfig();
 
       let actualOfficeTime = 0;
-      if (prediction && prediction.officeTime != null) {
+
+      // Prefer captured actual 722 time from when user tapped Start Route (721).
+      if (todayInputs.actualOfficeTime && todayInputs.actualOfficeTime > 0) {
+        actualOfficeTime = todayInputs.actualOfficeTime;
+      } else if (prediction && prediction.officeTime != null) {
+        // Fallback to predicted office time if we don't have an actual.
         actualOfficeTime = prediction.officeTime;
       }
-      
+
       const leaveTimeStr = todayInputs.leaveOfficeTime || currentRoute?.startTime || '07:30';
       const startTimeStr = todayInputs.startTimeOverride || currentRoute?.startTime || '07:30';
       
@@ -504,7 +536,9 @@ export default function TodayScreen() {
         calculatedOfficeTime += 1440;
       }
       
-      if (calculatedOfficeTime >= 0 && calculatedOfficeTime <= 180) {
+      // If we didn't capture it at Start Route, calculate it from time-of-day.
+      // Allow up to 8 hours just in case of oddball days (late trucks, etc.).
+      if ((!todayInputs.actualOfficeTime || todayInputs.actualOfficeTime <= 0) && calculatedOfficeTime >= 0 && calculatedOfficeTime <= 480) {
         actualOfficeTime = calculatedOfficeTime;
         console.log(`✓ Actual 722 office time calculated from time-of-day: ${calculatedOfficeTime} minutes (${startTimeStr} → ${leaveTimeStr})`);
       }
@@ -1100,13 +1134,13 @@ export default function TodayScreen() {
         </div>
         {routeStarted ? (
           <div className="space-y-3">
-            {/* Show predicted vs actual leave time once 721 starts */}
+            {/* After Start Route (721), show predicted vs actual leave time + actual 722 minutes */}
             {streetTimeSession?.start_time && (
               <div className="bg-white/70 rounded-lg p-3">
-                <p className="text-sm font-semibold text-gray-700 mb-2">Leave Time</p>
+                <p className="text-sm font-semibold text-gray-700 mb-2">Leave Office</p>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <p className="text-xs text-gray-500">Predicted</p>
+                    <p className="text-xs text-gray-500">Predicted Leave</p>
                     <p className="text-lg font-bold text-blue-700">
                       {prediction?.leaveOfficeTime
                         ? new Date(prediction.leaveOfficeTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
@@ -1114,17 +1148,31 @@ export default function TodayScreen() {
                     </p>
                   </div>
                   <div>
-                    <p className="text-xs text-gray-500">Actual (721)</p>
+                    <p className="text-xs text-gray-500">Actual Leave (721)</p>
                     <p className="text-lg font-bold text-gray-900">
-                      {new Date(streetTimeSession.start_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                      {todayInputs.leaveOfficeTime
+                        ? new Date(`1970-01-01T${todayInputs.leaveOfficeTime}:00`).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+                        : new Date(streetTimeSession.start_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
                     </p>
                   </div>
                 </div>
-                {prediction?.leaveOfficeTime && (
-                  <p className="text-xs text-gray-600 mt-2">
-                    Variance: {Math.round((new Date(streetTimeSession.start_time) - new Date(prediction.leaveOfficeTime)) / 60000)} min
-                  </p>
-                )}
+
+                <div className="mt-2 grid grid-cols-2 gap-3">
+                  <div>
+                    <p className="text-xs text-gray-500">Actual 722 (AM Office)</p>
+                    <p className="text-base font-bold text-gray-900">
+                      {todayInputs.actualOfficeTime ? `${todayInputs.actualOfficeTime} min` : '—'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">Variance</p>
+                    <p className="text-base font-bold text-gray-900">
+                      {prediction?.leaveOfficeTime
+                        ? `${Math.round((new Date(streetTimeSession.start_time) - new Date(prediction.leaveOfficeTime)) / 60000)} min`
+                        : '—'}
+                    </p>
+                  </div>
+                </div>
               </div>
             )}
 
