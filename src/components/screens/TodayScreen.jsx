@@ -1368,6 +1368,7 @@ export default function TodayScreen() {
         <Reason3996Modal
           todayInputs={todayInputs}
           prediction={prediction}
+          history={history}
           onClose={() => setShow3996Helper(false)}
         />
       )}

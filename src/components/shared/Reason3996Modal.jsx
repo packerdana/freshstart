@@ -8,21 +8,57 @@ function clampMinutes(n) {
   return Math.max(0, Math.round(v));
 }
 
-function buildReasons({ todayInputs, prediction }) {
+function percentile(values, p) {
+  if (!values || values.length === 0) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  const idx = (sorted.length - 1) * p;
+  const lo = Math.floor(idx);
+  const hi = Math.ceil(idx);
+  if (lo === hi) return sorted[lo];
+  const w = idx - lo;
+  return sorted[lo] * (1 - w) + sorted[hi] * w;
+}
+
+function computePackageThresholds(history) {
+  const rows = (history || [])
+    .map((d) => {
+      const parcels = typeof d.parcels === 'string' ? parseInt(d.parcels, 10) : (d.parcels || 0);
+      const sprs = (d.sprs ?? d.spurs ?? 0);
+      const sprsN = typeof sprs === 'string' ? parseInt(sprs, 10) : sprs;
+      return (Number.isFinite(parcels) ? parcels : 0) + (Number.isFinite(sprsN) ? sprsN : 0);
+    })
+    .filter((n) => Number.isFinite(n) && n > 0);
+
+  // Need enough history to be meaningful; otherwise fall back to fixed thresholds.
+  if (rows.length < 10) {
+    return { aboveNormal: 100, heavy: 150, basis: 'fallback' };
+  }
+
+  const aboveNormal = Math.round(percentile(rows, 0.80) || 100);
+  const heavy = Math.round(percentile(rows, 0.90) || 150);
+
+  // Ensure sensible ordering.
+  return {
+    aboveNormal: Math.max(1, Math.min(heavy - 1, aboveNormal)),
+    heavy: Math.max(aboveNormal + 1, heavy),
+    basis: 'history',
+  };
+}
+
+function buildReasons({ todayInputs, prediction, history }) {
   const reasons = [];
 
   const dps = clampMinutes(todayInputs?.dps);
-  const flats = todayInputs?.flats;
-  const letters = todayInputs?.letters;
   const parcels = clampMinutes(todayInputs?.parcels);
   const sprs = clampMinutes(todayInputs?.sprs);
 
   const log = todayInputs?.dailyLog || {};
 
-  // Volume-based suggestions (kept conservative)
+  // Volume-based suggestions (route-relative when possible)
   const totalPkgs = parcels + sprs;
-  if (totalPkgs >= 150) reasons.push('Heavy parcel volume.');
-  else if (totalPkgs >= 100) reasons.push('Parcel volume above normal.');
+  const pkgThresholds = computePackageThresholds(history);
+  if (totalPkgs >= pkgThresholds.heavy) reasons.push('Heavy parcel volume.');
+  else if (totalPkgs >= pkgThresholds.aboveNormal) reasons.push('Parcel volume above normal.');
 
   if (dps >= 3000) reasons.push('Heavy DPS volume.');
   else if (dps >= 2000) reasons.push('DPS volume above normal.');
@@ -64,8 +100,8 @@ function buildReasons({ todayInputs, prediction }) {
   return cleaned;
 }
 
-export default function Reason3996Modal({ todayInputs, prediction, onClose }) {
-  const reasons = useMemo(() => buildReasons({ todayInputs, prediction }), [todayInputs, prediction]);
+export default function Reason3996Modal({ todayInputs, prediction, history, onClose }) {
+  const reasons = useMemo(() => buildReasons({ todayInputs, prediction, history }), [todayInputs, prediction, history]);
 
   const text = useMemo(() => reasons.map(r => `• ${r}`).join('\n'), [reasons]);
 
