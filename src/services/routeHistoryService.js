@@ -104,49 +104,72 @@ export async function saveRouteHistory(routeId, historyData, waypoints = null) {
   const penaltyCalc = calculatePenaltyOT(totalHours, tourLength, weeklyHours, isNSDay);
   const penaltyOvertimeMinutes = Math.round(penaltyCalc.penaltyOT * 60);
 
-  const { data, error } = await supabase
-    .from('route_history')
-    .upsert({
-      route_id: routeId,
-      date: historyData.date,
-      dps: historyData.dps || 0,
-      flats: historyData.flats || 0,
-      letters: historyData.letters || 0,
-      parcels: historyData.parcels || 0,
-      spurs: historyData.sprs || 0,
-      curtailed: historyData.curtailed || 0,
-      safety_talk: historyData.safetyTalk || 0,
-      street_time: Math.round(historyData.streetTime || 0),
-      street_time_normalized: historyData.streetTimeNormalized ? Math.round(historyData.streetTimeNormalized) : null,
-      office_time: Math.round(historyData.officeTime || 0),
-      day_type: historyData.dayType || 'normal',
-      overtime: Math.round(historyData.overtime || 0),
-      auxiliary_assistance: historyData.auxiliaryAssistance || false,
-      mail_not_delivered: historyData.mailNotDelivered || false,
-      notes: historyData.notes || null,
-      pm_office_time: Math.round(historyData.pmOfficeTime || 0),
-      waypoint_timings: waypointTimings,
-      penalty_overtime: penaltyOvertimeMinutes,
-      is_ns_day: isNSDay,
-      weekly_hours: weeklyHours,
-      predicted_leave_time: historyData.predictedLeaveTime || null,
-      actual_leave_time: historyData.actualLeaveTime || null,
-      predicted_office_time: historyData.predictedOfficeTime ? Math.round(historyData.predictedOfficeTime) : null,
-      actual_office_time: historyData.actualOfficeTime ? Math.round(historyData.actualOfficeTime) : null,
-      casing_withdrawal_minutes: historyData.casingWithdrawalMinutes != null ? Math.round(historyData.casingWithdrawalMinutes) : null,
-      daily_log: historyData.dailyLog ?? null,
-    }, {
-      onConflict: 'route_id,date'
-    })
-    .select()
-    .maybeSingle();
+  const basePayload = {
+    route_id: routeId,
+    date: historyData.date,
+    dps: historyData.dps || 0,
+    flats: historyData.flats || 0,
+    letters: historyData.letters || 0,
+    parcels: historyData.parcels || 0,
+    spurs: historyData.sprs || 0,
+    curtailed: historyData.curtailed || 0,
+    safety_talk: historyData.safetyTalk || 0,
+    street_time: Math.round(historyData.streetTime || 0),
+    street_time_normalized: historyData.streetTimeNormalized ? Math.round(historyData.streetTimeNormalized) : null,
+    office_time: Math.round(historyData.officeTime || 0),
+    day_type: historyData.dayType || 'normal',
+    overtime: Math.round(historyData.overtime || 0),
+    auxiliary_assistance: historyData.auxiliaryAssistance || false,
+    mail_not_delivered: historyData.mailNotDelivered || false,
+    notes: historyData.notes || null,
+    pm_office_time: Math.round(historyData.pmOfficeTime || 0),
+    waypoint_timings: waypointTimings,
+    penalty_overtime: penaltyOvertimeMinutes,
+    is_ns_day: isNSDay,
+    weekly_hours: weeklyHours,
+    predicted_leave_time: historyData.predictedLeaveTime || null,
+    actual_leave_time: historyData.actualLeaveTime || null,
+    predicted_office_time: historyData.predictedOfficeTime ? Math.round(historyData.predictedOfficeTime) : null,
+    actual_office_time: historyData.actualOfficeTime ? Math.round(historyData.actualOfficeTime) : null,
+  };
+
+  const extendedPayload = {
+    ...basePayload,
+    casing_withdrawal_minutes: historyData.casingWithdrawalMinutes != null ? Math.round(historyData.casingWithdrawalMinutes) : null,
+    daily_log: historyData.dailyLog ?? null,
+  };
+
+  const tryUpsert = async (payload) => {
+    return supabase
+      .from('route_history')
+      .upsert(payload, { onConflict: 'route_id,date' })
+      .select()
+      .maybeSingle();
+  };
+
+  let data;
+  let error;
+
+  // First try with extended columns.
+  ({ data, error } = await tryUpsert(extendedPayload));
+
+  // If the DB schema hasn't been migrated yet (common in early testing), retry without new columns.
+  if (error) {
+    const msg = String(error.message || error);
+    const missingCasingCol = msg.includes("casing_withdrawal_minutes") && msg.includes('schema cache');
+    const missingDailyLogCol = msg.includes("daily_log") && msg.includes('schema cache');
+
+    if (missingCasingCol || missingDailyLogCol) {
+      console.warn('Route history save: DB missing new column(s); retrying without them. Error:', msg);
+      ({ data, error } = await tryUpsert(basePayload));
+    }
+  }
 
   if (error) {
     console.error('Error saving route history:', error);
     throw error;
   }
 
-  // Convert to camelCase before returning
   return convertHistoryFieldNames(data);
 }
 
