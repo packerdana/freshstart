@@ -141,10 +141,17 @@ const useAuthStore = create((set, get) => ({
       return () => {};
     }
 
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session }, error }) => {
-      // FIXED: Only clear on specific token errors, not all errors
-      if (error) {
+    // Get initial session (with a timeout so the app doesn't spin forever if Supabase/network hangs)
+    const withTimeout = (p, ms) =>
+      Promise.race([
+        p,
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Supabase session check timed out')), ms)),
+      ]);
+
+    withTimeout(supabase.auth.getSession(), 8000)
+      .then(({ data: { session }, error }) => {
+        // FIXED: Only clear on specific token errors, not all errors
+        if (error) {
         console.error('Error getting session:', error);
         
         // Only clear if it's a token-related error
@@ -167,6 +174,18 @@ const useAuthStore = create((set, get) => ({
         session,
         user: session?.user ?? null,
         loading: false,
+      });
+    })
+    .catch((err) => {
+      console.error('Auth init timed out or failed:', err);
+      set({
+        session: null,
+        user: null,
+        loading: false,
+        error:
+          err?.message === 'Supabase session check timed out'
+            ? 'RouteWise could not reach Supabase. Check your internet connection (or if Supabase is down), then refresh.'
+            : (err?.message || 'Auth initialization failed'),
       });
     });
     
