@@ -46,6 +46,16 @@ const useRouteStore = create(
         actualOfficeTime: 0,
         // Optional: user-entered casing + withdrawal minutes for DOIS % to Standard
         casingWithdrawalMinutes: 0,
+        // Daily Log: quick, structured reasons that explain variance and improve future predictions.
+        dailyLog: {
+          lateMail: false,
+          lateParcels: false,
+          casingInterruptionsMinutes: 0,
+          waitingOnParcelsMinutes: 0,
+          accountablesMinutes: 0,
+          otherDelayMinutes: 0,
+          notes: '',
+        },
       },
 
       lastResetDate: null,
@@ -78,6 +88,15 @@ const useRouteStore = create(
               leaveOfficeTime: '',
               actualOfficeTime: 0,
               casingWithdrawalMinutes: 0,
+              dailyLog: {
+                lateMail: false,
+                lateParcels: false,
+                casingInterruptionsMinutes: 0,
+                waitingOnParcelsMinutes: 0,
+                accountablesMinutes: 0,
+                otherDelayMinutes: 0,
+                notes: '',
+              },
             },
             routeStarted: false,
             preRouteLoadingMinutes: 0, // ADDED: Reset loading time daily
@@ -192,7 +211,30 @@ const useRouteStore = create(
       })),
 
       clearTodayInputs: () => set({
-        todayInputs: { dps: 0, flats: 0, letters: 0, parcels: 0, scannerTotal: 0, packagesManuallyUpdated: false, sprs: 0, safetyTalk: 0, hasBoxholder: false, startTimeOverride: '', leaveOfficeTime: '', actualOfficeTime: 0, casingWithdrawalMinutes: 0 }
+        todayInputs: {
+          dps: 0,
+          flats: 0,
+          letters: 0,
+          parcels: 0,
+          scannerTotal: 0,
+          packagesManuallyUpdated: false,
+          sprs: 0,
+          safetyTalk: 0,
+          hasBoxholder: false,
+          startTimeOverride: '',
+          leaveOfficeTime: '',
+          actualOfficeTime: 0,
+          casingWithdrawalMinutes: 0,
+          dailyLog: {
+            lateMail: false,
+            lateParcels: false,
+            casingInterruptionsMinutes: 0,
+            waitingOnParcelsMinutes: 0,
+            accountablesMinutes: 0,
+            otherDelayMinutes: 0,
+            notes: '',
+          },
+        }
       }),
 
       setRouteStarted: (started) => set({ routeStarted: started }),
