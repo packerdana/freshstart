@@ -293,6 +293,7 @@ export default function TodayScreen() {
         streetTimerStartTime: session.start_time,
         leaveOfficeTime: actualLeaveHHMM,
         actualOfficeTime: Math.round(officeMinutes),
+        // leave casingWithdrawalMinutes for user to enter (optional)
       });
 
       if (preRouteLoadingMinutes > 0) {
@@ -581,6 +582,7 @@ export default function TodayScreen() {
         notes: completionData.notes || null,
         safetyTalk: todayInputs.safetyTalk || 0,
         hasBoxholder: todayInputs.hasBoxholder || false,
+        casingWithdrawalMinutes: todayInputs.casingWithdrawalMinutes || null,
       };
       
       try {
@@ -1172,6 +1174,18 @@ export default function TodayScreen() {
                         : '—'}
                     </p>
                   </div>
+                </div>
+
+                <div className="mt-3">
+                  <Input
+                    label="Casing + Withdrawal (minutes) — for % to Standard"
+                    type="number"
+                    value={todayInputs.casingWithdrawalMinutes || ''}
+                    onChange={(e) => updateTodayInputs({ casingWithdrawalMinutes: parseInt(e.target.value, 10) || 0 })}
+                    placeholder="e.g. 120"
+                    helperText="Optional. Enter only time spent casing + pulling down (not stand-up, accountables, etc.)."
+                    className="mb-0"
+                  />
                 </div>
               </div>
             )}

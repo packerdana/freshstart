@@ -44,6 +44,8 @@ const useRouteStore = create(
         leaveOfficeTime: '',
         // Captured when user taps Start Route (721): actual AM office time (722) in minutes
         actualOfficeTime: 0,
+        // Optional: user-entered casing + withdrawal minutes for DOIS % to Standard
+        casingWithdrawalMinutes: 0,
       },
 
       lastResetDate: null,
@@ -75,6 +77,7 @@ const useRouteStore = create(
               startTimeOverride: '',
               leaveOfficeTime: '',
               actualOfficeTime: 0,
+              casingWithdrawalMinutes: 0,
             },
             routeStarted: false,
             preRouteLoadingMinutes: 0, // ADDED: Reset loading time daily
@@ -189,7 +192,7 @@ const useRouteStore = create(
       })),
 
       clearTodayInputs: () => set({
-        todayInputs: { dps: 0, flats: 0, letters: 0, parcels: 0, scannerTotal: 0, packagesManuallyUpdated: false, sprs: 0, safetyTalk: 0, hasBoxholder: false, startTimeOverride: '', leaveOfficeTime: '', actualOfficeTime: 0 }
+        todayInputs: { dps: 0, flats: 0, letters: 0, parcels: 0, scannerTotal: 0, packagesManuallyUpdated: false, sprs: 0, safetyTalk: 0, hasBoxholder: false, startTimeOverride: '', leaveOfficeTime: '', actualOfficeTime: 0, casingWithdrawalMinutes: 0 }
       }),
 
       setRouteStarted: (started) => set({ routeStarted: started }),

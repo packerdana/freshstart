@@ -36,6 +36,7 @@ function convertHistoryFieldNames(dbRecord) {
     actualLeaveTime: dbRecord.actual_leave_time,
     predictedOfficeTime: dbRecord.predicted_office_time,
     actualOfficeTime: dbRecord.actual_office_time,
+    casingWithdrawalMinutes: dbRecord.casing_withdrawal_minutes,
     createdAt: dbRecord.created_at,
     updatedAt: dbRecord.updated_at,
   };
@@ -131,6 +132,7 @@ export async function saveRouteHistory(routeId, historyData, waypoints = null) {
       actual_leave_time: historyData.actualLeaveTime || null,
       predicted_office_time: historyData.predictedOfficeTime ? Math.round(historyData.predictedOfficeTime) : null,
       actual_office_time: historyData.actualOfficeTime ? Math.round(historyData.actualOfficeTime) : null,
+      casing_withdrawal_minutes: historyData.casingWithdrawalMinutes != null ? Math.round(historyData.casingWithdrawalMinutes) : null,
     }, {
       onConflict: 'route_id,date'
     })

@@ -16,6 +16,11 @@
 
 import { TIME_CONSTANTS } from './constants';
 
+const toNum = (v) => {
+  const n = typeof v === 'string' ? parseFloat(v) : v;
+  return Number.isFinite(n) ? n : 0;
+};
+
 /**
  * Convert feet to pieces using USPS standards
  */
@@ -149,34 +154,11 @@ export function calculateAveragePerformance(historyRecords) {
   if (!historyRecords || historyRecords.length === 0) {
     return null;
   }
-
-  const toNum = (v) => {
-    const n = typeof v === 'string' ? parseFloat(v) : v;
-    return Number.isFinite(n) ? n : 0;
-  };
-
-  // Prefer the most "true" office time if present.
-  // - actualOfficeTime: user-entered actual office time (if tracked)
-  // - officeTime: route_history.office_time (AM office time)
-  // - office_time: legacy snake_case
-  const getOfficeMinutes = (day) => {
-    const actual = toNum(day.actualOfficeTime ?? day.actual_office_time);
-    if (actual > 0) return actual;
-
-    const office = toNum(day.officeTime ?? day.office_time);
-    return office;
-  };
-
+  // % to Standard should be based on the carrier's ACTUAL casing + withdrawal minutes
+  // (not total 722 office time). This is an optional field captured from the Today screen.
   const getCasingWithdrawalMinutes = (day) => {
-    const officeMinutes = getOfficeMinutes(day);
-    const safetyTalk = toNum(day.safetyTalk ?? day.safety_talk);
-
-    // RouteWise uses a fixed office-time baseline in predictionService.
-    // For % to standard, we want just casing + withdrawal time.
-    const fixed = toNum(TIME_CONSTANTS.FIXED_OFFICE_TIME);
-
-    const casingWithdrawal = officeMinutes - fixed - safetyTalk;
-    return casingWithdrawal;
+    const v = toNum(day.casingWithdrawalMinutes ?? day.casing_withdrawal_minutes);
+    return v;
   };
 
   const validRecords = historyRecords.filter((day) => {
