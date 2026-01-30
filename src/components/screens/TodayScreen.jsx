@@ -1100,6 +1100,34 @@ export default function TodayScreen() {
         </div>
         {routeStarted ? (
           <div className="space-y-3">
+            {/* Show predicted vs actual leave time once 721 starts */}
+            {streetTimeSession?.start_time && (
+              <div className="bg-white/70 rounded-lg p-3">
+                <p className="text-sm font-semibold text-gray-700 mb-2">Leave Time</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <p className="text-xs text-gray-500">Predicted</p>
+                    <p className="text-lg font-bold text-blue-700">
+                      {prediction?.leaveOfficeTime
+                        ? new Date(prediction.leaveOfficeTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+                        : '—'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">Actual (721)</p>
+                    <p className="text-lg font-bold text-gray-900">
+                      {new Date(streetTimeSession.start_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                    </p>
+                  </div>
+                </div>
+                {prediction?.leaveOfficeTime && (
+                  <p className="text-xs text-gray-600 mt-2">
+                    Variance: {Math.round((new Date(streetTimeSession.start_time) - new Date(prediction.leaveOfficeTime)) / 60000)} min
+                  </p>
+                )}
+              </div>
+            )}
+
             {!pmOfficeSession && (
               <Button
                 onClick={handleStartPmOffice}
@@ -1128,7 +1156,7 @@ export default function TodayScreen() {
           </div>
         ) : (
           <Button onClick={handleStartRoute} className="w-full">
-            Start Route
+            Start Route (721 Time)
           </Button>
         )}
       </Card>
