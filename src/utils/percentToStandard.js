@@ -18,13 +18,16 @@
  * Convert feet to pieces using USPS standards
  */
 export function convertToMailPieces(lettersFeet, flatsFeet) {
-  const letterPieces = Math.ceil(lettersFeet * 227);
-  const flatPieces = Math.ceil(flatsFeet * 115);
-  
+  // RouteWise inputs letters/flats in feet (can be decimals).
+  // Converting feet→pieces should NOT always round up, otherwise we inflate volume and skew % to standard.
+  // DOIS uses actual piece counts; closest approximation here is rounding to nearest whole piece.
+  const letterPieces = Math.round((lettersFeet || 0) * 227);
+  const flatPieces = Math.round((flatsFeet || 0) * 115);
+
   return {
     letterPieces,
     flatPieces,
-    totalPieces: letterPieces + flatPieces
+    totalPieces: letterPieces + flatPieces,
   };
 }
 
@@ -62,18 +65,23 @@ export function calculateStandardOfficeTime(lettersFeet, flatsFeet) {
  */
 export function calculatePercentToStandard(lettersFeet, flatsFeet, actualMinutes) {
   const standard = calculateStandardOfficeTime(lettersFeet, flatsFeet);
-  
-  // % to Standard (DOIS formula)
+
+  // Guard against divide-by-zero (e.g., if volume is 0)
+  if (!standard.standardTotal || standard.standardTotal <= 0) {
+    return null;
+  }
+
+  // % to Standard (DOIS formula): (ACTUAL / STANDARD) × 100
   const percentToStandard = (actualMinutes / standard.standardTotal) * 100;
-  
+
   // Variance (positive = slower, negative = faster)
   const variance = actualMinutes - standard.standardTotal;
   const variancePercent = percentToStandard - 100;
-  
+
   // Interpretation
   let interpretation = 'on-standard';
   let arrow = '➡️';
-  
+
   if (percentToStandard < 95) {
     interpretation = 'fast';
     arrow = '⬇️';
@@ -81,33 +89,33 @@ export function calculatePercentToStandard(lettersFeet, flatsFeet, actualMinutes
     interpretation = 'slow';
     arrow = '⬆️';
   }
-  
+
   return {
     // Mail volume
     letterPieces: standard.letterPieces,
     flatPieces: standard.flatPieces,
     totalPieces: standard.totalPieces,
-    
+
     // Standard times (what DOIS expects)
     letterMinutes: Math.round(standard.letterMinutes),
     flatMinutes: Math.round(standard.flatMinutes),
     pullDownMinutes: Math.round(standard.pullDownMinutes),
     standardTotal: Math.round(standard.standardTotal),
-    
+
     // Actual time
     actualMinutes: Math.round(actualMinutes),
-    
+
     // Performance metrics
     percentToStandard: Math.round(percentToStandard),
     variance: Math.round(variance),
     variancePercent: Math.round(variancePercent),
-    
+
     // Display helpers
     interpretation,
     arrow,
     isFast: percentToStandard < 100,
     isSlow: percentToStandard > 100,
-    isOnStandard: percentToStandard >= 95 && percentToStandard <= 105
+    isOnStandard: percentToStandard >= 95 && percentToStandard <= 105,
   };
 }
 
@@ -177,9 +185,10 @@ export function calculateAveragePerformance(historyRecords) {
       const officeMinutes = getOfficeMinutes(day);
 
       const perf = calculatePercentToStandard(lettersFeet, flatsFeet, officeMinutes);
+      if (!perf) return null;
 
-      // Guard against divide-by-zero/NaN if something weird slips in.
-      if (!Number.isFinite(perf?.percentToStandard)) return null;
+      // Guard against NaN if something weird slips in.
+      if (!Number.isFinite(perf.percentToStandard)) return null;
       return perf;
     })
     .filter(Boolean);
