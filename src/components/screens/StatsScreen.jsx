@@ -199,13 +199,8 @@ export default function StatsScreen() {
     return calculateAveragePerformance(history);
   }, [history]);
 
-  const hasCasingWithdrawalData = useMemo(() => {
-    if (!history || history.length === 0) return false;
-    return history.some(day => {
-      const v = day.casingWithdrawalMinutes ?? day.casing_withdrawal_minutes;
-      return typeof v === 'number' ? v > 0 : parseFloat(v) > 0;
-    });
-  }, [history]);
+  // % to Standard uses total 722 time, so no extra setup data is required.
+  const hasCasingWithdrawalData = true;
 
   if (loading) {
     return (
@@ -438,7 +433,7 @@ export default function StatsScreen() {
       )}
 
       {/* Office Performance (% to Standard) */}
-      {(officePerformanceStats || !hasCasingWithdrawalData) && (
+      {officePerformanceStats && (
         <Card className="bg-gradient-to-br from-indigo-50 to-blue-50 border-2 border-indigo-200">
           <div className="flex items-center justify-between mb-4">
             <div>
@@ -451,22 +446,7 @@ export default function StatsScreen() {
             <span className="text-2xl">📊</span>
           </div>
 
-          {!hasCasingWithdrawalData ? (
-            <div className="bg-white/70 rounded-lg p-3 text-sm text-gray-700">
-              <p className="font-semibold text-gray-900 mb-1">Needs one-time setup</p>
-              <p>
-                To calculate <strong>% to Standard</strong>, RouteWise needs your <strong>casing + withdrawal minutes</strong>.
-              </p>
-              <p className="mt-2">
-                On the <strong>Today</strong> screen, after you tap <strong>Start Route (721 Time)</strong>, enter
-                “<strong>Casing + Withdrawal (minutes)</strong>”.
-              </p>
-              <p className="mt-2 text-xs text-gray-600">
-                This is casing + pull-down only (not stand-up, accountables, waiting, etc.).
-              </p>
-            </div>
-          ) : (
-            <>
+          <>
               <div className="grid grid-cols-3 gap-3 mb-4">
                 <div className="bg-white/70 rounded-lg p-3 text-center">
                   <p className="text-xs text-gray-600 mb-1">Average</p>
@@ -527,8 +507,7 @@ export default function StatsScreen() {
                   <strong>Note:</strong> % to Standard is for carrier reference only and is not contractually binding.
                 </p>
               </div>
-            </>
-          )}
+          </>
         </Card>
       )}
 

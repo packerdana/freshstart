@@ -255,14 +255,21 @@ export default function TodayScreen() {
       const preRouteLoadingMinutes = useRouteStore.getState().preRouteLoadingMinutes || 0;
 
       if (preRouteLoadingMinutes > 0) {
-        console.log(`Including ${preRouteLoadingMinutes} minutes of pre-route loading time in 721 street time`);
+        console.log(`Including ${preRouteLoadingMinutes} minutes of pre-route loading time in totals (without shifting leave time)`);
       }
 
-      // Start 721 street time
-      const session = await streetTimeService.startSession(currentRouteId, preRouteLoadingMinutes);
+      // Start 721 street time at the actual leave moment (button press)
+      const session = await streetTimeService.startSession(currentRouteId, 0);
       setStreetTimeSession(session);
-      setAccumulatedStreetSeconds(0); // ✅ Reset accumulated time on fresh start
-      setStreetTime(0);
+
+      // If user tracked load truck before leaving, include it in totals without backdating leave time.
+      const preloadSeconds = Math.max(0, Math.round(preRouteLoadingMinutes * 60));
+      setAccumulatedStreetSeconds(preloadSeconds);
+      setStreetTime(preloadSeconds);
+      
+      setCompletedStreetTimeMinutes(null);
+      setStreetStartTime(null);
+      setRouteStarted(true);
       setCompletedStreetTimeMinutes(null);
       setStreetStartTime(null);
       setRouteStarted(true);
@@ -1318,17 +1325,7 @@ export default function TodayScreen() {
                   </div>
                 </div>
 
-                <div className="mt-3">
-                  <Input
-                    label="Casing + Withdrawal (minutes) — for % to Standard"
-                    type="number"
-                    value={todayInputs.casingWithdrawalMinutes || ''}
-                    onChange={(e) => updateTodayInputs({ casingWithdrawalMinutes: parseInt(e.target.value, 10) || 0 })}
-                    placeholder="e.g. 120"
-                    helperText="Optional. Enter only time spent casing + pulling down (not stand-up, accountables, etc.)."
-                    className="mb-0"
-                  />
-                </div>
+                {/* % to Standard now uses total 722 time (no extra input needed). */}
               </div>
             )}
 

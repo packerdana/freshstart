@@ -154,20 +154,23 @@ export function calculateAveragePerformance(historyRecords) {
   if (!historyRecords || historyRecords.length === 0) {
     return null;
   }
-  // % to Standard should be based on the carrier's ACTUAL casing + withdrawal minutes
-  // (not total 722 office time). This is an optional field captured from the Today screen.
-  const getCasingWithdrawalMinutes = (day) => {
-    const v = toNum(day.casingWithdrawalMinutes ?? day.casing_withdrawal_minutes);
-    return v;
+
+  // Use total 722 (AM office) minutes as the "actual" time for % to standard.
+  // This is simple and requires no extra user input.
+  const getOfficeMinutes = (day) => {
+    const actual = toNum(day.actualOfficeTime ?? day.actual_office_time);
+    if (actual > 0) return actual;
+
+    const office = toNum(day.officeTime ?? day.office_time);
+    return office;
   };
 
   const validRecords = historyRecords.filter((day) => {
     const lettersFeet = toNum(day.letters);
     const flatsFeet = toNum(day.flats);
-    const casingWithdrawalMinutes = getCasingWithdrawalMinutes(day);
+    const officeMinutes = getOfficeMinutes(day);
 
-    // Need some mail volume (otherwise standard time is ~0) and some casing/withdrawal time.
-    return (lettersFeet > 0 || flatsFeet > 0) && casingWithdrawalMinutes > 0;
+    return (lettersFeet > 0 || flatsFeet > 0) && officeMinutes > 0;
   });
 
   if (validRecords.length === 0) {
@@ -178,12 +181,9 @@ export function calculateAveragePerformance(historyRecords) {
     .map((day) => {
       const lettersFeet = toNum(day.letters);
       const flatsFeet = toNum(day.flats);
+      const officeMinutes = Math.max(1, Math.round(getOfficeMinutes(day)));
 
-      // % to standard should be based on casing+withdrawal minutes, not total 722.
-      const casingWithdrawalMinutesRaw = getCasingWithdrawalMinutes(day);
-      const casingWithdrawalMinutes = Math.max(1, Math.round(casingWithdrawalMinutesRaw));
-
-      const perf = calculatePercentToStandard(lettersFeet, flatsFeet, casingWithdrawalMinutes);
+      const perf = calculatePercentToStandard(lettersFeet, flatsFeet, officeMinutes);
       if (!perf) return null;
 
       if (!Number.isFinite(perf.percentToStandard)) return null;

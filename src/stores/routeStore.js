@@ -44,7 +44,7 @@ const useRouteStore = create(
         leaveOfficeTime: '',
         // Captured when user taps Start Route (721): actual AM office time (722) in minutes
         actualOfficeTime: 0,
-        // Optional: user-entered casing + withdrawal minutes for DOIS % to Standard
+        // Legacy field (kept for compatibility; % to Standard currently uses total 722 time)
         casingWithdrawalMinutes: 0,
         // Daily Log: quick, structured reasons that explain variance and improve future predictions.
         dailyLog: {

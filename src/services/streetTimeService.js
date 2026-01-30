@@ -16,24 +16,18 @@ export const streetTimeService = {
     const sessionId = `rw_${Date.now()}_${user.email?.split('@')[0] || user.id}`;
     const today = getLocalDateString();
     
-    // Calculate start time - backdate if there was pre-route loading
+    // Start time is the actual moment the carrier goes "out to the street" (721 starts).
+    // We do NOT backdate the 721 start time for load-truck/pre-route work; that caused the
+    // "Actual Leave" time to appear earlier than the button press.
     const startTime = new Date();
-    if (preRouteLoadingMinutes > 0) {
-      startTime.setMinutes(startTime.getMinutes() - preRouteLoadingMinutes);
-      console.log(`✓ 721 Street time backdated by ${preRouteLoadingMinutes} minutes to include pre-route loading`);
-      console.log(`   Actual start: ${new Date().toLocaleTimeString()}`);
-      console.log(`   Recorded start: ${startTime.toLocaleTimeString()}`);
-    }
-    
+
     const { data, error } = await supabase
       .from('operation_codes')
       .insert({
         session_id: sessionId,
         date: today,
         code: '721',
-        code_name: preRouteLoadingMinutes > 0 
-          ? `Street Time (includes ${preRouteLoadingMinutes}m pre-route loading)` 
-          : 'Street Time',
+        code_name: 'Street Time',
         start_time: startTime.toISOString(),
         route_id: routeId,
       })
