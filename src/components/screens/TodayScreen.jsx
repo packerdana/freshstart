@@ -313,12 +313,34 @@ export default function TodayScreen() {
     }
   };
 
-  const handleCancelRoute = () => {
-    if (confirm('Cancel route start? Your mail volume data will be kept.')) {
-      setRouteStarted(false);
-      setCompletedStreetTimeMinutes(null);
-      setStreetStartTime(null);
+  const handleCancelRoute = async () => {
+    if (!confirm('Cancel route start? This will stop the 721 timer. Your mail volume data will be kept.')) {
+      return;
     }
+
+    try {
+      // If 721 was started, stop it so the timer doesn't keep running.
+      if (streetTimeSession && !streetTimeSession.end_time) {
+        await streetTimeService.endSession(streetTimeSession.id);
+      }
+    } catch (e) {
+      console.warn('Could not stop 721 timer on cancel:', e);
+      // Continue clearing local UI state anyway.
+    }
+
+    setRouteStarted(false);
+    setStreetTimeSession(null);
+    setStreetTime(0);
+    setAccumulatedStreetSeconds(0);
+    setCompletedStreetTimeMinutes(null);
+    setStreetStartTime(null);
+
+    // Clear today-only captured clock times so the next start is clean.
+    updateTodayInputs({
+      streetTimerStartTime: null,
+      leaveOfficeTime: '',
+      actualOfficeTime: 0,
+    });
   };
 
   const handleStartPmOffice = async () => {
