@@ -19,25 +19,19 @@ function percentile(values, p) {
   return sorted[lo] * (1 - w) + sorted[hi] * w;
 }
 
-function computePackageThresholds(history) {
+function computeThresholds({ history, getValue, fallback }) {
   const rows = (history || [])
-    .map((d) => {
-      const parcels = typeof d.parcels === 'string' ? parseInt(d.parcels, 10) : (d.parcels || 0);
-      const sprs = (d.sprs ?? d.spurs ?? 0);
-      const sprsN = typeof sprs === 'string' ? parseInt(sprs, 10) : sprs;
-      return (Number.isFinite(parcels) ? parcels : 0) + (Number.isFinite(sprsN) ? sprsN : 0);
-    })
+    .map(getValue)
     .filter((n) => Number.isFinite(n) && n > 0);
 
-  // Need enough history to be meaningful; otherwise fall back to fixed thresholds.
+  // Need enough history to be meaningful; otherwise fall back.
   if (rows.length < 10) {
-    return { aboveNormal: 100, heavy: 150, basis: 'fallback' };
+    return { ...fallback, basis: 'fallback' };
   }
 
-  const aboveNormal = Math.round(percentile(rows, 0.80) || 100);
-  const heavy = Math.round(percentile(rows, 0.90) || 150);
+  const aboveNormal = Math.round(percentile(rows, 0.80) || fallback.aboveNormal);
+  const heavy = Math.round(percentile(rows, 0.90) || fallback.heavy);
 
-  // Ensure sensible ordering.
   return {
     aboveNormal: Math.max(1, Math.min(heavy - 1, aboveNormal)),
     heavy: Math.max(aboveNormal + 1, heavy),
@@ -45,12 +39,64 @@ function computePackageThresholds(history) {
   };
 }
 
+function computePackageThresholds(history) {
+  return computeThresholds({
+    history,
+    fallback: { aboveNormal: 100, heavy: 150 },
+    getValue: (d) => {
+      const parcels = typeof d.parcels === 'string' ? parseInt(d.parcels, 10) : (d.parcels || 0);
+      const sprs = (d.sprs ?? d.spurs ?? 0);
+      const sprsN = typeof sprs === 'string' ? parseInt(sprs, 10) : sprs;
+      return (Number.isFinite(parcels) ? parcels : 0) + (Number.isFinite(sprsN) ? sprsN : 0);
+    },
+  });
+}
+
+function computeDpsThresholds(history) {
+  return computeThresholds({
+    history,
+    fallback: { aboveNormal: 2000, heavy: 3000 },
+    getValue: (d) => {
+      const v = typeof d.dps === 'string' ? parseInt(d.dps, 10) : (d.dps || 0);
+      return Number.isFinite(v) ? v : 0;
+    },
+  });
+}
+
+function computeFeetThresholds(history, field, fallback) {
+  return computeThresholds({
+    history,
+    fallback,
+    getValue: (d) => {
+      const raw = d[field];
+      const v = typeof raw === 'string' ? parseFloat(raw) : (raw || 0);
+      return Number.isFinite(v) ? v : 0;
+    },
+  });
+}
+
+function computeSafetyTalkThresholds(history) {
+  return computeThresholds({
+    history,
+    fallback: { aboveNormal: 5, heavy: 10 },
+    getValue: (d) => {
+      const raw = d.safetyTalk ?? d.safety_talk;
+      const v = typeof raw === 'string' ? parseInt(raw, 10) : (raw || 0);
+      return Number.isFinite(v) ? v : 0;
+    },
+  });
+}
+
 function buildReasons({ todayInputs, prediction, history }) {
   const reasons = [];
 
   const dps = clampMinutes(todayInputs?.dps);
+  const flatsFeet = typeof todayInputs?.flats === 'string' ? parseFloat(todayInputs.flats) : (todayInputs?.flats || 0);
+  const lettersFeet = typeof todayInputs?.letters === 'string' ? parseFloat(todayInputs.letters) : (todayInputs?.letters || 0);
   const parcels = clampMinutes(todayInputs?.parcels);
   const sprs = clampMinutes(todayInputs?.sprs);
+  const hasBoxholder = !!todayInputs?.hasBoxholder;
+  const safetyTalkMin = clampMinutes(todayInputs?.safetyTalk);
 
   const log = todayInputs?.dailyLog || {};
 
@@ -60,8 +106,23 @@ function buildReasons({ todayInputs, prediction, history }) {
   if (totalPkgs >= pkgThresholds.heavy) reasons.push('Heavy parcel volume.');
   else if (totalPkgs >= pkgThresholds.aboveNormal) reasons.push('Parcel volume above normal.');
 
-  if (dps >= 3000) reasons.push('Heavy DPS volume.');
-  else if (dps >= 2000) reasons.push('DPS volume above normal.');
+  const dpsThresholds = computeDpsThresholds(history);
+  if (dps >= dpsThresholds.heavy) reasons.push('Heavy DPS volume.');
+  else if (dps >= dpsThresholds.aboveNormal) reasons.push('DPS volume above normal.');
+
+  const flatsThresholds = computeFeetThresholds(history, 'flats', { aboveNormal: 8, heavy: 12 });
+  if (flatsFeet >= flatsThresholds.heavy) reasons.push('Heavy flats volume.');
+  else if (flatsFeet >= flatsThresholds.aboveNormal) reasons.push('Flats volume above normal.');
+
+  const lettersThresholds = computeFeetThresholds(history, 'letters', { aboveNormal: 6, heavy: 9 });
+  if (lettersFeet >= lettersThresholds.heavy) reasons.push('Heavy letters volume.');
+  else if (lettersFeet >= lettersThresholds.aboveNormal) reasons.push('Letters volume above normal.');
+
+  if (hasBoxholder) reasons.push('Boxholder/coverage today.');
+
+  const safetyThresholds = computeSafetyTalkThresholds(history);
+  if (safetyTalkMin >= safetyThresholds.heavy) reasons.push('Extended service/safety talk.');
+  else if (safetyTalkMin >= safetyThresholds.aboveNormal && safetyTalkMin > 0) reasons.push('Service/safety talk.');
 
   // Daily log-based suggestions
   if (log.lateMail) reasons.push('Late mail / delayed distribution.');
