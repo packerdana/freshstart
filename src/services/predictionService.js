@@ -173,7 +173,9 @@ export async function calculateFullDayPrediction(todayMail, routeConfig, history
       badge = '✋';
       method = 'manual';
     } else {
-      estimatedStreetTime = 240;
+      // Default street-time estimate when we have no usable history and no route-specific defaults.
+      // 6.5 hours = 390 minutes
+      estimatedStreetTime = 390;
       confidence = 'estimate';
       badge = '📊';
       method = 'estimate';

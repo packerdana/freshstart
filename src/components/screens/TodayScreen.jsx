@@ -218,10 +218,15 @@ export default function TodayScreen() {
       };
 
       const routeConfig = getCurrentRouteConfig();
+      const effectiveStartTime = todayInputs.startTimeOverride || routeConfig?.startTime || '07:30';
+      const routeConfigForPrediction = {
+        ...routeConfig,
+        startTime: effectiveStartTime,
+      };
       const routeHistory = history || [];
 
       try {
-        const pred = await calculateFullDayPrediction(todayMail, routeConfig, routeHistory, waypoints, currentRouteId);
+        const pred = await calculateFullDayPrediction(todayMail, routeConfigForPrediction, routeHistory, waypoints, currentRouteId);
         setPrediction(pred);
       } catch (error) {
         console.error('[TodayScreen] Error calculating prediction:', error);
@@ -481,7 +486,7 @@ export default function TodayScreen() {
       }
       
       const leaveTimeStr = todayInputs.leaveOfficeTime || currentRoute?.startTime || '07:30';
-      const startTimeStr = currentRoute?.startTime || '07:30';
+      const startTimeStr = todayInputs.startTimeOverride || currentRoute?.startTime || '07:30';
       
       const parseTimeToMinutes = (timeStr) => {
         const match = timeStr.match(/^(\d{1,2}):(\d{2})$/);
@@ -702,6 +707,39 @@ export default function TodayScreen() {
           </div>
         )}
       </div>
+
+      <Card className="mb-6">
+        <h3 className="text-lg font-bold text-gray-900 mb-4">Start Time (Today)</h3>
+        <Input
+          label="Optional override"
+          type="time"
+          value={todayInputs.startTimeOverride || ''}
+          onChange={(e) => updateTodayInputs({ startTimeOverride: e.target.value })}
+          helperText={`Route default: ${currentRoute?.startTime || '07:30'}`}
+        />
+
+        <div className="grid grid-cols-2 gap-2">
+          <Button
+            variant="secondary"
+            className="w-full"
+            onClick={() => updateTodayInputs({ startTimeOverride: currentRoute?.startTime || '07:30' })}
+          >
+            Set to default
+          </Button>
+          <Button
+            variant="secondary"
+            className="w-full"
+            onClick={() => updateTodayInputs({ startTimeOverride: '' })}
+            disabled={!todayInputs.startTimeOverride}
+          >
+            Clear
+          </Button>
+        </div>
+
+        <p className="text-xs text-gray-500 mt-2">
+          This only affects today’s predictions/clock-out estimate.
+        </p>
+      </Card>
 
       <Card className="mb-6">
         <h3 className="text-lg font-bold text-gray-900 mb-4">Mail Volume</h3>
@@ -1107,7 +1145,7 @@ export default function TodayScreen() {
 
       {showForgotRouteDialog && (
         <ForgotRouteDialog
-          routeStartTime={todayInputs.leaveOfficeTime || getCurrentRouteConfig()?.startTime || '08:00'}
+          routeStartTime={todayInputs.startTimeOverride || getCurrentRouteConfig()?.startTime || '08:00'}
           predictedStreetMinutes={Math.round(prediction?.streetTime || 0)}
           actualStreetMinutes={completedStreetTimeMinutes || 0}
           onCorrect={handleForgotRouteCorrect}

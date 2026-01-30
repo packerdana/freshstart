@@ -17,13 +17,13 @@ import useBreakTimer from './hooks/useBreakTimer';
 function App() {
   const [showSignup, setShowSignup] = useState(false);
   const [activeTab, setActiveTab] = useState('today');
-  const loadUserRoutes = useRouteStore((state) => state.loadUserRoutes);
-  const checkAndResetDailyData = useRouteStore((state) => state.checkAndResetDailyData);
-  const autoPopulateWaypointsIfNeeded = useRouteStore((state) => state.autoPopulateWaypointsIfNeeded);
+  const loadUserRoutes = useRouteStore((state: any) => state.loadUserRoutes);
+  const checkAndResetDailyData = useRouteStore((state: any) => state.checkAndResetDailyData);
+  const autoPopulateWaypointsIfNeeded = useRouteStore((state: any) => state.autoPopulateWaypointsIfNeeded);
   const { user, loading, error, initializeAuth } = useAuthStore();
-  const currentRoute = useRouteStore((state) => state.currentRoute);
-  const currentRouteId = useRouteStore((state) => state.currentRouteId);
-  const routes = useRouteStore((state) => state.routes);
+  const currentRoute = useRouteStore((state: any) => state.currentRoute);
+  const currentRouteId = useRouteStore((state: any) => state.currentRouteId);
+  const routes = useRouteStore((state: any) => state.routes);
   const hasRoutes = Object.keys(routes || {}).length > 0;
 
   useBreakTimer();

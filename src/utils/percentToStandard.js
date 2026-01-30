@@ -139,40 +139,71 @@ export function calculateAveragePerformance(historyRecords) {
   if (!historyRecords || historyRecords.length === 0) {
     return null;
   }
-  
-  const validRecords = historyRecords.filter(day => 
-    day.letters > 0 && 
-    day.flats > 0 && 
-    day.office_time > 0
-  );
-  
+
+  const toNum = (v) => {
+    const n = typeof v === 'string' ? parseFloat(v) : v;
+    return Number.isFinite(n) ? n : 0;
+  };
+
+  // Prefer the most "true" office time if present.
+  // - actualOfficeTime: user-entered actual office time (if tracked)
+  // - officeTime: route_history.office_time (AM office time)
+  // - office_time: legacy snake_case
+  const getOfficeMinutes = (day) => {
+    const actual = toNum(day.actualOfficeTime ?? day.actual_office_time);
+    if (actual > 0) return actual;
+
+    const office = toNum(day.officeTime ?? day.office_time);
+    return office;
+  };
+
+  const validRecords = historyRecords.filter((day) => {
+    const lettersFeet = toNum(day.letters);
+    const flatsFeet = toNum(day.flats);
+    const officeMinutes = getOfficeMinutes(day);
+
+    // Need some mail volume (otherwise standard time is ~0) and an actual office time.
+    return (lettersFeet > 0 || flatsFeet > 0) && officeMinutes > 0;
+  });
+
   if (validRecords.length === 0) {
     return null;
   }
-  
-  const performances = validRecords.map(day => {
-    const officeTime = day.office_time || day.officeTime || 0;
-    return calculatePercentToStandard(day.letters, day.flats, officeTime);
-  });
-  
+
+  const performances = validRecords
+    .map((day) => {
+      const lettersFeet = toNum(day.letters);
+      const flatsFeet = toNum(day.flats);
+      const officeMinutes = getOfficeMinutes(day);
+
+      const perf = calculatePercentToStandard(lettersFeet, flatsFeet, officeMinutes);
+
+      // Guard against divide-by-zero/NaN if something weird slips in.
+      if (!Number.isFinite(perf?.percentToStandard)) return null;
+      return perf;
+    })
+    .filter(Boolean);
+
+  if (performances.length === 0) return null;
+
   const avgPercent = performances.reduce((sum, p) => sum + p.percentToStandard, 0) / performances.length;
-  
-  const best = performances.reduce((best, current) => 
+
+  const best = performances.reduce((best, current) =>
     current.percentToStandard < best.percentToStandard ? current : best
   );
-  
-  const worst = performances.reduce((worst, current) => 
+
+  const worst = performances.reduce((worst, current) =>
     current.percentToStandard > worst.percentToStandard ? current : worst
   );
-  
-  const daysUnder100 = performances.filter(p => p.percentToStandard < 100).length;
-  
+
+  const daysUnder100 = performances.filter((p) => p.percentToStandard < 100).length;
+
   return {
     avgPercent: Math.round(avgPercent),
     best: Math.round(best.percentToStandard),
     worst: Math.round(worst.percentToStandard),
     daysUnder100,
     totalDays: performances.length,
-    consistency: Math.round((daysUnder100 / performances.length) * 100)
+    consistency: Math.round((daysUnder100 / performances.length) * 100),
   };
 }

@@ -38,6 +38,8 @@ const useRouteStore = create(
         sprs: 0,
         safetyTalk: 0, // FIXED: Default to 0 instead of 10
         hasBoxholder: false,
+        // Allows a one-off clock-in/start-time adjustment for "today" without changing the route default.
+        startTimeOverride: '',
       },
 
       lastResetDate: null,
@@ -66,6 +68,7 @@ const useRouteStore = create(
               sprs: 0,
               safetyTalk: 0, // FIXED: Default to 0 instead of 10
               hasBoxholder: false,
+              startTimeOverride: '',
             },
             routeStarted: false,
             preRouteLoadingMinutes: 0, // ADDED: Reset loading time daily
@@ -180,7 +183,7 @@ const useRouteStore = create(
       })),
 
       clearTodayInputs: () => set({
-        todayInputs: { dps: 0, flats: 0, letters: 0, parcels: 0, scannerTotal: 0, packagesManuallyUpdated: false, sprs: 0, safetyTalk: 0, hasBoxholder: false }
+        todayInputs: { dps: 0, flats: 0, letters: 0, parcels: 0, scannerTotal: 0, packagesManuallyUpdated: false, sprs: 0, safetyTalk: 0, hasBoxholder: false, startTimeOverride: '' }
       }),
 
       setRouteStarted: (started) => set({ routeStarted: started }),
