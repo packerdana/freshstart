@@ -10,6 +10,7 @@ import RouteCompletionDialog from '../shared/RouteCompletionDialog';
 import WorkOffRouteModal from '../shared/WorkOffRouteModal';
 import EndOfDayReport from '../shared/EndOfDayReport';
 import ForgotRouteDialog from '../shared/ForgotRouteDialog';
+import Reason3996Modal from '../shared/Reason3996Modal';
 import useRouteStore from '../../stores/routeStore';
 import { calculateFullDayPrediction } from '../../services/predictionService';
 import { saveRouteHistory, getWeekTotalMinutes } from '../../services/routeHistoryService';
@@ -37,6 +38,7 @@ export default function TodayScreen() {
   const [showEodReport, setShowEodReport] = useState(false);
   const [eodReportData, setEodReportData] = useState(null);
   const [prediction, setPrediction] = useState(null);
+  const [show3996Helper, setShow3996Helper] = useState(false);
   
   // NEW: Forgot route feature
   const [showForgotRouteDialog, setShowForgotRouteDialog] = useState(false);
@@ -779,7 +781,12 @@ export default function TodayScreen() {
       </Card>
 
       <Card className="mb-6">
-        <h3 className="text-lg font-bold text-gray-900 mb-4">Daily Log (Quick)</h3>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-bold text-gray-900">Daily Log (Quick)</h3>
+          <Button variant="secondary" className="px-3 py-2 text-sm" onClick={() => setShow3996Helper(true)}>
+            3996 ideas
+          </Button>
+        </div>
 
         <div className="space-y-3">
           <label className="flex items-center gap-2 text-sm text-gray-700">
@@ -1357,9 +1364,17 @@ export default function TodayScreen() {
         />
       )}
 
+      {show3996Helper && (
+        <Reason3996Modal
+          todayInputs={todayInputs}
+          prediction={prediction}
+          onClose={() => setShow3996Helper(false)}
+        />
+      )}
+
       {showWorkOffRouteModal && (
         <WorkOffRouteModal 
-          onClose={() => {
+          onClose={() => { 
             setShowWorkOffRouteModal(false);
             setTimeout(() => {
               loadStreetTimeSession();
