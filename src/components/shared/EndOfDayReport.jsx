@@ -31,11 +31,12 @@ export default function EndOfDayReport({ reportData, onClose }) {
 
   // Calculate % to Standard for office performance
   let officePerformance = null;
-  if (mailVolumes && officeTime722 > 0 && mailVolumes.letters > 0 && mailVolumes.flats > 0) {
+  if (mailVolumes && officeTime722 > 0 && (mailVolumes.letters > 0 || mailVolumes.flats > 0)) {
     officePerformance = calculatePercentToStandard(
       mailVolumes.letters,
       mailVolumes.flats,
-      officeTime722
+      officeTime722,
+      mailVolumes.sprs || 0
     );
   }
 

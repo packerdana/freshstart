@@ -24,16 +24,22 @@ const toNum = (v) => {
 /**
  * Convert feet to pieces using USPS standards
  */
-export function convertToMailPieces(lettersFeet, flatsFeet) {
+export function convertToMailPieces(lettersFeet, flatsFeet, sprsCount = 0) {
   // RouteWise inputs letters/flats in feet (can be decimals).
   // Converting feet→pieces should NOT always round up, otherwise we inflate volume and skew % to standard.
   // DOIS uses actual piece counts; closest approximation here is rounding to nearest whole piece.
   const letterPieces = Math.round((lettersFeet || 0) * 227);
-  const flatPieces = Math.round((flatsFeet || 0) * 115);
+  const flatPiecesFromFeet = Math.round((flatsFeet || 0) * 115);
+
+  // Dana rule: SPRs count as a "flat piece".
+  const sprPieces = Math.max(0, Math.round(toNum(sprsCount)));
+
+  const flatPieces = flatPiecesFromFeet + sprPieces;
 
   return {
     letterPieces,
     flatPieces,
+    sprPieces,
     totalPieces: letterPieces + flatPieces,
   };
 }
@@ -41,8 +47,8 @@ export function convertToMailPieces(lettersFeet, flatsFeet) {
 /**
  * Calculate standard office time based on mail volume (USPS DOIS formula)
  */
-export function calculateStandardOfficeTime(lettersFeet, flatsFeet) {
-  const { letterPieces, flatPieces, totalPieces } = convertToMailPieces(lettersFeet, flatsFeet);
+export function calculateStandardOfficeTime(lettersFeet, flatsFeet, sprsCount = 0) {
+  const { letterPieces, flatPieces, totalPieces, sprPieces } = convertToMailPieces(lettersFeet, flatsFeet, sprsCount);
   
   // USPS casing standards
   const letterMinutes = letterPieces / 18;
@@ -54,6 +60,7 @@ export function calculateStandardOfficeTime(lettersFeet, flatsFeet) {
   return {
     letterPieces,
     flatPieces,
+    sprPieces,
     totalPieces,
     letterMinutes,
     flatMinutes,
@@ -70,19 +77,21 @@ export function calculateStandardOfficeTime(lettersFeet, flatsFeet) {
  * @param {number} actualMinutes - Actual office time in minutes
  * @returns {object} Performance metrics
  */
-export function calculatePercentToStandard(lettersFeet, flatsFeet, actualMinutes) {
-  const standard = calculateStandardOfficeTime(lettersFeet, flatsFeet);
+export function calculatePercentToStandard(lettersFeet, flatsFeet, actualMinutes, sprsCount = 0) {
+  const standard = calculateStandardOfficeTime(lettersFeet, flatsFeet, sprsCount);
+
+  const actual = toNum(actualMinutes);
 
   // Guard against divide-by-zero (e.g., if volume is 0)
-  if (!standard.standardTotal || standard.standardTotal <= 0) {
+  if (!standard.standardTotal || standard.standardTotal <= 0 || actual <= 0) {
     return null;
   }
 
   // % to Standard (DOIS formula): (ACTUAL / STANDARD) × 100
-  const percentToStandard = (actualMinutes / standard.standardTotal) * 100;
+  const percentToStandard = (actual / standard.standardTotal) * 100;
 
   // Variance (positive = slower, negative = faster)
-  const variance = actualMinutes - standard.standardTotal;
+  const variance = actual - standard.standardTotal;
   const variancePercent = percentToStandard - 100;
 
   // Interpretation
@@ -101,6 +110,7 @@ export function calculatePercentToStandard(lettersFeet, flatsFeet, actualMinutes
     // Mail volume
     letterPieces: standard.letterPieces,
     flatPieces: standard.flatPieces,
+    sprPieces: standard.sprPieces,
     totalPieces: standard.totalPieces,
 
     // Standard times (what DOIS expects)
@@ -110,7 +120,7 @@ export function calculatePercentToStandard(lettersFeet, flatsFeet, actualMinutes
     standardTotal: Math.round(standard.standardTotal),
 
     // Actual time
-    actualMinutes: Math.round(actualMinutes),
+    actualMinutes: Math.round(actual),
 
     // Performance metrics
     percentToStandard: Math.round(percentToStandard),
@@ -155,7 +165,7 @@ export function calculateAveragePerformance(historyRecords) {
     return null;
   }
 
-  // Use total 722 (AM office) minutes as the "actual" time for % to standard.
+  // Use captured actual 722 (AM office) minutes as the "actual" time for % to standard.
   // This is simple and requires no extra user input.
   const getOfficeMinutes = (day) => {
     const actual = toNum(day.actualOfficeTime ?? day.actual_office_time);
@@ -168,9 +178,10 @@ export function calculateAveragePerformance(historyRecords) {
   const validRecords = historyRecords.filter((day) => {
     const lettersFeet = toNum(day.letters);
     const flatsFeet = toNum(day.flats);
+    const sprs = toNum(day.sprs ?? day.spurs);
     const officeMinutes = getOfficeMinutes(day);
 
-    return (lettersFeet > 0 || flatsFeet > 0) && officeMinutes > 0;
+    return (lettersFeet > 0 || flatsFeet > 0 || sprs > 0) && officeMinutes > 0;
   });
 
   if (validRecords.length === 0) {
@@ -181,9 +192,10 @@ export function calculateAveragePerformance(historyRecords) {
     .map((day) => {
       const lettersFeet = toNum(day.letters);
       const flatsFeet = toNum(day.flats);
+      const sprs = toNum(day.sprs ?? day.spurs);
       const officeMinutes = Math.max(1, Math.round(getOfficeMinutes(day)));
 
-      const perf = calculatePercentToStandard(lettersFeet, flatsFeet, officeMinutes);
+      const perf = calculatePercentToStandard(lettersFeet, flatsFeet, officeMinutes, sprs);
       if (!perf) return null;
 
       if (!Number.isFinite(perf.percentToStandard)) return null;
