@@ -8,6 +8,7 @@ import AddWaypointModal from '../shared/AddWaypointModal';
 import DatePicker from '../shared/DatePicker';
 import WaypointDebugModal from '../shared/WaypointDebugModal';
 import { exportWaypointsToJSON, markWaypointCompleted, markWaypointPending, getWaypointsForRoute, removeDuplicateWaypoints } from '../../services/waypointsService';
+import useBreakStore from '../../stores/breakStore';
 import { predictWaypointTimes } from '../../services/waypointPredictionService';
 import { copyWaypointsToToday, verifyHistoricalDataExists } from '../../services/waypointRecoveryService';
 import { format } from 'date-fns';
@@ -45,6 +46,7 @@ export default function WaypointsScreen() {
   } = useRouteStore();
 
   const routeConfig = getCurrentRouteConfig();
+  const waypointPausedSeconds = useBreakStore((state) => state.waypointPausedSeconds);
 
   useEffect(() => {
     async function loadPredictions() {
@@ -58,7 +60,8 @@ export default function WaypointsScreen() {
       console.log('[UI] Calculating predictions with start time:', leaveOfficeTime, 'for route:', currentRouteId);
 
       try {
-        const predictions = await predictWaypointTimes(waypoints, leaveOfficeTime, currentRouteId);
+        const pauseMinutes = Math.round((waypointPausedSeconds || 0) / 60);
+        const predictions = await predictWaypointTimes(waypoints, leaveOfficeTime, currentRouteId, pauseMinutes);
         console.log('[UI] Received predictions:', predictions.map(p => ({ id: p.id, address: p.address, hasPrediction: !!p.predictedTime, confidence: p.confidence })));
         setWaypointPredictions(predictions);
       } catch (error) {
@@ -68,7 +71,7 @@ export default function WaypointsScreen() {
     }
 
     loadPredictions();
-  }, [waypoints, currentRouteId, todayInputs.leaveOfficeTime, routeConfig]);
+  }, [waypoints, currentRouteId, todayInputs.leaveOfficeTime, routeConfig, waypointPausedSeconds]);
 
   useEffect(() => {
     if (currentRouteId) {

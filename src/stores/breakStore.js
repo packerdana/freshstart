@@ -44,6 +44,9 @@ const useBreakStore = create((set, get) => ({
 
   todaysBreaks: [],
 
+  // Minutes/seconds of breaks that should PAUSE waypoint predictions (lunch + breaks only; NOT load truck)
+  waypointPausedSeconds: 0,
+
   // ADDED: Initialize from database
   initialized: false,
   initializeFromDatabase: async () => {
@@ -52,6 +55,11 @@ const useBreakStore = create((set, get) => ({
     if (savedState) {
       console.log('Restoring break timers from database...');
       
+      // Restore accumulated pause for waypoint predictions
+      if (typeof savedState.waypointPausedSeconds === 'number') {
+        set({ waypointPausedSeconds: savedState.waypointPausedSeconds });
+      }
+
       // Restore lunch timer
       if (savedState.lunchActive && savedState.lunchStartTime) {
         const elapsed = Math.floor((Date.now() - savedState.lunchStartTime) / 1000);
@@ -127,13 +135,17 @@ const useBreakStore = create((set, get) => ({
   },
 
   endLunch: async () => {
-    const { lunchTime, todaysBreaks } = get();
+    const { lunchTime, todaysBreaks, waypointPausedSeconds } = get();
     const duration = Math.round((30 * 60 - lunchTime) / 60);
+
+    // Add actual lunch seconds to the waypoint pause accumulator
+    const lunchSeconds = Math.max(0, (30 * 60 - lunchTime));
 
     set({
       lunchActive: false,
       lunchStartTime: null,
       lunchTime: 30 * 60,
+      waypointPausedSeconds: (waypointPausedSeconds || 0) + lunchSeconds,
       todaysBreaks: [
         ...todaysBreaks,
         {
@@ -144,18 +156,20 @@ const useBreakStore = create((set, get) => ({
         },
       ],
     });
-    
-    await clearBreakState(); // ADDED: Clear from database
+
+    // Persist updated pause accumulator even when no timer is active
+    await saveBreakState(get());
     stopAutoSave(); // ADDED: Stop auto-save
   },
 
   completeLunch: async () => {
-    const { todaysBreaks } = get();
+    const { todaysBreaks, waypointPausedSeconds } = get();
 
     set({
       lunchActive: false,
       lunchStartTime: null,
       lunchTime: 30 * 60,
+      waypointPausedSeconds: (waypointPausedSeconds || 0) + (30 * 60),
       todaysBreaks: [
         ...todaysBreaks,
         {
@@ -167,7 +181,8 @@ const useBreakStore = create((set, get) => ({
       ],
     });
 
-    await clearBreakState(); // ADDED: Clear from database
+    // Persist updated pause accumulator even when no timer is active
+    await saveBreakState(get());
     stopAutoSave(); // ADDED: Stop auto-save
     alert('Lunch break complete!');
   },
@@ -201,7 +216,7 @@ const useBreakStore = create((set, get) => ({
   },
 
   endBreak: async () => {
-    const { breakTime, breakType, todaysBreaks } = get();
+    const { breakTime, breakType, todaysBreaks, waypointPausedSeconds } = get();
     let duration;
 
     if (breakType.countDown) {
@@ -210,11 +225,15 @@ const useBreakStore = create((set, get) => ({
       duration = Math.round(breakTime / 60);
     }
 
+    // Add actual break seconds to the waypoint pause accumulator
+    const breakSeconds = Math.max(0, duration * 60);
+
     set({
       breakActive: false,
       breakType: null,
       breakTime: 0,
       breakStartTime: null,
+      waypointPausedSeconds: (waypointPausedSeconds || 0) + breakSeconds,
       todaysBreaks: [
         ...todaysBreaks,
         {
@@ -225,20 +244,24 @@ const useBreakStore = create((set, get) => ({
         },
       ],
     });
-    
-    await clearBreakState(); // ADDED: Clear from database
+
+    // Persist updated pause accumulator even when no timer is active
+    await saveBreakState(get());
     stopAutoSave(); // ADDED: Stop auto-save
   },
 
   completeBreak: async () => {
-    const { breakType, todaysBreaks } = get();
+    const { breakType, todaysBreaks, waypointPausedSeconds } = get();
     const duration = Math.round(breakType.duration / 60);
+
+    const breakSeconds = Math.max(0, duration * 60);
 
     set({
       breakActive: false,
       breakType: null,
       breakTime: 0,
       breakStartTime: null,
+      waypointPausedSeconds: (waypointPausedSeconds || 0) + breakSeconds,
       todaysBreaks: [
         ...todaysBreaks,
         {
@@ -250,7 +273,8 @@ const useBreakStore = create((set, get) => ({
       ],
     });
 
-    await clearBreakState(); // ADDED: Clear from database
+    // Persist updated pause accumulator even when no timer is active
+    await saveBreakState(get());
     stopAutoSave(); // ADDED: Stop auto-save
     alert(`${breakType.label} break complete!`);
   },
