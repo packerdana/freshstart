@@ -298,12 +298,20 @@ export default function TodayScreen() {
       let officeMinutes = leaveMinutes - startMinutes;
       if (officeMinutes < 0) officeMinutes += 1440;
 
+      // Load truck time should be treated as street time (721), not 722.
+      // So subtract any pre-route loading minutes from the captured office time.
+      const adjustedOfficeMinutes = Math.max(0, officeMinutes - preRouteLoadingMinutes);
+
       updateTodayInputs({
         streetTimerStartTime: session.start_time,
         leaveOfficeTime: actualLeaveHHMM,
-        actualOfficeTime: Math.round(officeMinutes),
+        actualOfficeTime: Math.round(adjustedOfficeMinutes),
         // leave casingWithdrawalMinutes for user to enter (optional)
       });
+
+      if (preRouteLoadingMinutes > 0) {
+        console.log(`✓ 722 office minutes adjusted for load truck: ${officeMinutes} - ${preRouteLoadingMinutes} = ${adjustedOfficeMinutes}`);
+      }
 
       if (preRouteLoadingMinutes > 0) {
         useRouteStore.getState().setPreRouteLoadingMinutes(0);
