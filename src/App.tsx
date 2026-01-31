@@ -9,6 +9,7 @@ import StatsScreen from './components/screens/StatsScreen';
 import SettingsScreen from './components/screens/SettingsScreen';
 import LoginScreen from './components/screens/LoginScreen';
 import SignupScreen from './components/screens/SignupScreen';
+import AuthCallbackScreen from './components/screens/AuthCallbackScreen';
 import BottomNav from './components/layout/BottomNav';
 import useRouteStore from './stores/routeStore';
 import useAuthStore from './stores/authStore';
@@ -43,6 +44,12 @@ function App() {
       });
     }
   }, [user, loadUserRoutes, checkAndResetDailyData, autoPopulateWaypointsIfNeeded]);
+
+  // Email confirmation / magic-link callback page.
+  // We don't use a router, so we check the path directly.
+  if (window.location.pathname === '/auth/callback') {
+    return <AuthCallbackScreen />;
+  }
 
   if (error) {
     return (

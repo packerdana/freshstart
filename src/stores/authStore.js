@@ -27,6 +27,10 @@ const useAuthStore = create((set, get) => ({
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
+        options: {
+          // After email confirmation, redirect to a RouteWise page that shows a clear success message.
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+        },
       });
       
       if (error) throw error;
