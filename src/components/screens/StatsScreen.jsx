@@ -595,7 +595,7 @@ export default function StatsScreen() {
               <div className="flex justify-between items-center">
                 <span className="text-sm font-semibold text-gray-700">Normal Day</span>
                 <span className="text-xl font-bold text-blue-600">
-                  {averages.normal.toFixed(1)} hrs
+                  {formatMinutesAsTime(averages.normal)}
                 </span>
               </div>
             </div>
@@ -605,7 +605,7 @@ export default function StatsScreen() {
               <div className="flex justify-between items-center">
                 <span className="text-sm font-semibold text-gray-700">Monday</span>
                 <span className="text-xl font-bold text-blue-600">
-                  {averages.monday.toFixed(1)} hrs
+                  {formatMinutesAsTime(averages.monday)}
                 </span>
               </div>
             </div>
