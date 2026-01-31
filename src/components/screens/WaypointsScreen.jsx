@@ -2,10 +2,11 @@ import { useState, useEffect } from 'react';
 import { Search, Plus, Download, Trash2, MapPin, Check, Clock, TrendingUp, TrendingDown, Save, RefreshCw, Calendar, Copy, AlertCircle, Wrench } from 'lucide-react';
 import Card from '../shared/Card';
 import Button from '../shared/Button';
+import useRouteStore from '../../stores/routeStore';
+import { parseLocalDate, formatMinutesAsTime } from '../../utils/time';
 import AddWaypointModal from '../shared/AddWaypointModal';
 import DatePicker from '../shared/DatePicker';
 import WaypointDebugModal from '../shared/WaypointDebugModal';
-import useRouteStore from '../../stores/routeStore';
 import { exportWaypointsToJSON, markWaypointCompleted, markWaypointPending, getWaypointsForRoute, removeDuplicateWaypoints } from '../../services/waypointsService';
 import { predictWaypointTimes } from '../../services/waypointPredictionService';
 import { copyWaypointsToToday, verifyHistoricalDataExists } from '../../services/waypointRecoveryService';
@@ -23,6 +24,7 @@ export default function WaypointsScreen() {
   const [dataVerification, setDataVerification] = useState(null);
   const [isDebugModalOpen, setIsDebugModalOpen] = useState(false);
   const [waypointPredictions, setWaypointPredictions] = useState([]);
+  const [paceComparison, setPaceComparison] = useState(null);
 
   const {
     waypoints,
@@ -182,10 +184,73 @@ export default function WaypointsScreen() {
   const handleMarkCompleted = async (waypointId) => {
     try {
       const updated = await markWaypointCompleted(waypointId);
+
       await updateWaypoint(waypointId, {
         status: updated.status,
-        delivery_time: updated.delivery_time
+        delivery_time: updated.delivery_time,
       });
+
+      // Pace vs historical average (updates only when a waypoint is completed)
+      try {
+        const wp = waypoints.find((w) => w.id === waypointId);
+        const seq = wp?.sequence_number;
+
+        const leaveStart = todayInputs?.streetTimerStartTime;
+        const completedAt = updated?.delivery_time;
+
+        if (seq != null && leaveStart && completedAt) {
+          const elapsed = Math.round((new Date(completedAt) - new Date(leaveStart)) / 60000);
+
+          const isMonday = parseLocalDate(selectedDate).getDay() === 1;
+          const targetType = isMonday ? 'monday' : 'normal';
+
+          const isCleanDay = (d) => {
+            const aux = !!(d.auxiliaryAssistance ?? d.auxiliary_assistance);
+            const mnd = !!(d.mailNotDelivered ?? d.mail_not_delivered);
+            const ns = !!(d.isNsDay ?? d.is_ns_day);
+            return !aux && !mnd && !ns;
+          };
+
+          const dayTypeOf = (d) => (parseLocalDate(d.date).getDay() === 1 ? 'monday' : 'normal');
+
+          const baselineDays = (history || [])
+            .filter((d) => d?.date)
+            .filter(isCleanDay)
+            .filter((d) => dayTypeOf(d) === targetType)
+            .slice(0, 30); // scan a bit deeper, then pick last 10 with timing for this stop
+
+          const elapsedSamples = [];
+          for (const d of baselineDays) {
+            const timings = d.waypointTimings || d.waypoint_timings;
+            if (!Array.isArray(timings)) continue;
+            const t = timings.find((x) => Number(x.order) === Number(seq) || Number(x.sequence_number) === Number(seq));
+            if (!t) continue;
+            const m = Number(t.elapsedMinutes);
+            if (Number.isFinite(m) && m > 0) elapsedSamples.push(m);
+            if (elapsedSamples.length >= 10) break;
+          }
+
+          if (elapsedSamples.length >= 3) {
+            const avg = elapsedSamples.reduce((a, b) => a + b, 0) / elapsedSamples.length;
+            const delta = Math.round(elapsed - avg);
+
+            setPaceComparison({
+              sequence: seq,
+              elapsed,
+              avgElapsed: Math.round(avg),
+              delta,
+              sampleSize: elapsedSamples.length,
+              dayType: targetType,
+            });
+          } else {
+            // Not enough clean data yet.
+            setPaceComparison(null);
+          }
+        }
+      } catch (e) {
+        console.warn('Could not compute pace comparison:', e);
+      }
+
       await loadWaypoints();
     } catch (error) {
       console.error('Failed to mark waypoint completed:', error);
@@ -305,6 +370,27 @@ export default function WaypointsScreen() {
           </button>
         )}
       </div>
+
+      {viewMode === 'today' && paceComparison && (
+        <Card className="mb-4 bg-gradient-to-br from-emerald-50 to-green-50 border-2 border-emerald-200">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex-1">
+              <p className="text-xs text-gray-600">
+                Pace vs your last {paceComparison.sampleSize} clean {paceComparison.dayType} day(s)
+              </p>
+              <p className="text-lg font-bold text-gray-900">
+                {paceComparison.delta < 0 ? 'Ahead' : 'Behind'} {formatMinutesAsTime(Math.abs(paceComparison.delta))}
+              </p>
+              <p className="text-xs text-gray-600 mt-1">
+                Stop #{paceComparison.sequence}: {formatMinutesAsTime(paceComparison.elapsed)} now • avg {formatMinutesAsTime(paceComparison.avgElapsed)}
+              </p>
+            </div>
+            <div className={`text-2xl font-bold ${paceComparison.delta < 0 ? 'text-green-600' : 'text-red-600'}`}>
+              {paceComparison.delta < 0 ? '⬇️' : '⬆️'}
+            </div>
+          </div>
+        </Card>
+      )}
 
       <Card className="mb-4">
         <DatePicker

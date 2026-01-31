@@ -614,6 +614,9 @@ export default function TodayScreen() {
         predictedStreetTime: 0,
         predictedReturnTime: null,
         actualLeaveTime: actualLeaveTime,
+        // Provide a timestamp for waypoint elapsed-minute calculations in history.
+        streetTimerStartTime: todayInputs.streetTimerStartTime || null,
+        leaveOfficeTime: todayInputs.leaveOfficeTime || null,
         actualClockOut: completionData.actualClockOut || null,
         auxiliaryAssistance: completionData.auxiliaryAssistance || false,
         mailNotDelivered: completionData.mailNotDelivered || false,

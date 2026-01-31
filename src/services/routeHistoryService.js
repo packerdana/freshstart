@@ -51,7 +51,13 @@ export async function saveRouteHistory(routeId, historyData, waypoints = null) {
 
   let waypointTimings = [];
   if (waypoints && waypoints.length > 0) {
-    const startTime = historyData.startTime || historyData.leaveOfficeTime;
+    // Choose a reliable "leave office" timestamp to compute waypoint elapsed minutes.
+    // Prefer ISO timestamps when available.
+    const startTime =
+      historyData.startTime ||
+      historyData.leaveOfficeTime ||
+      historyData.actualLeaveTime ||
+      historyData.streetTimerStartTime;
     waypointTimings = waypoints
       .filter(wp => wp.status === 'completed' && wp.completedAt)
       .map(wp => {
