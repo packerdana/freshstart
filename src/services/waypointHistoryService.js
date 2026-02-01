@@ -1,19 +1,32 @@
 import { supabase } from '../lib/supabase';
+import { getDayType, getDayTypeLabel } from '../utils/holidays';
 
-export async function fetchWaypointHistory(routeId, daysBack = 30) {
+export async function fetchWaypointHistory(routeId, daysBack = 30, dateFilter = null) {
   try {
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - daysBack);
     const cutoffDateStr = cutoffDate.toISOString().split('T')[0];
 
-    console.log(`[WAYPOINT HISTORY] Fetching deliveries for route ${routeId} since ${cutoffDateStr}`);
+    const usingFilter = Array.isArray(dateFilter) && dateFilter.length > 0;
+    console.log(
+      usingFilter
+        ? `[WAYPOINT HISTORY] Fetching deliveries for route ${routeId} for ${dateFilter.length} similar day(s)`
+        : `[WAYPOINT HISTORY] Fetching deliveries for route ${routeId} since ${cutoffDateStr}`
+    );
 
-    const { data: deliveries, error } = await supabase
+    let query = supabase
       .from('waypoints')
       .select('date, address, delivery_time, sequence_number')
       .eq('route_id', routeId)
-      .eq('status', 'completed')
-      .gte('date', cutoffDateStr)
+      .eq('status', 'completed');
+
+    if (usingFilter) {
+      query = query.in('date', dateFilter);
+    } else {
+      query = query.gte('date', cutoffDateStr);
+    }
+
+    const { data: deliveries, error } = await query
       .order('date', { ascending: false })
       .order('sequence_number', { ascending: true });
 
@@ -30,6 +43,9 @@ export async function fetchWaypointHistory(routeId, daysBack = 30) {
     console.log(`[WAYPOINT HISTORY] Found ${deliveries.length} delivery records across multiple dates`);
 
     const historyByDate = groupDeliveriesByDate(deliveries);
+
+    // Sort newest → oldest
+    historyByDate.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
 
     console.log(`[WAYPOINT HISTORY] Processed ${historyByDate.length} days of data`);
 
@@ -185,3 +201,46 @@ export function calculateWaypointAveragesFromDeliveries(history, waypointName = 
 
   return averages;
 }
+
+export function calculatePaceBaselineBySequence(historyDays) {
+  // historyDays: [{date, waypoint_timings: [{sequence, cumulativeFromStart}]}]
+  const bySequence = new Map();
+
+  historyDays.forEach(day => {
+    day.waypoint_timings?.forEach(wp => {
+      if (typeof wp.sequence !== 'number') return;
+      if (typeof wp.cumulativeFromStart !== 'number') return;
+      if (!bySequence.has(wp.sequence)) bySequence.set(wp.sequence, []);
+      bySequence.get(wp.sequence).push(wp.cumulativeFromStart);
+    });
+  });
+
+  const avgBySequence = new Map();
+  bySequence.forEach((values, seq) => {
+    if (!values.length) return;
+    const avg = values.reduce((s, v) => s + v, 0) / values.length;
+    avgBySequence.set(seq, Math.round(avg));
+  });
+
+  return avgBySequence;
+}
+
+export async function fetchPaceBaselineForDate(routeId, targetDateStr, daysNeeded = 10, daysBack = 180) {
+  const targetDayType = getDayType(targetDateStr);
+  const history = await fetchWaypointHistory(routeId, daysBack);
+
+  // Filter to same day type (day-after-holiday overrides Monday per Dana)
+  const sameTypeDays = history.filter(day => getDayType(day.date) === targetDayType);
+
+  // Newest → oldest; keep last N days
+  const picked = sameTypeDays.slice(0, daysNeeded);
+  const avgBySequence = calculatePaceBaselineBySequence(picked);
+
+  return {
+    dayType: getDayTypeLabel(targetDayType),
+    dayTypeId: targetDayType,
+    sampleSize: picked.length,
+    avgBySequence
+  };
+}
+

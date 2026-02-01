@@ -13,6 +13,7 @@ import ForgotRouteDialog from '../shared/ForgotRouteDialog';
 import Reason3996Modal from '../shared/Reason3996Modal';
 import { confidenceToMinutes } from '../../utils/predictionConfidence';
 import useRouteStore from '../../stores/routeStore';
+import useBreakStore from '../../stores/breakStore';
 import { calculateFullDayPrediction } from '../../services/predictionService';
 import { saveRouteHistory, getWeekTotalMinutes } from '../../services/routeHistoryService';
 import { pmOfficeService } from '../../services/pmOfficeService';
@@ -24,6 +25,7 @@ import { supabase } from '../../lib/supabase';
 
 export default function TodayScreen() {
   const { todayInputs, updateTodayInputs, history, getCurrentRouteConfig, currentRouteId, addHistoryEntry, waypoints, routeStarted, setRouteStarted, routes, switchToRoute } = useRouteStore();
+  const waypointPausedSeconds = useBreakStore((state) => state.waypointPausedSeconds);
   const [date, setDate] = useState(new Date());
   const [showCompletionDialog, setShowCompletionDialog] = useState(false);
   const [showWorkOffRouteModal, setShowWorkOffRouteModal] = useState(false);
@@ -229,7 +231,8 @@ export default function TodayScreen() {
       const routeHistory = history || [];
 
       try {
-        const pred = await calculateFullDayPrediction(todayMail, routeConfigForPrediction, routeHistory, waypoints, currentRouteId);
+        const pauseMinutes = Math.round((waypointPausedSeconds || 0) / 60);
+        const pred = await calculateFullDayPrediction(todayMail, routeConfigForPrediction, routeHistory, waypoints, currentRouteId, pauseMinutes);
         setPrediction(pred);
       } catch (error) {
         console.error('[TodayScreen] Error calculating prediction:', error);

@@ -10,6 +10,7 @@ import WaypointDebugModal from '../shared/WaypointDebugModal';
 import { exportWaypointsToJSON, markWaypointCompleted, markWaypointPending, getWaypointsForRoute, removeDuplicateWaypoints } from '../../services/waypointsService';
 import useBreakStore from '../../stores/breakStore';
 import { predictWaypointTimes } from '../../services/waypointPredictionService';
+import { fetchPaceBaselineForDate } from '../../services/waypointHistoryService';
 import { copyWaypointsToToday, verifyHistoricalDataExists } from '../../services/waypointRecoveryService';
 import { format } from 'date-fns';
 
@@ -25,6 +26,7 @@ export default function WaypointsScreen() {
   const [dataVerification, setDataVerification] = useState(null);
   const [isDebugModalOpen, setIsDebugModalOpen] = useState(false);
   const [waypointPredictions, setWaypointPredictions] = useState([]);
+  const [paceBaseline, setPaceBaseline] = useState(null);
   const [paceComparison, setPaceComparison] = useState(null);
 
   const {
@@ -72,6 +74,83 @@ export default function WaypointsScreen() {
 
     loadPredictions();
   }, [waypoints, currentRouteId, todayInputs.leaveOfficeTime, routeConfig, waypointPausedSeconds]);
+
+  // Pace baseline (compare to your own last 10 similar days)
+  useEffect(() => {
+    async function loadPaceBaseline() {
+      if (!currentRouteId || viewMode !== 'today') {
+        setPaceBaseline(null);
+        return;
+      }
+
+      try {
+        const baseline = await fetchPaceBaselineForDate(currentRouteId, selectedDate, 10, 240);
+        setPaceBaseline(baseline);
+      } catch (e) {
+        console.error('[UI] Error loading pace baseline:', e);
+        setPaceBaseline(null);
+      }
+    }
+
+    loadPaceBaseline();
+  }, [currentRouteId, selectedDate, viewMode]);
+
+  // Compute current pace comparison (only updates when a waypoint is completed)
+  useEffect(() => {
+    if (!paceBaseline?.avgBySequence || !waypoints || waypoints.length === 0) {
+      setPaceComparison(null);
+      return;
+    }
+
+    const completed = waypoints
+      .filter(w => w.status === 'completed' && w.delivery_time)
+      .sort((a, b) => (b.sequence_number || 0) - (a.sequence_number || 0));
+
+    if (completed.length === 0) {
+      setPaceComparison(null);
+      return;
+    }
+
+    const last = completed[0];
+    const seq = Number(last.sequence_number);
+    const avgElapsed = paceBaseline.avgBySequence.get(seq);
+    if (avgElapsed === undefined) {
+      setPaceComparison(null);
+      return;
+    }
+
+    // Leave-office time should be the 721 start (leaveOfficeTime)
+    const startTimeStr = todayInputs.leaveOfficeTime || routeConfig?.startTime || '07:30';
+    let startTime = null;
+    try {
+      const t = new Date(last.delivery_time);
+      if (!isNaN(t.getTime())) {
+        const m = String(startTimeStr).match(/^(\d{1,2}):(\d{2})$/);
+        if (m) {
+          const s = new Date(t);
+          s.setHours(parseInt(m[1], 10), parseInt(m[2], 10), 0, 0);
+          startTime = s;
+        }
+      }
+    } catch {}
+
+    if (!startTime) {
+      setPaceComparison(null);
+      return;
+    }
+
+    const elapsed = Math.round((new Date(last.delivery_time) - startTime) / (1000 * 60));
+    const delta = elapsed - avgElapsed; // + = behind, - = ahead
+
+    setPaceComparison({
+      dayType: paceBaseline.dayType,
+      sampleSize: paceBaseline.sampleSize,
+      sequence: seq,
+      elapsed,
+      avgElapsed,
+      delta
+    });
+  }, [paceBaseline, waypoints, todayInputs.leaveOfficeTime, routeConfig]);
 
   useEffect(() => {
     if (currentRouteId) {
@@ -612,7 +691,11 @@ export default function WaypointsScreen() {
                   const actualMinutes = Math.round(
                     (new Date(waypoint.delivery_time) - startTime) / (1000 * 60)
                   );
-                  variance = actualMinutes - prediction.predictedMinutes;
+                  // Compare to baseline pace (same day type) when available; otherwise fall back to prediction variance
+                  const baselineAvg = paceBaseline?.avgBySequence?.get(Number(waypoint.sequence_number));
+                  variance = (baselineAvg !== undefined && baselineAvg !== null)
+                    ? (actualMinutes - baselineAvg)
+                    : (actualMinutes - prediction.predictedMinutes);
                 }
               }
 

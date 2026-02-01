@@ -1,8 +1,8 @@
 import { addMinutes, timeDifference } from '../utils/time';
 import { fetchWaypointHistory, calculateWaypointAveragesFromDeliveries } from './waypointHistoryService';
 
-export async function calculateWaypointAverages(routeId, waypointName = null) {
-  const history = await fetchWaypointHistory(routeId, 30);
+export async function calculateWaypointAverages(routeId, waypointName = null, dateFilter = null) {
+  const history = await fetchWaypointHistory(routeId, 30, dateFilter);
 
   if (!history || history.length === 0) {
     console.log('No waypoint history available for this route');
@@ -12,7 +12,7 @@ export async function calculateWaypointAverages(routeId, waypointName = null) {
   return calculateWaypointAveragesFromDeliveries(history, waypointName);
 }
 
-export async function predictWaypointTimes(waypoints, startTime, routeId, waypointPauseMinutes = 0) {
+export async function predictWaypointTimes(waypoints, startTime, routeId, waypointPauseMinutes = 0, similarDates = null) {
   if (!waypoints || waypoints.length === 0) {
     return [];
   }
@@ -47,7 +47,7 @@ export async function predictWaypointTimes(waypoints, startTime, routeId, waypoi
     }
   }
 
-  const allAverages = await calculateWaypointAverages(routeId);
+  const allAverages = await calculateWaypointAverages(routeId, null, similarDates);
 
   if (!allAverages || allAverages.length === 0) {
     console.log('No averages calculated from history - predictions unavailable');

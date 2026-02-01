@@ -1,6 +1,8 @@
 import { TIME_CONSTANTS } from '../utils/constants';
 import { USPS_STANDARDS } from '../utils/uspsConstants';
 import { parseTime, addMinutes, timeDifference } from '../utils/time';
+import { getDayType } from '../utils/holidays';
+import { findSimilarDays } from './similarDayService';
 import { estimateReturnTime, predictWaypointTimes } from './waypointPredictionService';
 
 function getStreetTime(day) {
@@ -20,9 +22,11 @@ function getStreetTime(day) {
 }
 
 function detectDayType(date = new Date()) {
-  const dayOfWeek = date.getDay();
-  if (dayOfWeek === 1) return 'monday';
-  return 'normal';
+  // Use Dana's day-type rules (day-after-holiday, Saturday, Monday, normal)
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return getDayType(`${y}-${m}-${d}`);
 }
 
 function isWithinLast30Days(date) {
@@ -52,56 +56,31 @@ export function calculateSimplePrediction(history) {
   };
 }
 
-function calculateVolumeWeightedPrediction(days, todayMail, dayType) {
-  // UPDATED: Filter by boxholder status first
-  const boxholderFiltered = days.filter(day => {
-    // Match boxholder status - boxholder days should only match boxholder days
-    return day.hasBoxholder === todayMail.hasBoxholder;
-  });
-
-  // Use filtered days if we have enough, otherwise use all days
+function calculateVolumeWeightedPrediction(days, todayMail, dayType, routeConfig) {
+  // Keep existing boxholder behavior (if present) to avoid mixing boxholder/non-boxholder days.
+  const boxholderFiltered = days.filter(day => day.hasBoxholder === todayMail.hasBoxholder);
   const daysToUse = boxholderFiltered.length >= 3 ? boxholderFiltered : days;
 
-  const volumeMatches = daysToUse.map(day => {
-    const dpsMatch = 1 - Math.abs(day.dps - todayMail.dps) / Math.max(day.dps, todayMail.dps, 1);
-    const flatsMatch = 1 - Math.abs(day.flats - todayMail.flats) / Math.max(day.flats, todayMail.flats, 1);
-    const parcelsMatch = 1 - Math.abs(day.parcels - todayMail.parcels) / Math.max(day.parcels, todayMail.parcels, 1);
+  const similar = findSimilarDays(daysToUse, todayMail, routeConfig, new Date(), { topN: 10, maxCandidates: 120 });
 
-    const matchScore = (dpsMatch * 0.4 + flatsMatch * 0.3 + parcelsMatch * 0.3);
+  if (!similar.topMatches.length) return null;
 
-    const daysDiff = (new Date() - new Date(day.date)) / (1000 * 60 * 60 * 24);
-    const recencyWeight = Math.max(0.5, 1 - (daysDiff / 60));
+  // Weighted average street time from the matched days
+  const byDate = new Map(daysToUse.map((d) => [d.date, d]));
+  const totalWeight = similar.topMatches.reduce((s, m) => s + m.weight, 0) || 1;
+  const weightedStreetTime = similar.topMatches.reduce((s, m) => {
+    const day = byDate.get(m.date);
+    const st = day ? getStreetTime(day) : 0;
+    return s + (st * m.weight);
+  }, 0) / totalWeight;
 
-    const combinedWeight = matchScore * recencyWeight;
-
-    const streetTime = getStreetTime(day);
-
-    return {
-      day: day,
-      matchScore: matchScore,
-      recencyWeight: recencyWeight,
-      combinedWeight: combinedWeight,
-      streetTime: streetTime
-    };
-  });
-
-  volumeMatches.sort((a, b) => b.combinedWeight - a.combinedWeight);
-
-  const top5 = volumeMatches.slice(0, Math.min(5, volumeMatches.length));
-
-  if (top5.length === 0) {
-    return null;
-  }
-
-  const totalWeight = top5.reduce((sum, m) => sum + m.combinedWeight, 0);
-  const weightedStreetTime = top5.reduce((sum, m) =>
-    sum + (m.streetTime * m.combinedWeight), 0) / totalWeight;
+  const bestScore = similar.topMatches[0]?.matchScore || 0;
 
   let confidence, badge;
-  if (top5.length >= 5 && top5[0].matchScore > 0.85) {
+  if (similar.topMatches.length >= 8 && bestScore > 0.85) {
     confidence = 'high';
     badge = '';
-  } else if (top5.length >= 3 && top5[0].matchScore > 0.70) {
+  } else if (similar.topMatches.length >= 5 && bestScore > 0.70) {
     confidence = 'good';
     badge = '🍏';
   } else {
@@ -111,17 +90,18 @@ function calculateVolumeWeightedPrediction(days, todayMail, dayType) {
 
   return {
     streetTime: Math.round(weightedStreetTime),
-    dayType: dayType,
-    matchesUsed: top5.length,
-    confidence: confidence,
-    badge: badge,
-    topMatch: top5[0].day,
-    method: 'hybrid',
-    boxholderMatched: boxholderFiltered.length >= 3 // Indicate if boxholder was factored in
+    dayType,
+    matchesUsed: similar.topMatches.length,
+    confidence,
+    badge,
+    topMatch: similar.topDay,
+    matchedDates: similar.topMatches,
+    method: 'volume-similarity',
+    boxholderMatched: boxholderFiltered.length >= 3,
   };
 }
 
-export function calculateSmartPrediction(todayMail, history) {
+export function calculateSmartPrediction(todayMail, history, routeConfig) {
   const todayDayType = detectDayType();
 
   if (!history || history.length < 3) {
@@ -144,14 +124,14 @@ export function calculateSmartPrediction(todayMail, history) {
       return calculateSimplePrediction(history);
     }
 
-    return calculateVolumeWeightedPrediction(recentDays, todayMail, todayDayType);
+    return calculateVolumeWeightedPrediction(recentDays, todayMail, todayDayType, routeConfig);
   }
 
-  return calculateVolumeWeightedPrediction(similarDayTypes, todayMail, todayDayType);
+  return calculateVolumeWeightedPrediction(similarDayTypes, todayMail, todayDayType, routeConfig);
 }
 
-export async function calculateFullDayPrediction(todayMail, routeConfig, history, waypoints = null, routeId = null) {
-  let streetPrediction = calculateSmartPrediction(todayMail, history);
+export async function calculateFullDayPrediction(todayMail, routeConfig, history, waypoints = null, routeId = null, waypointPauseMinutes = 0) {
+  let streetPrediction = calculateSmartPrediction(todayMail, history, routeConfig);
   let totalStreetTime;
 
   const useHistoricalPrediction = streetPrediction && streetPrediction.streetTime > 30;
@@ -256,7 +236,8 @@ export async function calculateFullDayPrediction(todayMail, routeConfig, history
   let returnTimeEstimate = null;
 
   if (waypoints && waypoints.length > 0 && routeId) {
-    const predictions = await predictWaypointTimes(waypoints, leaveOfficeTime, routeId);
+    const similarDates = streetPrediction?.matchedDates?.map((m) => m.date) || null;
+    const predictions = await predictWaypointTimes(waypoints, leaveOfficeTime, routeId, waypointPauseMinutes, similarDates);
     returnTimeEstimate = estimateReturnTime(waypoints, predictions, leaveOfficeTime);
 
     if (returnTimeEstimate && returnTimeEstimate.predictedReturnTime) {
