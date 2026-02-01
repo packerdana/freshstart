@@ -389,10 +389,21 @@ export default function WaypointsScreen() {
           </div>
         )}
 
-        {viewMode === 'today' && (
+        {(
           <>
             <Button
-              onClick={handleQuickSetupWaypoints}
+              onClick={async () => {
+                // Always show the button. If user is browsing history, guide them back to Today.
+                if (viewMode !== 'today') {
+                  if (!confirm('Quick Setup creates today\'s 4 anchor waypoints. Switch to Today and continue?')) {
+                    return;
+                  }
+                  const today = new Date().toISOString().split('T')[0];
+                  setSelectedDate(today);
+                  setViewMode('today');
+                }
+                await handleQuickSetupWaypoints();
+              }}
               variant="secondary"
               className="w-full mb-3 flex items-center justify-center gap-2"
               disabled={!currentRouteId}
@@ -401,17 +412,19 @@ export default function WaypointsScreen() {
               Quick Setup (4 Waypoints)
             </Button>
 
-            <Button
-              onClick={() => {
-                setEditingWaypoint(null);
-                setIsModalOpen(true);
-              }}
-              className="w-full mb-3 flex items-center justify-center gap-2"
-              disabled={!currentRouteId}
-            >
-              <Plus className="w-5 h-5" />
-              Add Waypoint
-            </Button>
+            {viewMode === 'today' && (
+              <Button
+                onClick={() => {
+                  setEditingWaypoint(null);
+                  setIsModalOpen(true);
+                }}
+                className="w-full mb-3 flex items-center justify-center gap-2"
+                disabled={!currentRouteId}
+              >
+                <Plus className="w-5 h-5" />
+                Add Waypoint
+              </Button>
+            )}
 
             <div className="flex gap-2 mb-4">
               <Button
