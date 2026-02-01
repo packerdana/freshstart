@@ -130,8 +130,11 @@ function buildReasons({ todayInputs, prediction, history, baseParcels }) {
   if (hasBoxholder) reasons.push('Boxholder/coverage today.');
 
   const safetyThresholds = computeSafetyTalkThresholds(history);
+  // Carriers often need to note even short talks on the 3996.
+  if (safetyTalkMin > 0) {
+    reasons.push(`Service/safety talk: ${safetyTalkMin} min.`);
+  }
   if (safetyTalkMin >= safetyThresholds.heavy) reasons.push('Extended service/safety talk.');
-  else if (safetyTalkMin >= safetyThresholds.aboveNormal && safetyTalkMin > 0) reasons.push('Service/safety talk.');
 
   // Daily log-based suggestions
   if (log.lateMail) reasons.push('Late mail / delayed distribution.');
