@@ -7,7 +7,7 @@ import { parseLocalDate, formatMinutesAsTime } from '../../utils/time';
 import AddWaypointModal from '../shared/AddWaypointModal';
 import DatePicker from '../shared/DatePicker';
 import WaypointDebugModal from '../shared/WaypointDebugModal';
-import { exportWaypointsToJSON, markWaypointCompleted, markWaypointPending, getWaypointsForRoute, removeDuplicateWaypoints } from '../../services/waypointsService';
+import { exportWaypointsToJSON, markWaypointCompleted, markWaypointPending, getWaypointsForRoute, removeDuplicateWaypoints, createQuickSetupWaypoints } from '../../services/waypointsService';
 import useBreakStore from '../../stores/breakStore';
 import { predictWaypointTimes } from '../../services/waypointPredictionService';
 import { fetchPaceBaselineForDate } from '../../services/waypointHistoryService';
@@ -245,6 +245,27 @@ export default function WaypointsScreen() {
     } catch (error) {
       console.error('Failed to load from template:', error);
       alert('Failed to load waypoints from template. Please try again.');
+    }
+  };
+
+  const handleQuickSetupWaypoints = async () => {
+    if (!currentRouteId) return;
+
+    const msg = waypoints.length === 0
+      ? 'Create 4 quick setup waypoints (Leave Post Office, 1st Stop, Last Stop, Return to Post Office)?'
+      : 'Add missing quick-setup anchors (won\'t delete your existing waypoints)?';
+
+    if (!confirm(msg)) return;
+
+    try {
+      const result = await createQuickSetupWaypoints(currentRouteId, null, waypoints);
+      await loadWaypoints();
+      alert(result.created > 0
+        ? `Added ${result.created} quick-setup waypoint(s).`
+        : 'Quick setup already exists.');
+    } catch (error) {
+      console.error('Failed to quick-setup waypoints:', error);
+      alert('Failed to create quick setup waypoints. Please try again.');
     }
   };
 
@@ -536,19 +557,41 @@ export default function WaypointsScreen() {
           </div>
         )}
 
-        {viewMode === 'today' && (
+        {(
           <>
             <Button
-              onClick={() => {
-                setEditingWaypoint(null);
-                setIsModalOpen(true);
+              onClick={async () => {
+                if (viewMode !== 'today') {
+                  if (!confirm('Quick Setup creates today\'s 4 anchor waypoints. Switch to Today and continue?')) {
+                    return;
+                  }
+                  const today = new Date().toISOString().split('T')[0];
+                  setSelectedDate(today);
+                  setViewMode('today');
+                }
+                await handleQuickSetupWaypoints();
               }}
+              variant="secondary"
               className="w-full mb-3 flex items-center justify-center gap-2"
               disabled={!currentRouteId}
             >
-              <Plus className="w-5 h-5" />
-              Add Waypoint
+              <MapPin className="w-5 h-5" />
+              Quick Setup (4 Waypoints)
             </Button>
+
+            {viewMode === 'today' && (
+              <Button
+                onClick={() => {
+                  setEditingWaypoint(null);
+                  setIsModalOpen(true);
+                }}
+                className="w-full mb-3 flex items-center justify-center gap-2"
+                disabled={!currentRouteId}
+              >
+                <Plus className="w-5 h-5" />
+                Add Waypoint
+              </Button>
+            )}
 
             <div className="flex gap-2 mb-4">
               <Button

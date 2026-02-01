@@ -141,6 +141,61 @@ export const bulkCreateWaypoints = async (waypoints) => {
   }
 };
 
+/**
+ * Quick Setup: create 4 anchor waypoints for today.
+ *
+ * Creates (if missing):
+ * - seq 0: Leave Post Office
+ * - seq 1: 1st Stop
+ * - seq 98: Last Stop
+ * - seq 99: Return to Post Office
+ *
+ * Safe to run multiple times — it only inserts missing anchors.
+ */
+export const createQuickSetupWaypoints = async (routeId, date = null, existingWaypoints = null) => {
+  try {
+    if (!routeId) throw new Error('routeId is required');
+
+    const targetDate = date || new Date().toISOString().split('T')[0];
+
+    const current = Array.isArray(existingWaypoints)
+      ? existingWaypoints
+      : await getWaypointsForRoute(routeId, targetDate);
+
+    const hasSeq = new Set((current || []).map(w => w.sequence_number));
+
+    const anchors = [
+      { sequence_number: 0, address: 'Leave Post Office' },
+      { sequence_number: 1, address: '1st Stop' },
+      { sequence_number: 98, address: 'Last Stop' },
+      { sequence_number: 99, address: 'Return to Post Office' },
+    ];
+
+    const toInsert = anchors
+      .filter(a => !hasSeq.has(a.sequence_number))
+      .map(a => ({
+        route_id: routeId,
+        date: targetDate,
+        sequence_number: a.sequence_number,
+        address: a.address,
+        notes: null,
+        status: 'pending',
+        delivery_time: null,
+      }));
+
+    if (toInsert.length === 0) {
+      return { created: 0, message: 'Quick setup already exists.' };
+    }
+
+    const created = await bulkCreateWaypoints(toInsert);
+
+    return { created: created?.length || 0, message: 'Quick setup created.' };
+  } catch (error) {
+    console.error('Error creating quick setup waypoints:', error);
+    throw error;
+  }
+};
+
 export const markWaypointCompleted = async (waypointId, deliveryTime = new Date().toISOString()) => {
   try {
     const { data, error } = await supabase

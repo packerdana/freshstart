@@ -204,7 +204,8 @@ export function calculateProgressStatus(waypoints, predictions, currentTime) {
 export function estimateReturnTime(waypoints, predictions, startTime) {
   const returnWaypoint = predictions.find(p => {
     const name = p.address || p.name;
-    return name === 'Return to PO' || name?.toLowerCase().includes('return');
+    const lower = name?.toLowerCase?.() || '';
+    return name === 'Return to PO' || name === 'Return to Post Office' || lower.includes('return');
   });
 
   if (!returnWaypoint || !returnWaypoint.predictedTime) {

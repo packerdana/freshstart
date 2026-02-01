@@ -46,7 +46,9 @@ export default function StatsScreen() {
   };
 
   const hasActiveRoute = useMemo(() => {
-    return todayInputs.dps || todayInputs.flats || todayInputs.letters || todayInputs.parcels;
+    // Must be boolean; returning a number here can render a stray "0" in React when used like:
+    // {hasActiveRoute && (...)}
+    return !!(todayInputs.dps || todayInputs.flats || todayInputs.letters || todayInputs.parcels);
   }, [todayInputs]);
 
   const stats = useMemo(() => {
