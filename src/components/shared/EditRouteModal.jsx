@@ -9,6 +9,7 @@ export default function EditRouteModal({ isOpen, onClose, onUpdateRoute, route }
     routeType: 'mixed',
     startTime: '07:30',
     stops: '',
+    baseParcels: '',
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -20,6 +21,10 @@ export default function EditRouteModal({ isOpen, onClose, onUpdateRoute, route }
         routeType: route.routeType || route.route_type || 'mixed',
         startTime: route.startTime || route.start_time || '07:30',
         stops: route.stops ?? route.stops === 0 ? String(route.stops) : '',
+        baseParcels: (() => {
+          const v = route.baseParcels ?? route.base_parcels;
+          return v === 0 || (v != null && String(v).trim() !== '') ? String(v) : '';
+        })(),
       });
     }
   }, [route, isOpen]);
@@ -45,6 +50,16 @@ export default function EditRouteModal({ isOpen, onClose, onUpdateRoute, route }
       stops = parsed;
     }
 
+    let baseParcels = null;
+    if (String(formData.baseParcels).trim() !== '') {
+      const parsed = parseInt(formData.baseParcels, 10);
+      if (isNaN(parsed) || parsed < 0) {
+        setError('Base parcels must be a non-negative number');
+        return;
+      }
+      baseParcels = parsed;
+    }
+
     setLoading(true);
     try {
       await onUpdateRoute(route.id, {
@@ -52,6 +67,7 @@ export default function EditRouteModal({ isOpen, onClose, onUpdateRoute, route }
         routeType: formData.routeType,
         startTime: formData.startTime,
         stops,
+        baseParcels,
         // keep existing defaults on backend for now
         tourLength: route.tourLength || route.tour_length || 8.5,
         lunchDuration: route.lunchDuration || route.lunch_duration || 30,
@@ -148,6 +164,22 @@ export default function EditRouteModal({ isOpen, onClose, onUpdateRoute, route }
               placeholder="e.g., 450"
               disabled={loading}
             />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Base Parcels (optional)
+            </label>
+            <Input
+              type="number"
+              value={formData.baseParcels}
+              onChange={(e) => setFormData({ ...formData, baseParcels: e.target.value })}
+              placeholder="e.g., 35"
+              disabled={loading}
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              If known, RouteWise can use this to suggest “Parcels over base” as a 3996 reason.
+            </p>
           </div>
 
           <div className="flex gap-3 pt-4">

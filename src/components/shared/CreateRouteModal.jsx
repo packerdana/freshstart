@@ -9,6 +9,7 @@ export default function CreateRouteModal({ isOpen, onClose, onCreateRoute }) {
     routeType: 'mixed',
     startTime: '07:30',
     stops: '', // optional
+    baseParcels: '', // optional
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -34,6 +35,16 @@ export default function CreateRouteModal({ isOpen, onClose, onCreateRoute }) {
       stops = parsed;
     }
 
+    let baseParcels = null;
+    if (String(formData.baseParcels).trim() !== '') {
+      const parsed = parseInt(formData.baseParcels, 10);
+      if (isNaN(parsed) || parsed < 0) {
+        setError('Base parcels must be a non-negative number');
+        return;
+      }
+      baseParcels = parsed;
+    }
+
     setLoading(true);
     try {
       await onCreateRoute({
@@ -41,6 +52,7 @@ export default function CreateRouteModal({ isOpen, onClose, onCreateRoute }) {
         routeType: formData.routeType,
         startTime: formData.startTime,
         stops,
+        baseParcels,
         // defaults for now
         tourLength: 8.5,
         lunchDuration: 30,
@@ -52,6 +64,7 @@ export default function CreateRouteModal({ isOpen, onClose, onCreateRoute }) {
         routeType: 'mixed',
         startTime: '07:30',
         stops: '',
+        baseParcels: '',
       });
       onClose();
     } catch (err) {
@@ -68,6 +81,7 @@ export default function CreateRouteModal({ isOpen, onClose, onCreateRoute }) {
         routeType: 'mixed',
         startTime: '07:30',
         stops: '',
+        baseParcels: '',
       });
       setError('');
       onClose();
@@ -154,6 +168,22 @@ export default function CreateRouteModal({ isOpen, onClose, onCreateRoute }) {
             />
             <p className="text-xs text-gray-500 mt-1">
               If you’re not sure, leave it blank.
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Base Parcels (optional)
+            </label>
+            <Input
+              type="number"
+              value={formData.baseParcels}
+              onChange={(e) => setFormData({ ...formData, baseParcels: e.target.value })}
+              placeholder="e.g., 35"
+              disabled={loading}
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              If known, RouteWise can use this to suggest “Parcels over base” as a 3996 reason.
             </p>
           </div>
 

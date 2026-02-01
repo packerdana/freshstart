@@ -87,7 +87,7 @@ function computeSafetyTalkThresholds(history) {
   });
 }
 
-function buildReasons({ todayInputs, prediction, history }) {
+function buildReasons({ todayInputs, prediction, history, baseParcels }) {
   const reasons = [];
 
   const dps = clampMinutes(todayInputs?.dps);
@@ -102,6 +102,15 @@ function buildReasons({ todayInputs, prediction, history }) {
 
   // Volume-based suggestions (route-relative when possible)
   const totalPkgs = parcels + sprs;
+
+  const base = typeof baseParcels === 'string' ? parseInt(baseParcels, 10) : baseParcels;
+  if (Number.isFinite(base) && base != null) {
+    const overBase = parcels - base;
+    if (overBase >= 1) {
+      reasons.push(`Parcels over base: +${overBase}.`);
+    }
+  }
+
   const pkgThresholds = computePackageThresholds(history);
   if (totalPkgs >= pkgThresholds.heavy) reasons.push('Heavy parcel volume.');
   else if (totalPkgs >= pkgThresholds.aboveNormal) reasons.push('Parcel volume above normal.');
@@ -161,8 +170,11 @@ function buildReasons({ todayInputs, prediction, history }) {
   return cleaned;
 }
 
-export default function Reason3996Modal({ todayInputs, prediction, history, onClose }) {
-  const reasons = useMemo(() => buildReasons({ todayInputs, prediction, history }), [todayInputs, prediction, history]);
+export default function Reason3996Modal({ todayInputs, prediction, history, baseParcels = null, onClose }) {
+  const reasons = useMemo(
+    () => buildReasons({ todayInputs, prediction, history, baseParcels }),
+    [todayInputs, prediction, history, baseParcels]
+  );
 
   const text = useMemo(() => reasons.map(r => `• ${r}`).join('\n'), [reasons]);
 

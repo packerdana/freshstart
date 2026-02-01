@@ -1399,6 +1399,7 @@ export default function TodayScreen() {
           todayInputs={todayInputs}
           prediction={prediction}
           history={history}
+          baseParcels={getCurrentRouteConfig()?.baseParcels ?? null}
           onClose={() => setShow3996Helper(false)}
         />
       )}
