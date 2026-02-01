@@ -855,6 +855,43 @@ export default function TodayScreen() {
         )}
       </div>
 
+      {prediction?.clockOutTime && !routeStarted && (
+        <Card className="mb-4 bg-gradient-to-br from-emerald-50 to-green-50 border-2 border-emerald-200">
+          <div className="flex items-start justify-between gap-3 mb-2">
+            <div>
+              <h3 className="text-lg font-bold text-gray-900">Go-around Estimate</h3>
+              <p className="text-xs text-gray-600">Real clock time (what you tell the supervisor)</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="bg-white/70 rounded-lg p-4">
+              <p className="text-xs text-gray-600">Projected return</p>
+              <p className="text-3xl font-extrabold text-gray-900 tracking-tight">
+                {prediction.clockOutTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+              </p>
+              {rangeText && (
+                <p className="text-xs text-gray-700 mt-1">Range: {rangeText} (±{confidenceMinutes}m)</p>
+              )}
+              <p className="text-xs text-gray-500 mt-1">Updates as you complete waypoints.</p>
+            </div>
+
+            <div className="bg-white/70 rounded-lg p-4">
+              <p className="text-xs text-gray-600">What’s driving it</p>
+              <ul className="text-xs text-gray-800 mt-2 space-y-1">
+                {(drivers.length ? drivers : ['Using your recent history + today’s inputs.']).slice(0, 4).map((d, i) => (
+                  <li key={i}>• {d}</li>
+                ))}
+              </ul>
+            </div>
+          </div>
+
+          <p className="text-[11px] text-gray-500 mt-3">
+            Built by carriers for carriers. Personal planning tool—follow local instructions.
+          </p>
+        </Card>
+      )}
+
       <Card className="mb-6">
         <h3 className="text-lg font-bold text-gray-900 mb-4">Start Time (Today)</h3>
         <Input
@@ -887,37 +924,6 @@ export default function TodayScreen() {
           This only affects today’s predictions/clock-out estimate.
         </p>
       </Card>
-
-      {prediction?.clockOutTime && !routeStarted && (
-        <Card className="mb-6 bg-gradient-to-br from-emerald-50 to-green-50 border-2 border-emerald-200">
-          <h3 className="text-lg font-bold text-gray-900 mb-2">Go-around Estimate</h3>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div className="bg-white/70 rounded-lg p-3">
-              <p className="text-xs text-gray-600">Projected return</p>
-              <p className="text-2xl font-bold text-gray-900">
-                {prediction.clockOutTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
-              </p>
-              {rangeText && (
-                <p className="text-xs text-gray-600 mt-1">Range: {rangeText} (±{confidenceMinutes}m)</p>
-              )}
-              <p className="text-xs text-gray-500 mt-1">Updates as you complete waypoints.</p>
-            </div>
-            <div className="bg-white/70 rounded-lg p-3">
-              <p className="text-xs text-gray-600">What’s driving it</p>
-              <ul className="text-xs text-gray-800 mt-1 space-y-1">
-                {(drivers.length ? drivers : ['Using your recent history + today’s inputs.']).slice(0, 4).map((d, i) => (
-                  <li key={i}>• {d}</li>
-                ))}
-              </ul>
-            </div>
-          </div>
-
-          <p className="text-xs text-gray-500 mt-3">
-            Built by carriers for carriers. Personal planning tool—follow local instructions.
-          </p>
-        </Card>
-      )}
 
       <Card className="mb-6">
         <div className="flex items-center justify-between mb-4">
@@ -1037,7 +1043,8 @@ export default function TodayScreen() {
       </Card>
 
       <Card className="mb-6">
-        <h3 className="text-lg font-bold text-gray-900 mb-4">Mail Volume</h3>
+        <h3 className="text-lg font-bold text-gray-900 mb-1">Morning Inputs</h3>
+        <p className="text-xs text-gray-600 mb-4">Enter what you know. Everything is optional, but more info = better predictions.</p>
         
         <div className="mb-4">
           <Input
