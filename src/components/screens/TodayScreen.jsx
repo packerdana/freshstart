@@ -11,6 +11,7 @@ import WorkOffRouteModal from '../shared/WorkOffRouteModal';
 import EndOfDayReport from '../shared/EndOfDayReport';
 import ForgotRouteDialog from '../shared/ForgotRouteDialog';
 import Reason3996Modal from '../shared/Reason3996Modal';
+import { confidenceToMinutes } from '../../utils/predictionConfidence';
 import useRouteStore from '../../stores/routeStore';
 import { calculateFullDayPrediction } from '../../services/predictionService';
 import { saveRouteHistory, getWeekTotalMinutes } from '../../services/routeHistoryService';
@@ -18,7 +19,7 @@ import { pmOfficeService } from '../../services/pmOfficeService';
 import { streetTimeService } from '../../services/streetTimeService';
 import { offRouteService } from '../../services/offRouteService';
 import { DEFAULT_ROUTE_CONFIG } from '../../utils/constants';
-import { getLocalDateString, formatTimeAMPM } from '../../utils/time';
+import { getLocalDateString, formatTimeAMPM, parseLocalDate } from '../../utils/time';
 import { supabase } from '../../lib/supabase';
 
 export default function TodayScreen() {
@@ -753,6 +754,73 @@ export default function TodayScreen() {
     label: r.routeNumber
   }));
 
+  // --- Prediction explainability (carrier-friendly) ---
+  const isMonday = date.getDay() === 1;
+  const dayType = isMonday ? 'monday' : 'normal';
+
+  const cleanHistory = (history || []).filter((d) => {
+    const aux = !!(d.auxiliaryAssistance ?? d.auxiliary_assistance);
+    const mnd = !!(d.mailNotDelivered ?? d.mail_not_delivered);
+    const ns = !!(d.isNsDay ?? d.is_ns_day);
+    return !aux && !mnd && !ns;
+  });
+
+  const sameDayType = cleanHistory.filter((d) => {
+    try {
+      const dow = parseLocalDate(d.date).getDay();
+      return isMonday ? dow === 1 : dow !== 1;
+    } catch {
+      return false;
+    }
+  });
+
+  const baseline = (sameDayType.length ? sameDayType : cleanHistory).slice(0, 10);
+
+  const avg = (arr) => (arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0);
+
+  const baselineAverages = {
+    parcels: Math.round(avg(baseline.map((d) => Number(d.parcels || 0)))) || 0,
+    sprs: Math.round(avg(baseline.map((d) => Number(d.sprs ?? d.spurs ?? 0)))) || 0,
+    dps: Math.round(avg(baseline.map((d) => Number(d.dps || 0)))) || 0,
+    flats: avg(baseline.map((d) => Number(d.flats || 0))) || 0,
+    letters: avg(baseline.map((d) => Number(d.letters || 0))) || 0,
+  };
+
+  const drivers = [];
+  if ((todayInputs.parcels || 0) && baselineAverages.parcels) {
+    const delta = (todayInputs.parcels || 0) - baselineAverages.parcels;
+    if (Math.abs(delta) >= 10) drivers.push(`Parcels ${delta > 0 ? '+' : ''}${delta} vs your avg (${baselineAverages.parcels}).`);
+  }
+  if ((todayInputs.dps || 0) && baselineAverages.dps) {
+    const delta = (todayInputs.dps || 0) - baselineAverages.dps;
+    if (Math.abs(delta) >= 200) drivers.push(`DPS ${delta > 0 ? '+' : ''}${delta} vs your avg (${baselineAverages.dps}).`);
+  }
+  if ((todayInputs.flats || 0) && baselineAverages.flats) {
+    const delta = (todayInputs.flats || 0) - baselineAverages.flats;
+    if (Math.abs(delta) >= 0.5) drivers.push(`Flats ${delta > 0 ? '+' : ''}${delta.toFixed(1)} ft vs your avg (${baselineAverages.flats.toFixed(1)}).`);
+  }
+  if ((todayInputs.letters || 0) && baselineAverages.letters) {
+    const delta = (todayInputs.letters || 0) - baselineAverages.letters;
+    if (Math.abs(delta) >= 0.5) drivers.push(`Letters ${delta > 0 ? '+' : ''}${delta.toFixed(1)} ft vs your avg (${baselineAverages.letters.toFixed(1)}).`);
+  }
+
+  if (todayInputs.dailyLog?.lateMail) drivers.unshift('Late mail / delayed distribution.');
+  if (todayInputs.dailyLog?.lateParcels) drivers.unshift('Late parcels / delayed Amazon.');
+
+  const confidenceMinutes = confidenceToMinutes(
+    prediction?.returnTimeEstimate?.confidence || prediction?.prediction?.confidence,
+    { waypointEnhanced: !!prediction?.waypointEnhanced }
+  );
+
+  const rangeText = useMemo(() => {
+    if (!prediction?.clockOutTime) return null;
+    const base = new Date(prediction.clockOutTime);
+    const early = new Date(base.getTime() - confidenceMinutes * 60000);
+    const late = new Date(base.getTime() + confidenceMinutes * 60000);
+    const fmt = (d) => d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    return `${fmt(early)}–${fmt(late)}`;
+  }, [prediction?.clockOutTime, confidenceMinutes]);
+
   return (
     <div className="p-4 pb-20 max-w-4xl mx-auto">
       <div className="mb-6">
@@ -819,6 +887,37 @@ export default function TodayScreen() {
           This only affects today’s predictions/clock-out estimate.
         </p>
       </Card>
+
+      {prediction?.clockOutTime && !routeStarted && (
+        <Card className="mb-6 bg-gradient-to-br from-emerald-50 to-green-50 border-2 border-emerald-200">
+          <h3 className="text-lg font-bold text-gray-900 mb-2">Go-around Estimate</h3>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="bg-white/70 rounded-lg p-3">
+              <p className="text-xs text-gray-600">Projected return</p>
+              <p className="text-2xl font-bold text-gray-900">
+                {prediction.clockOutTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+              </p>
+              {rangeText && (
+                <p className="text-xs text-gray-600 mt-1">Range: {rangeText} (±{confidenceMinutes}m)</p>
+              )}
+              <p className="text-xs text-gray-500 mt-1">Updates as you complete waypoints.</p>
+            </div>
+            <div className="bg-white/70 rounded-lg p-3">
+              <p className="text-xs text-gray-600">What’s driving it</p>
+              <ul className="text-xs text-gray-800 mt-1 space-y-1">
+                {(drivers.length ? drivers : ['Using your recent history + today’s inputs.']).slice(0, 4).map((d, i) => (
+                  <li key={i}>• {d}</li>
+                ))}
+              </ul>
+            </div>
+          </div>
+
+          <p className="text-xs text-gray-500 mt-3">
+            Built by carriers for carriers. Personal planning tool—follow local instructions.
+          </p>
+        </Card>
+      )}
 
       <Card className="mb-6">
         <div className="flex items-center justify-between mb-4">

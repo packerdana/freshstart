@@ -13,6 +13,7 @@ export default function RouteSetupModal({ isOpen, onClose, onSave, editRoute = n
     tourLength: editRoute?.tour_length || 8.5,
     lunchDuration: editRoute?.lunch_duration || 30,
     comfortStopDuration: editRoute?.comfort_stop_duration || 10,
+    baseParcels: (editRoute?.base_parcels ?? '') === 0 ? '0' : (editRoute?.base_parcels ?? ''),
     manualStreetTimeHours: manualStreetTimeHours,
     manualStreetTimeMinutes: manualStreetTimeMinutes,
   });
@@ -69,6 +70,7 @@ export default function RouteSetupModal({ isOpen, onClose, onSave, editRoute = n
         tourLength: parseFloat(formData.tourLength),
         lunchDuration: parseInt(formData.lunchDuration),
         comfortStopDuration: parseInt(formData.comfortStopDuration),
+        baseParcels: null,
       };
 
       const hours = parseInt(formData.manualStreetTimeHours) || 0;
@@ -79,6 +81,19 @@ export default function RouteSetupModal({ isOpen, onClose, onSave, editRoute = n
         saveData.manualStreetTime = totalMinutes;
       } else {
         saveData.manualStreetTime = null;
+      }
+
+      // Optional base parcels
+      if (String(formData.baseParcels).trim() !== '') {
+        const parsed = parseInt(formData.baseParcels, 10);
+        if (!Number.isFinite(parsed) || parsed < 0) {
+          setErrors({ ...errors, baseParcels: 'Base parcels must be a non-negative number' });
+          setSaving(false);
+          return;
+        }
+        saveData.baseParcels = parsed;
+      } else {
+        saveData.baseParcels = null;
       }
 
       await onSave(saveData);
@@ -186,6 +201,19 @@ export default function RouteSetupModal({ isOpen, onClose, onSave, editRoute = n
             error={errors.lunchDuration}
             required
           />
+
+          <Input
+            label="Base Parcels (optional)"
+            type="number"
+            value={formData.baseParcels}
+            onChange={(e) => setFormData({ ...formData, baseParcels: e.target.value })}
+            placeholder="e.g., 35"
+            min="0"
+            error={errors.baseParcels}
+          />
+          <p className="text-xs text-gray-500 -mt-2">
+            If known, RouteWise can suggest “Parcels over base” as a 3996 reason.
+          </p>
 
           <div>
             <Input
