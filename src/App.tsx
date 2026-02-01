@@ -114,10 +114,23 @@ function App() {
   return (
     <div className="min-h-screen flex flex-col">
       <header className="bg-blue-600 text-white py-4 px-6 shadow-md">
-        <h1 className="text-xl font-bold">RouteWise</h1>
-        <p className="text-sm text-blue-100">
-          {requireRouteSetup ? 'Set up a route to get started' : `Route ${currentRoute}`}
-        </p>
+        <div className="flex items-center gap-3">
+          <img
+            src="/routewise-icon.svg"
+            alt="RouteWise"
+            className="h-9 w-9"
+          />
+          <div className="min-w-0">
+            <img
+              src="/routewise-logo.svg"
+              alt="RouteWise"
+              className="h-7 w-auto"
+            />
+            <p className="text-sm text-blue-100 truncate">
+              {requireRouteSetup ? 'Set up a route to get started' : `Route ${currentRoute}`}
+            </p>
+          </div>
+        </div>
       </header>
       <main className="flex-1 overflow-auto">
         {renderScreen()}
