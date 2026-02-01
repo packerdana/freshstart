@@ -51,10 +51,19 @@ export function isSameDay(date1, date2) {
 }
 
 export function decimalHoursToHHMM(decimalHours) {
-  if (!decimalHours || decimalHours === '') return '';
-  const hours = Math.floor(decimalHours);
-  const minutes = Math.round((decimalHours - hours) * 60);
-  return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+  if (decimalHours === null || decimalHours === undefined || decimalHours === '') return '';
+  const totalMinutes = Math.round(Number(decimalHours) * 60);
+  const hours = Math.floor(Math.abs(totalMinutes) / 60);
+  const minutes = Math.abs(totalMinutes) % 60;
+  const sign = totalMinutes < 0 ? '-' : '';
+  return `${sign}${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+}
+
+// Preferred display for Dana: real time like "7:22" (not decimals like "7.37")
+export function formatDecimalHoursAsTime(decimalHours) {
+  if (decimalHours === null || decimalHours === undefined || decimalHours === '') return '';
+  const totalMinutes = Number(decimalHours) * 60;
+  return formatMinutesAsTime(totalMinutes);
 }
 
 export function hhmmToDecimalHours(hhmmString) {

@@ -6,6 +6,7 @@ import useRouteStore from '../../stores/routeStore';
 import { supabase } from '../../lib/supabase';
 import { getStreetTimeSummaryByDate, getOperationCodesForDate, formatDuration } from '../../services/streetTimeHistoryService';
 import { useDayDeletion } from '../../hooks/useDayDeletion';
+import { formatMinutesAsTime } from '../../utils/time';
 import { format, parseISO, differenceInDays } from 'date-fns';
 
 export default function StreetTimeHistoryScreen() {
@@ -292,7 +293,7 @@ export default function StreetTimeHistoryScreen() {
           {filteredHistory.map((item) => {
             const isExpanded = expandedDate === item.date;
             const daysAgo = differenceInDays(new Date(), parseISO(item.date));
-            const totalHours = item.total_minutes / 60;
+            const totalTimeHHMM = formatMinutesAsTime(item.total_minutes);
 
             return (
               <Card key={item.date} className="overflow-hidden">
@@ -308,8 +309,8 @@ export default function StreetTimeHistoryScreen() {
                     </div>
                     <div className="flex items-center gap-2">
                       <div className="text-right">
-                        <div className="text-2xl font-bold text-blue-600">{totalHours.toFixed(2)}</div>
-                        <div className="text-xs text-gray-500">hours</div>
+                        <div className="text-2xl font-bold text-blue-600">{totalTimeHHMM}</div>
+                        <div className="text-xs text-gray-500">time</div>
                       </div>
                       {isExpanded ? <ChevronUp className="w-5 h-5 text-gray-400" /> : <ChevronDown className="w-5 h-5 text-gray-400" />}
                     </div>
@@ -377,13 +378,15 @@ export default function StreetTimeHistoryScreen() {
               <span className="font-semibold text-gray-900">{filteredHistory.length}</span>
             </div>
             <div className="flex justify-between text-sm">
-              <span className="text-gray-600">Total Hours:</span>
-              <span className="font-semibold text-blue-600">{(filteredHistory.reduce((sum, item) => sum + item.total_minutes, 0) / 60).toFixed(2)}</span>
+              <span className="text-gray-600">Total Time:</span>
+              <span className="font-semibold text-blue-600">
+                {formatMinutesAsTime(filteredHistory.reduce((sum, item) => sum + item.total_minutes, 0))}
+              </span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-gray-600">Average Per Day:</span>
               <span className="font-semibold text-green-600">
-                {filteredHistory.length > 0 ? (filteredHistory.reduce((sum, item) => sum + item.total_minutes, 0) / filteredHistory.length / 60).toFixed(2) : '0.00'} hrs
+                {formatMinutesAsTime(filteredHistory.reduce((sum, item) => sum + item.total_minutes, 0) / filteredHistory.length)}
               </span>
             </div>
           </div>

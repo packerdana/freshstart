@@ -4,6 +4,7 @@ import Card from '../shared/Card';
 import Button from '../shared/Button';
 import { routeProtectionService } from '../../services/routeProtectionService';
 import useRouteStore from '../../stores/routeStore';
+import { formatDecimalHoursAsTime } from '../../utils/time';
 
 export default function RouteProtectionScreen() {
   const { activeRoute } = useRouteStore();
@@ -126,13 +127,13 @@ export default function RouteProtectionScreen() {
                 <div>
                   <p className="text-xs text-gray-600">Actual Street Time (Avg)</p>
                   <p className="text-lg font-bold text-gray-900">
-                    {protectionStatus.overburdened.actualStreetTime?.toFixed(2)} hrs
+                    {formatDecimalHoursAsTime(protectionStatus.overburdened.actualStreetTime)}
                   </p>
                 </div>
                 <div>
                   <p className="text-xs text-gray-600">Evaluated Street Time</p>
                   <p className="text-lg font-bold text-gray-900">
-                    {protectionStatus.overburdened.evaluatedStreetTime?.toFixed(2)} hrs
+                    {formatDecimalHoursAsTime(protectionStatus.overburdened.evaluatedStreetTime)}
                   </p>
                 </div>
               </div>
@@ -184,7 +185,7 @@ export default function RouteProtectionScreen() {
           <div className="grid grid-cols-2 gap-4 mb-4">
             <div>
               <p className="text-xs text-gray-600">Total Hours</p>
-              <p className="text-2xl font-bold text-gray-900">{weeklyStats.totalHours.toFixed(2)}</p>
+              <p className="text-2xl font-bold text-gray-900">{formatDecimalHoursAsTime(weeklyStats.totalHours)}</p>
             </div>
             <div>
               <p className="text-xs text-gray-600">Days Worked</p>
@@ -195,11 +196,11 @@ export default function RouteProtectionScreen() {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <p className="text-xs text-gray-600">Regular OT (1.5x)</p>
-              <p className="text-lg font-bold text-blue-600">{weeklyStats.totalRegularOT.toFixed(2)} hrs</p>
+              <p className="text-lg font-bold text-blue-600">{formatDecimalHoursAsTime(weeklyStats.totalRegularOT)}</p>
             </div>
             <div>
               <p className="text-xs text-gray-600">Penalty OT (2.0x)</p>
-              <p className="text-lg font-bold text-red-600">{weeklyStats.totalPenaltyOT.toFixed(2)} hrs</p>
+              <p className="text-lg font-bold text-red-600">{formatDecimalHoursAsTime(weeklyStats.totalPenaltyOT)}</p>
             </div>
           </div>
 

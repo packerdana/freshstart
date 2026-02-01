@@ -6,13 +6,36 @@
     </linearGradient>
   </defs>
 
-  <!-- Icon (same motif) -->
+  <!-- Icon -->
   <g transform="translate(40,40)">
     <rect x="0" y="0" width="280" height="280" rx="84" fill="url(#bg)"/>
-    <path d="M58 194 C96 136, 132 232, 170 178 C206 126, 246 150, 270 116" fill="none" stroke="#FFFFFF" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" opacity="0.95"/>
-    <path d="M260 84c-26 0-48 22-48 48 0 36 48 78 48 78s48-42 48-78c0-26-22-48-48-48z" fill="#FFFFFF" opacity="0.98"/>
-    <circle cx="260" cy="132" r="18" fill="#2563EB"/>
-    <circle cx="58" cy="194" r="8" fill="#FFFFFF" opacity="0.95"/>
+
+    <!-- Mailbox post -->
+    <rect x="122" y="172" width="36" height="86" rx="10" fill="#FFFFFF" opacity="0.98"/>
+
+    <!-- Mailbox body -->
+    <path d="M70 164
+             a68 68 0 0 1 68 -68
+             h56
+             a68 68 0 0 1 68 68
+             v58
+             h-192
+             z"
+          fill="none" stroke="#FFFFFF" stroke-width="18" stroke-linejoin="round" opacity="0.98"/>
+
+    <!-- Door/slot line -->
+    <path d="M84 178 h164" stroke="#FFFFFF" stroke-width="14" stroke-linecap="round" opacity="0.95"/>
+
+    <!-- Letter -->
+    <g transform="translate(84,112)">
+      <rect x="0" y="0" width="176" height="112" rx="18" fill="#FFFFFF" opacity="0.98"/>
+      <path d="M14 26 L88 70 L162 26" fill="none" stroke="#2563EB" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M14 92 L88 52 L162 92" fill="none" stroke="#2563EB" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" opacity="0.9"/>
+    </g>
+
+    <!-- Flag -->
+    <path d="M222 122 v74" stroke="#FFFFFF" stroke-width="12" stroke-linecap="round" opacity="0.98"/>
+    <path d="M222 128 h48 l-14 20 14 20 h-48" fill="#FFFFFF" opacity="0.95"/>
   </g>
 
   <!-- Wordmark -->
