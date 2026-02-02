@@ -126,7 +126,7 @@ export default function RouteSetupModal({ isOpen, onClose, onSave, editRoute = n
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto overscroll-contain">
           <Input
             label="Route Number"
             type="text"
