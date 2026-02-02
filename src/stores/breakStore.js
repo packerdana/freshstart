@@ -53,9 +53,21 @@ const useBreakStore = create((set, get) => ({
 
   // ADDED: Initialize from database
   initialized: false,
+  initializing: false,
   initializeFromDatabase: async () => {
+    // Avoid parallel init calls
+    if (get().initializing) return;
+    set({ initializing: true });
+
     const savedState = await loadBreakState();
-    
+
+    // If auth isn't ready yet (common right after refresh), don't mark initialized.
+    // App.tsx will call this again once the user session is available.
+    if (savedState && savedState.__noUser) {
+      set({ initializing: false });
+      return;
+    }
+
     if (savedState) {
       console.log('Restoring break timers from database...');
       
@@ -127,8 +139,8 @@ const useBreakStore = create((set, get) => ({
         console.log(`✓ Load truck timer restored: ${Math.floor(elapsed / 60)} minutes elapsed`);
       }
     }
-    
-    set({ initialized: true });
+
+    set({ initialized: true, initializing: false });
   },
 
   startLunch: async () => {

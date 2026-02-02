@@ -103,8 +103,10 @@ export const loadBreakState = async () => {
   try {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
-      console.warn('Cannot load break state - no user');
-      return null;
+      // Auth session may not be restored yet on page refresh.
+      // Signal caller to retry once auth is ready.
+      console.warn('Cannot load break state - no user (yet)');
+      return { __noUser: true };
     }
 
     const today = getTodayDate();
