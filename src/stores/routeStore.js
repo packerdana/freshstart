@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { getUserRoutes, getRouteHistory } from '../services/routeHistoryService';
+import { backfillDayTypesForRoute } from '../services/dayTypeBackfillService';
 import { calculateRouteAverages } from '../services/routeAveragesService';
 import { getWaypointsForRoute, createWaypoint, updateWaypoint, deleteWaypoint, deleteAllWaypoints } from '../services/waypointsService';
 import { createRoute as createRouteService, updateRoute as updateRouteService, deleteRoute as deleteRouteService } from '../services/routeManagementService';
@@ -169,7 +170,20 @@ const useRouteStore = create(
         set({ loading: true, error: null });
 
         try {
-          const history = await getRouteHistory(routeId, 90);
+          let history = await getRouteHistory(routeId, 90);
+
+          // One-time backfill: ensure day_type is correct in Supabase (day-after-holiday, saturday, monday, etc.)
+          // This runs only when needed and only updates rows that differ from our computed day type.
+          try {
+            const backfill = await backfillDayTypesForRoute(routeId, 365);
+            if (backfill?.updated > 0) {
+              // Reload so predictions/day-type grouping immediately reflect the corrected history.
+              history = await getRouteHistory(routeId, 90);
+            }
+          } catch (bfErr) {
+            console.warn('Day-type backfill skipped/failed:', bfErr?.message || bfErr);
+          }
+
           const averages = calculateRouteAverages(history);
 
           set((state) => ({
