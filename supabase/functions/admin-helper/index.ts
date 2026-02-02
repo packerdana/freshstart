@@ -65,6 +65,8 @@ serve(async (req) => {
   }
 
   const email = String(payload?.email || '').trim().toLowerCase()
+  const action = String(payload?.action || '').trim().toLowerCase() // optional
+
   if (!email || !email.includes('@')) {
     return json(400, { ok: false, error: 'Body must include a valid { email }' })
   }
@@ -81,7 +83,10 @@ serve(async (req) => {
   }
 
   try {
-    if (path.endsWith('/admin-helper/status')) {
+    const wantsStatus = path.endsWith('/admin-helper/status') || action === 'status'
+    const wantsConfirm = path.endsWith('/admin-helper/confirm-email') || action === 'confirm-email' || action === 'confirm'
+
+    if (wantsStatus) {
       const user = await findUser()
       if (!user) return json(404, { ok: false, error: 'User not found' })
       return json(200, {
@@ -93,7 +98,7 @@ serve(async (req) => {
       })
     }
 
-    if (path.endsWith('/admin-helper/confirm-email')) {
+    if (wantsConfirm) {
       const user = await findUser()
       if (!user) return json(404, { ok: false, error: 'User not found' })
 
@@ -110,7 +115,7 @@ serve(async (req) => {
       })
     }
 
-    return json(404, { ok: false, error: 'Unknown endpoint' })
+    return json(404, { ok: false, error: 'Unknown endpoint. Use /status, /confirm-email, or include { action }.' })
   } catch (e) {
     return json(500, { ok: false, error: String(e?.message || e) })
   }

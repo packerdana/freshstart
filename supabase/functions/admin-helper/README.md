@@ -8,6 +8,9 @@ Endpoints (POST):
 - `/admin-helper/status` — check if a user exists + whether their email is confirmed
 - `/admin-helper/confirm-email` — force-confirm the user’s email
 
+Also supported (for the Supabase “Test function” UI which calls the base function URL):
+- POST `/admin-helper` with JSON body including `{ action: "status" | "confirm-email" }`
+
 ## Security
 
 Requires a shared secret header:
