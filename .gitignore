@@ -1,0 +1,5 @@
+# Local secrets (do not commit)
+secrets/
+
+# Misc local
+*.log
