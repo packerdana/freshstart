@@ -5,15 +5,17 @@ import Button from '../shared/Button';
 import useRouteStore from '../../stores/routeStore';
 // pmOfficeService removed (744 PM Office Time card removed)
 import { routeProtectionService } from '../../services/routeProtectionService';
-import { formatMinutesAsTime, parseLocalDate } from '../../utils/time';
+import { formatMinutesAsTime, parseLocalDate, formatTimeAMPM } from '../../utils/time';
 import { getWorkweekStart } from '../../utils/uspsConstants';
 import { calculateRecordDays, formatRecordValue, formatRecordDate } from '../../services/recordStatsService';
 import { calculateAveragePerformance } from '../../utils/percentToStandard';
+import { calculateFullDayPrediction } from '../../services/predictionService';
 import { Clock, TrendingUp, Calendar, Package, Timer, Target, Activity, Award, AlertTriangle, Shield, Trophy } from 'lucide-react';
 
 export default function StatsScreen() {
-  const { history, averages, currentRoute, todayInputs, loading, activeRoute } = useRouteStore();
+  const { history, averages, currentRoute, todayInputs, loading, activeRoute, getCurrentRouteConfig, currentRouteId, waypoints, routes } = useRouteStore();
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [todayPrediction, setTodayPrediction] = useState(null);
   // PM Office stats removed
   const [protectionStatus, setProtectionStatus] = useState(null);
   const [weeklyStats, setWeeklyStats] = useState(null);
@@ -26,6 +28,48 @@ export default function StatsScreen() {
   useEffect(() => {
     loadProtectionData();
   }, [activeRoute?.id]);
+
+  useEffect(() => {
+    async function loadPrediction() {
+      const hasInput = todayInputs.dps || todayInputs.flats || todayInputs.letters || todayInputs.parcels || todayInputs.sprs;
+      if (!hasInput) {
+        setTodayPrediction(null);
+        return;
+      }
+
+      const todayMail = {
+        dps: todayInputs.dps || 0,
+        flats: todayInputs.flats || 0,
+        letters: todayInputs.letters || 0,
+        parcels: todayInputs.parcels || 0,
+        sprs: todayInputs.sprs || 0,
+        curtailed: 0,
+        safetyTalk: todayInputs.safetyTalk || 0,
+        hasBoxholder: todayInputs.hasBoxholder || false,
+      };
+
+      const routeConfig = getCurrentRouteConfig?.() || {};
+      const effectiveStartTime = todayInputs.startTimeOverride || routeConfig?.startTime || '07:30';
+      const routeConfigForPrediction = { ...routeConfig, startTime: effectiveStartTime };
+
+      try {
+        const pred = await calculateFullDayPrediction(
+          todayMail,
+          routeConfigForPrediction,
+          history || [],
+          waypoints || [],
+          currentRouteId,
+          0
+        );
+        setTodayPrediction(pred);
+      } catch (e) {
+        console.warn('[StatsScreen] Failed to calculate today prediction:', e?.message || e);
+        setTodayPrediction(null);
+      }
+    }
+
+    loadPrediction();
+  }, [todayInputs, history, waypoints, currentRouteId, getCurrentRouteConfig]);
 
   // PM office stats section removed
 
@@ -48,8 +92,35 @@ export default function StatsScreen() {
   const hasActiveRoute = useMemo(() => {
     // Must be boolean; returning a number here can render a stray "0" in React when used like:
     // {hasActiveRoute && (...)}
-    return !!(todayInputs.dps || todayInputs.flats || todayInputs.letters || todayInputs.parcels);
+    return !!(todayInputs.dps || todayInputs.flats || todayInputs.letters || todayInputs.parcels || todayInputs.sprs);
   }, [todayInputs]);
+
+  const todayStats = useMemo(() => {
+    const predClockOut = todayPrediction?.clockOutTime ? new Date(todayPrediction.clockOutTime) : null;
+    const minutesFromPred = predClockOut ? Math.round((currentTime - predClockOut) / 1000 / 60) : null;
+
+    const officeMinutes = Number(todayInputs.actualOfficeTime || 0);
+    const leaveOfficeTime = todayInputs.leaveOfficeTime || '';
+
+    const stops = (() => {
+      const route = currentRouteId ? routes?.[currentRouteId] : null;
+      const n = route?.stops;
+      return Number.isFinite(n) && n > 0 ? n : null;
+    })();
+
+    const predStreetMinutes = Number(todayPrediction?.streetTime || todayPrediction?.streetMinutes || todayPrediction?.predictedStreetMinutes || 0) || null;
+    const paceMinPerStop = stops && predStreetMinutes ? (predStreetMinutes / stops) : null;
+
+    return {
+      predClockOut,
+      minutesFromPred,
+      officeMinutes,
+      leaveOfficeTime,
+      stops,
+      predStreetMinutes,
+      paceMinPerStop,
+    };
+  }, [todayPrediction, currentTime, todayInputs, currentRouteId, routes]);
 
   const stats = useMemo(() => {
     if (!history || history.length === 0) {
@@ -251,6 +322,78 @@ export default function StatsScreen() {
           <p className="text-sm font-mono text-gray-700">{format(currentTime, 'h:mm:ss a')}</p>
         </div>
       </div>
+
+      <Card className="mb-4 bg-gradient-to-br from-slate-50 to-blue-50 border-2 border-slate-200">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+            <Clock className="w-5 h-5 text-blue-600" />
+            Today's Stats
+          </h3>
+          <span className="text-xs text-gray-600">live</span>
+        </div>
+
+        {!hasActiveRoute ? (
+          <p className="text-sm text-gray-700">
+            Enter today's mail volumes on the Today tab to see predictions and pace.
+          </p>
+        ) : !todayStats.predClockOut ? (
+          <p className="text-sm text-gray-700">
+            Calculating today's prediction...
+          </p>
+        ) : (
+          <div className="grid grid-cols-2 gap-3">
+            <div className="bg-white/70 rounded-lg p-3">
+              <p className="text-xs text-gray-600 mb-1">Predicted Clock-Out</p>
+              <p className="text-xl font-bold text-gray-900">
+                {formatTimeAMPM(todayStats.predClockOut)}
+              </p>
+            </div>
+
+            <div className="bg-white/70 rounded-lg p-3">
+              <p className="text-xs text-gray-600 mb-1">Ahead / Behind</p>
+              {todayStats.minutesFromPred == null ? (
+                <p className="text-xl font-bold text-gray-900">--</p>
+              ) : (
+                <p className={`text-xl font-bold ${
+                  todayStats.minutesFromPred > 0 ? 'text-red-600' : 'text-green-600'
+                }`}>
+                  {todayStats.minutesFromPred > 0
+                    ? `Behind ${todayStats.minutesFromPred}m`
+                    : `Ahead ${Math.abs(todayStats.minutesFromPred)}m`}
+                </p>
+              )}
+            </div>
+
+            <div className="bg-white/70 rounded-lg p-3">
+              <p className="text-xs text-gray-600 mb-1">Office Time So Far</p>
+              <p className="text-xl font-bold text-gray-900">
+                {Math.round(todayStats.officeMinutes)}m
+              </p>
+              {todayStats.leaveOfficeTime ? (
+                <p className="text-xs text-gray-600 mt-1">Left office: {todayStats.leaveOfficeTime}</p>
+              ) : (
+                <p className="text-xs text-gray-500 mt-1">Leave time not set</p>
+              )}
+            </div>
+
+            <div className="bg-white/70 rounded-lg p-3">
+              <p className="text-xs text-gray-600 mb-1">Street Pace (est.)</p>
+              {todayStats.paceMinPerStop ? (
+                <p className="text-xl font-bold text-gray-900">
+                  {todayStats.paceMinPerStop.toFixed(1)} min/stop
+                </p>
+              ) : (
+                <p className="text-sm text-gray-700">
+                  Add route stops in Settings to see pace.
+                </p>
+              )}
+              {todayStats.stops ? (
+                <p className="text-xs text-gray-600 mt-1">Stops: {todayStats.stops}</p>
+              ) : null}
+            </div>
+          </div>
+        )}
+      </Card>
 
       {protectionStatus?.needsAttention && (
         <Card className="mb-4 bg-gradient-to-br from-orange-50 to-red-50 border-2 border-orange-300">
@@ -751,41 +894,7 @@ export default function StatsScreen() {
         </Card>
       )}
 
-      <Card>
-        <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-          <Calendar className="w-5 h-5" />
-          Recent History
-        </h3>
-        <div className="space-y-2">
-          {recentHistory.length > 0 ? (
-            recentHistory.map((day, index) => (
-              <div
-                key={day.id || index}
-                className="flex justify-between items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
-              >
-                <div>
-                  <p className="font-semibold text-gray-900">
-                    {format(parseLocalDate(day.date), 'EEEE, MMM d')}
-                  </p>
-                  <p className="text-xs text-gray-600">
-                    {day.dps} DPS • {day.flats} flats • {day.parcels} parcels
-                  </p>
-                </div>
-                <div className="text-right">
-                  <p className="font-bold text-gray-900">
-                    {formatMinutesAsTime(day.street_time || day.streetTime || 0)}
-                  </p>
-                  <p className="text-xs text-gray-600">street time</p>
-                </div>
-              </div>
-            ))
-          ) : (
-            <p className="text-gray-600 text-sm italic py-4 text-center">
-              No history available yet
-            </p>
-          )}
-        </div>
-      </Card>
+      {/* Recent History removed */}
     </div>
   );
 }
