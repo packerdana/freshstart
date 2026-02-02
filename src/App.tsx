@@ -14,6 +14,7 @@ import BottomNav from './components/layout/BottomNav';
 import useRouteStore from './stores/routeStore';
 import useAuthStore from './stores/authStore';
 import useBreakTimer from './hooks/useBreakTimer';
+import useBreakStore from './stores/breakStore';
 
 function App() {
   const [showSignup, setShowSignup] = useState(false);
@@ -29,6 +30,10 @@ function App() {
 
   useBreakTimer();
 
+  // Ensure break timers restore on refresh even if the user never opens the Timers tab.
+  const breaksInitialized = useBreakStore((state: any) => state.initialized);
+  const initializeBreaksFromDatabase = useBreakStore((state: any) => state.initializeFromDatabase);
+
   useEffect(() => {
     const authListener = initializeAuth();
     return () => {
@@ -38,12 +43,17 @@ function App() {
 
   useEffect(() => {
     if (user) {
+      // Restore any running break timers (lunch/break/load truck) on app refresh.
+      if (!breaksInitialized) {
+        initializeBreaksFromDatabase();
+      }
+
       checkAndResetDailyData();
       loadUserRoutes().then(() => {
         autoPopulateWaypointsIfNeeded();
       });
     }
-  }, [user, loadUserRoutes, checkAndResetDailyData, autoPopulateWaypointsIfNeeded]);
+  }, [user, breaksInitialized, initializeBreaksFromDatabase, loadUserRoutes, checkAndResetDailyData, autoPopulateWaypointsIfNeeded]);
 
   // Email confirmation / magic-link callback page.
   // We don't use a router, so we check the path directly.
