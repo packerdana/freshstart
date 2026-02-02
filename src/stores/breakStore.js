@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 import { smartLoadMonitor } from '../services/smart-load-monitor';
 import { saveBreakState, loadBreakState, clearBreakState } from '../services/breakService';
 
@@ -26,7 +27,9 @@ const stopAutoSave = () => {
   }
 };
 
-const useBreakStore = create((set, get) => ({
+const useBreakStore = create(
+  persist(
+    (set, get) => ({
   lunchActive: false,
   lunchTime: 30 * 60,
   lunchStartTime: null,
@@ -471,6 +474,66 @@ const useBreakStore = create((set, get) => ({
       console.log('Smart load history loaded for user');
     }
   },
-}));
+}),
+{
+  name: 'routewise-break-timers',
+  version: 1,
+  partialize: (state) => ({
+    // Persist only what we need to restore timers and pace adjustments after refresh.
+    lunchActive: state.lunchActive,
+    lunchTime: state.lunchTime,
+    lunchStartTime: state.lunchStartTime,
+
+    breakActive: state.breakActive,
+    breakTime: state.breakTime,
+    breakType: state.breakType,
+    breakStartTime: state.breakStartTime,
+
+    loadTruckActive: state.loadTruckActive,
+    loadTruckTime: state.loadTruckTime,
+    loadTruckStartTime: state.loadTruckStartTime,
+    loadTruckPackageCount: state.loadTruckPackageCount,
+
+    waypointPausedSeconds: state.waypointPausedSeconds,
+    breakEvents: state.breakEvents,
+  }),
+  onRehydrateStorage: () => (state) => {
+    try {
+      if (!state) return;
+      // Recompute timers based on stored start times so they're correct after refresh.
+      const now = Date.now();
+
+      if (state.lunchActive && state.lunchStartTime) {
+        const elapsed = Math.floor((now - state.lunchStartTime) / 1000);
+        state.lunchTime = Math.max(0, 30 * 60 - elapsed);
+      }
+
+      if (state.breakActive && state.breakStartTime && state.breakType) {
+        const elapsed = Math.floor((now - state.breakStartTime) / 1000);
+        if (state.breakType.countDown) {
+          state.breakTime = Math.max(0, (state.breakType.duration || 0) - elapsed);
+        } else {
+          state.breakTime = Math.max(0, elapsed);
+        }
+      }
+
+      if (state.loadTruckActive && state.loadTruckStartTime) {
+        const elapsed = Math.floor((now - state.loadTruckStartTime) / 1000);
+        state.loadTruckTime = Math.max(0, elapsed);
+      }
+
+      // Mark store as initialized so screens don't try to re-init unnecessarily.
+      state.initialized = true;
+      state.initializing = false;
+
+      // Note: we don't auto-start the save interval here because we don't have access
+      // to the live store getter in this hook.
+    } catch (e) {
+      console.warn('Failed to rehydrate break timers:', e?.message || e);
+    }
+  },
+}
+)
+);
 
 export default useBreakStore;
