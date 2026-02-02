@@ -12,6 +12,15 @@ import { calculateAveragePerformance } from '../../utils/percentToStandard';
 import { calculateFullDayPrediction } from '../../services/predictionService';
 import { Clock, TrendingUp, Calendar, Package, Timer, Target, Activity, Award, AlertTriangle, Shield, Trophy } from 'lucide-react';
 
+function formatDurationMinutes(totalMinutes) {
+  if (!Number.isFinite(totalMinutes)) return '--';
+  const abs = Math.abs(Math.round(totalMinutes));
+  const h = Math.floor(abs / 60);
+  const m = abs % 60;
+  if (h <= 0) return `${m}m`;
+  return `${h}h ${m}m`;
+}
+
 export default function StatsScreen() {
   const { history, averages, currentRoute, todayInputs, loading, activeRoute, getCurrentRouteConfig, currentRouteId, waypoints, routes } = useRouteStore();
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -97,7 +106,8 @@ export default function StatsScreen() {
 
   const todayStats = useMemo(() => {
     const predClockOut = todayPrediction?.clockOutTime ? new Date(todayPrediction.clockOutTime) : null;
-    const minutesFromPred = predClockOut ? Math.round((currentTime - predClockOut) / 1000 / 60) : null;
+    // Minutes until predicted clock-out. Negative means we're past predicted time.
+    const minutesUntilClockOut = predClockOut ? Math.round((predClockOut - currentTime) / 1000 / 60) : null;
 
     const officeMinutes = Number(todayInputs.actualOfficeTime || 0);
     const leaveOfficeTime = todayInputs.leaveOfficeTime || '';
@@ -113,7 +123,7 @@ export default function StatsScreen() {
 
     return {
       predClockOut,
-      minutesFromPred,
+      minutesUntilClockOut,
       officeMinutes,
       leaveOfficeTime,
       stops,
@@ -350,16 +360,16 @@ export default function StatsScreen() {
             </div>
 
             <div className="bg-white/70 rounded-lg p-3">
-              <p className="text-xs text-gray-600 mb-1">Ahead / Behind</p>
-              {todayStats.minutesFromPred == null ? (
+              <p className="text-xs text-gray-600 mb-1">Time Until Clock-Out</p>
+              {todayStats.minutesUntilClockOut == null ? (
                 <p className="text-xl font-bold text-gray-900">--</p>
               ) : (
                 <p className={`text-xl font-bold ${
-                  todayStats.minutesFromPred > 0 ? 'text-red-600' : 'text-green-600'
+                  todayStats.minutesUntilClockOut < 0 ? 'text-red-600' : 'text-gray-900'
                 }`}>
-                  {todayStats.minutesFromPred > 0
-                    ? `Behind ${todayStats.minutesFromPred}m`
-                    : `Ahead ${Math.abs(todayStats.minutesFromPred)}m`}
+                  {todayStats.minutesUntilClockOut < 0
+                    ? `Over by ${formatDurationMinutes(todayStats.minutesUntilClockOut)}`
+                    : formatDurationMinutes(todayStats.minutesUntilClockOut)}
                 </p>
               )}
             </div>
