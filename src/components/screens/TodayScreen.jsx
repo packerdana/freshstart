@@ -16,6 +16,7 @@ import useRouteStore from '../../stores/routeStore';
 import useBreakStore from '../../stores/breakStore';
 import { calculateFullDayPrediction } from '../../services/predictionService';
 import { saveRouteHistory, getWeekTotalMinutes } from '../../services/routeHistoryService';
+import { getDayType } from '../../utils/holidays';
 import { pmOfficeService } from '../../services/pmOfficeService';
 import { streetTimeService } from '../../services/streetTimeService';
 import { offRouteService } from '../../services/offRouteService';
@@ -602,6 +603,7 @@ export default function TodayScreen() {
 
       const historyData = {
         date: today,
+        dayType: getDayType(today),
         dps: todayInputs.dps || 0,
         flats: todayInputs.flats || 0,
         letters: todayInputs.letters || 0,
@@ -758,8 +760,7 @@ export default function TodayScreen() {
   }));
 
   // --- Prediction explainability (carrier-friendly) ---
-  const isMonday = date.getDay() === 1;
-  const dayType = isMonday ? 'monday' : 'normal';
+  const dayType = getDayType(getLocalDateString());
 
   const cleanHistory = (history || []).filter((d) => {
     const aux = !!(d.auxiliaryAssistance ?? d.auxiliary_assistance);
@@ -770,8 +771,7 @@ export default function TodayScreen() {
 
   const sameDayType = cleanHistory.filter((d) => {
     try {
-      const dow = parseLocalDate(d.date).getDay();
-      return isMonday ? dow === 1 : dow !== 1;
+      return getDayType(d.date) === dayType;
     } catch {
       return false;
     }
