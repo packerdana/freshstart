@@ -780,7 +780,7 @@ export default function WaypointsScreen() {
                               }`}>
                                 {variance < -5 && <TrendingUp className="w-3 h-3" />}
                                 {variance > 5 && <TrendingDown className="w-3 h-3" />}
-                                {Math.abs(variance)}m {variance < 0 ? 'ahead' : 'behind'}
+                                {Math.abs(variance)}m {variance < 0 ? 'ahead of expected' : 'behind expected'}
                               </span>
                             )}
                           </div>
