@@ -44,6 +44,10 @@ const useBreakStore = create((set, get) => ({
 
   todaysBreaks: [],
 
+  // Detailed break events for adjusting waypoint "expected" times.
+  // Each event: { kind, label, startTime, endTime, seconds }
+  breakEvents: [],
+
   // Minutes/seconds of breaks that should PAUSE waypoint predictions (lunch + breaks only; NOT load truck)
   waypointPausedSeconds: 0,
 
@@ -55,6 +59,11 @@ const useBreakStore = create((set, get) => ({
     if (savedState) {
       console.log('Restoring break timers from database...');
       
+      // Restore detailed break events (used to adjust expected waypoint times)
+      if (Array.isArray(savedState.breakEvents)) {
+        set({ breakEvents: savedState.breakEvents });
+      }
+
       // Restore accumulated pause for waypoint predictions
       if (typeof savedState.waypointPausedSeconds === 'number') {
         set({ waypointPausedSeconds: savedState.waypointPausedSeconds });
@@ -135,17 +144,30 @@ const useBreakStore = create((set, get) => ({
   },
 
   endLunch: async () => {
-    const { lunchTime, todaysBreaks, waypointPausedSeconds } = get();
+    const { lunchTime, lunchStartTime, todaysBreaks, waypointPausedSeconds, breakEvents } = get();
     const duration = Math.round((30 * 60 - lunchTime) / 60);
 
     // Add actual lunch seconds to the waypoint pause accumulator
     const lunchSeconds = Math.max(0, (30 * 60 - lunchTime));
+
+    const endTime = Date.now();
+    const startTime = lunchStartTime || (endTime - lunchSeconds * 1000);
 
     set({
       lunchActive: false,
       lunchStartTime: null,
       lunchTime: 30 * 60,
       waypointPausedSeconds: (waypointPausedSeconds || 0) + lunchSeconds,
+      breakEvents: [
+        ...(breakEvents || []),
+        {
+          kind: 'lunch',
+          label: 'Lunch',
+          startTime,
+          endTime,
+          seconds: lunchSeconds,
+        },
+      ],
       todaysBreaks: [
         ...todaysBreaks,
         {
@@ -163,13 +185,20 @@ const useBreakStore = create((set, get) => ({
   },
 
   completeLunch: async () => {
-    const { todaysBreaks, waypointPausedSeconds } = get();
+    const { lunchStartTime, todaysBreaks, waypointPausedSeconds, breakEvents } = get();
+
+    const endTime = Date.now();
+    const startTime = lunchStartTime || (endTime - 30 * 60 * 1000);
 
     set({
       lunchActive: false,
       lunchStartTime: null,
       lunchTime: 30 * 60,
       waypointPausedSeconds: (waypointPausedSeconds || 0) + (30 * 60),
+      breakEvents: [
+        ...(breakEvents || []),
+        { kind: 'lunch', label: 'Lunch', startTime, endTime, seconds: 30 * 60 },
+      ],
       todaysBreaks: [
         ...todaysBreaks,
         {
@@ -216,7 +245,7 @@ const useBreakStore = create((set, get) => ({
   },
 
   endBreak: async () => {
-    const { breakTime, breakType, todaysBreaks, waypointPausedSeconds } = get();
+    const { breakTime, breakType, breakStartTime, todaysBreaks, waypointPausedSeconds, breakEvents } = get();
     let duration;
 
     if (breakType.countDown) {
@@ -228,12 +257,25 @@ const useBreakStore = create((set, get) => ({
     // Add actual break seconds to the waypoint pause accumulator
     const breakSeconds = Math.max(0, duration * 60);
 
+    const endTime = Date.now();
+    const startTime = breakStartTime || (endTime - breakSeconds * 1000);
+
     set({
       breakActive: false,
       breakType: null,
       breakTime: 0,
       breakStartTime: null,
       waypointPausedSeconds: (waypointPausedSeconds || 0) + breakSeconds,
+      breakEvents: [
+        ...(breakEvents || []),
+        {
+          kind: 'break',
+          label: breakType.label,
+          startTime,
+          endTime,
+          seconds: breakSeconds,
+        },
+      ],
       todaysBreaks: [
         ...todaysBreaks,
         {
@@ -251,10 +293,12 @@ const useBreakStore = create((set, get) => ({
   },
 
   completeBreak: async () => {
-    const { breakType, todaysBreaks, waypointPausedSeconds } = get();
+    const { breakType, breakStartTime, todaysBreaks, waypointPausedSeconds, breakEvents } = get();
     const duration = Math.round(breakType.duration / 60);
 
     const breakSeconds = Math.max(0, duration * 60);
+    const endTime = Date.now();
+    const startTime = breakStartTime || (endTime - breakSeconds * 1000);
 
     set({
       breakActive: false,
@@ -262,6 +306,10 @@ const useBreakStore = create((set, get) => ({
       breakTime: 0,
       breakStartTime: null,
       waypointPausedSeconds: (waypointPausedSeconds || 0) + breakSeconds,
+      breakEvents: [
+        ...(breakEvents || []),
+        { kind: 'break', label: breakType.label, startTime, endTime, seconds: breakSeconds },
+      ],
       todaysBreaks: [
         ...todaysBreaks,
         {

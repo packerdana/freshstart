@@ -29,6 +29,27 @@ export default function WaypointsScreen() {
   const [paceBaseline, setPaceBaseline] = useState(null);
   const [paceComparison, setPaceComparison] = useState(null);
 
+  const breakEvents = useBreakStore((state) => state.breakEvents || []);
+  const waypointPausedSeconds = useBreakStore((state) => state.waypointPausedSeconds || 0);
+
+  const pausedSecondsBefore = (tsMs) => {
+    if (!tsMs || !Number.isFinite(tsMs)) return 0;
+    let total = 0;
+    for (const ev of breakEvents) {
+      const end = ev?.endTime;
+      const seconds = ev?.seconds;
+      if (Number.isFinite(end) && Number.isFinite(seconds) && end <= tsMs) {
+        total += seconds;
+      }
+    }
+    // Fallback: if we have no events yet but we do have an accumulated pause (older data),
+    // apply the total pause as-of-now.
+    if (!breakEvents.length && waypointPausedSeconds) {
+      total = waypointPausedSeconds;
+    }
+    return total;
+  };
+
   const {
     waypoints,
     waypointsLoading,
@@ -48,7 +69,6 @@ export default function WaypointsScreen() {
   } = useRouteStore();
 
   const routeConfig = getCurrentRouteConfig();
-  const waypointPausedSeconds = useBreakStore((state) => state.waypointPausedSeconds);
 
   useEffect(() => {
     async function loadPredictions() {
@@ -731,9 +751,13 @@ export default function WaypointsScreen() {
                 }
                 
                 if (startTime) {
-                  const actualMinutes = Math.round(
-                    (new Date(waypoint.delivery_time) - startTime) / (1000 * 60)
-                  );
+                  const deliveryMs = new Date(waypoint.delivery_time).getTime();
+                  const rawActualMinutes = Math.round((deliveryMs - startTime) / (1000 * 60));
+
+                  // Adjust by pauses that happened before this delivery time.
+                  const pausedMinutes = Math.round(pausedSecondsBefore(deliveryMs) / 60);
+                  const actualMinutes = rawActualMinutes - pausedMinutes;
+
                   // Compare to baseline pace (same day type) when available; otherwise fall back to prediction variance
                   const baselineAvg = paceBaseline?.avgBySequence?.get(Number(waypoint.sequence_number));
                   variance = (baselineAvg !== undefined && baselineAvg !== null)
@@ -789,10 +813,14 @@ export default function WaypointsScreen() {
                             try {
                               const predTime = new Date(prediction.predictedTime);
                               if (isNaN(predTime.getTime())) return null;
+
+                              // Adjust expected time by pauses already taken (lunch/breaks).
+                              const adjusted = new Date(predTime.getTime() + pausedSecondsBefore(Date.now()) * 1000);
+
                               return (
                                 <div className="flex items-center gap-1 text-xs text-gray-500 mt-1">
                                   <Clock className="w-3 h-3" />
-                                  Expected: {format(predTime, 'h:mm a')}
+                                  Expected (adjusted): {format(adjusted, 'h:mm a')}
                                 </div>
                               );
                             } catch (e) {

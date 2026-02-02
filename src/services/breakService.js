@@ -58,6 +58,8 @@ export const saveBreakState = async (breakState) => {
         loadTruckPackageCount: breakState.loadTruckPackageCount || 0,
         // Accumulated paused seconds for waypoint predictions (lunch + breaks only)
         waypointPausedSeconds: breakState.waypointPausedSeconds || 0,
+        // Detailed events so we can adjust expected times per waypoint
+        breakEvents: Array.isArray(breakState.breakEvents) ? breakState.breakEvents : [],
         lastUpdated: Date.now(),
       }
     };
