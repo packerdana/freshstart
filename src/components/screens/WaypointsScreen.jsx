@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Search, Plus, Download, Trash2, MapPin, Check, Clock, TrendingUp, TrendingDown, Save, RefreshCw, Calendar, Copy, AlertCircle, Wrench } from 'lucide-react';
 import Card from '../shared/Card';
 import Button from '../shared/Button';
@@ -55,6 +55,54 @@ export default function WaypointsScreen() {
     }
     return total;
   };
+
+  // Dynamic schedule offset: after each completed waypoint, shift the remaining expected times
+  // by how far ahead/behind we are at the most recently completed waypoint.
+  const scheduleOffset = useMemo(() => {
+    try {
+      if (!waypoints?.length || !waypointPredictions?.length) return { minutes: 0, fromSeq: null };
+
+      const byId = new Map(waypointPredictions.map((p) => [p.id, p]));
+
+      const completed = waypoints
+        .filter((w) => w.status === 'completed' && w.delivery_time)
+        .sort((a, b) => Number(b.sequence_number || 0) - Number(a.sequence_number || 0));
+
+      if (!completed.length) return { minutes: 0, fromSeq: null };
+
+      // Find the most recent completed waypoint that has a predictedMinutes baseline.
+      const last = completed.find((w) => {
+        const pred = byId.get(w.id);
+        return pred && pred.predictedMinutes && Number(w.sequence_number) !== 0;
+      });
+
+      if (!last) return { minutes: 0, fromSeq: null };
+
+      const pred = byId.get(last.id);
+      const startTimeStr = departureTimeStr || routeConfig?.startTime || '07:30';
+
+      // Build startTime using the completed waypoint's date.
+      const t = new Date(last.delivery_time);
+      if (isNaN(t.getTime())) return { minutes: 0, fromSeq: null };
+
+      const m = String(startTimeStr).match(/^(\d{1,2}):(\d{2})$/);
+      if (!m) return { minutes: 0, fromSeq: null };
+
+      const s = new Date(t);
+      s.setHours(parseInt(m[1], 10), parseInt(m[2], 10), 0, 0);
+
+      const deliveryMs = t.getTime();
+      const rawActualMinutes = Math.round((deliveryMs - s.getTime()) / (1000 * 60));
+      const pausedMinutes = Math.round(pausedSecondsBefore(deliveryMs) / 60);
+      const actualMinutes = rawActualMinutes - pausedMinutes;
+
+      const offsetMinutes = Math.round(actualMinutes - Number(pred.predictedMinutes || 0));
+      return { minutes: offsetMinutes, fromSeq: Number(last.sequence_number || 0) };
+    } catch (e) {
+      console.warn('[Waypoints] scheduleOffset failed:', e?.message || e);
+      return { minutes: 0, fromSeq: null };
+    }
+  }, [waypoints, waypointPredictions, departureTimeStr, routeConfig, breakEvents, waypointPausedSeconds]);
 
   const {
     waypoints,
@@ -780,9 +828,15 @@ export default function WaypointsScreen() {
 
                   // Compare to baseline pace (same day type) when available; otherwise fall back to prediction variance
                   const baselineAvg = paceBaseline?.avgBySequence?.get(Number(waypoint.sequence_number));
+
+                  // Dynamic schedule: shift expected minutes for waypoints AFTER the last completed anchor.
+                  const effectivePredictedMinutes = (scheduleOffset?.fromSeq != null && Number(waypoint.sequence_number) > scheduleOffset.fromSeq)
+                    ? (Number(prediction.predictedMinutes || 0) + Number(scheduleOffset.minutes || 0))
+                    : Number(prediction.predictedMinutes || 0);
+
                   variance = (baselineAvg !== undefined && baselineAvg !== null)
                     ? (actualMinutes - baselineAvg)
-                    : (actualMinutes - prediction.predictedMinutes);
+                    : (actualMinutes - effectivePredictedMinutes);
                 }
               }
 
@@ -834,11 +888,19 @@ export default function WaypointsScreen() {
                               const predTime = new Date(prediction.predictedTime);
                               if (isNaN(predTime.getTime())) return null;
 
-                              // predictedTime is already computed using our paused minutes when we call predictWaypointTimes.
+                              const seqNum = Number(waypoint.sequence_number || 0);
+                              const shouldOffset = (scheduleOffset?.fromSeq != null && seqNum > scheduleOffset.fromSeq);
+                              const adjustedTime = shouldOffset
+                                ? new Date(predTime.getTime() + Number(scheduleOffset.minutes || 0) * 60000)
+                                : predTime;
+
                               return (
                                 <div className="flex items-center gap-1 text-xs text-gray-500 mt-1">
                                   <Clock className="w-3 h-3" />
-                                  Expected: {format(predTime, 'h:mm a')}
+                                  Expected: {format(adjustedTime, 'h:mm a')}
+                                  {shouldOffset && (
+                                    <span className="text-[10px] text-gray-400 ml-1">(live)</span>
+                                  )}
                                 </div>
                               );
                             } catch (e) {
