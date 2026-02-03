@@ -301,6 +301,34 @@ export default function StatsScreen() {
     return calculateAveragePerformance(history);
   }, [history]);
 
+  const averageTimes = useMemo(() => {
+    if (!history || history.length === 0) return null;
+
+    const days = history.filter((d) => {
+      const st = d.streetTimeNormalized ?? d.street_time_normalized ?? d.streetTime ?? d.street_time;
+      const hasAny = (d.officeTime ?? d.office_time ?? 0) > 0 || (st ?? 0) > 0 || (d.pmOfficeTime ?? d.pm_office_time ?? 0) > 0;
+      return hasAny;
+    });
+
+    if (days.length === 0) return null;
+
+    const avg = (arr) => arr.reduce((s, n) => s + n, 0) / (arr.length || 1);
+
+    const am722 = avg(days.map((d) => Number(d.officeTime ?? d.office_time ?? 0) || 0));
+    const street721 = avg(days.map((d) => Number(d.streetTimeNormalized ?? d.street_time_normalized ?? d.streetTime ?? d.street_time ?? 0) || 0));
+    const pm744 = avg(days.map((d) => Number(d.pmOfficeTime ?? d.pm_office_time ?? 0) || 0));
+
+    const total = am722 + street721 + pm744;
+
+    return {
+      days: days.length,
+      am722: Math.round(am722),
+      street721: Math.round(street721),
+      pm744: Math.round(pm744),
+      total: Math.round(total),
+    };
+  }, [history]);
+
   // % to Standard uses total 722 time, so no extra setup data is required.
   const hasCasingWithdrawalData = true;
 
@@ -467,6 +495,38 @@ export default function StatsScreen() {
                   </p>
                 </div>
               )}
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {averageTimes && (
+        <Card className="mb-4 bg-gradient-to-br from-slate-50 to-indigo-50 border-2 border-slate-200">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <Timer className="w-5 h-5 text-indigo-600" />
+              <h3 className="font-bold text-gray-900">Average Times</h3>
+            </div>
+            <span className="text-xs text-gray-600">{averageTimes.days} days</span>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="bg-white/70 rounded-lg p-3">
+              <p className="text-xs text-gray-600 mb-1">722 AM Office</p>
+              <p className="text-xl font-bold text-gray-900">{averageTimes.am722}m</p>
+            </div>
+            <div className="bg-white/70 rounded-lg p-3">
+              <p className="text-xs text-gray-600 mb-1">721 Street</p>
+              <p className="text-xl font-bold text-gray-900">{averageTimes.street721}m</p>
+            </div>
+            <div className="bg-white/70 rounded-lg p-3">
+              <p className="text-xs text-gray-600 mb-1">744 PM Office</p>
+              <p className="text-xl font-bold text-gray-900">{averageTimes.pm744}m</p>
+            </div>
+            <div className="bg-white/70 rounded-lg p-3 border border-indigo-200">
+              <p className="text-xs text-gray-600 mb-1">Average Route Time</p>
+              <p className="text-xl font-bold text-indigo-700">{formatMinutesAsTime(averageTimes.total)}</p>
+              <p className="text-xs text-gray-500 mt-1">(722 + 721 + 744)</p>
             </div>
           </div>
         </Card>
