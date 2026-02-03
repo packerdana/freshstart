@@ -4,6 +4,12 @@ import Card from '../shared/Card';
 import Button from '../shared/Button';
 import useRouteStore from '../../stores/routeStore';
 import { parseLocalDate, formatMinutesAsTime, getLocalDateString } from '../../utils/time';
+
+function hhmmFromDate(date) {
+  const h = String(date.getHours()).padStart(2, '0');
+  const m = String(date.getMinutes()).padStart(2, '0');
+  return `${h}:${m}`;
+}
 import AddWaypointModal from '../shared/AddWaypointModal';
 import DatePicker from '../shared/DatePicker';
 import WaypointDebugModal from '../shared/WaypointDebugModal';
@@ -70,6 +76,19 @@ export default function WaypointsScreen() {
 
   const routeConfig = getCurrentRouteConfig();
 
+  // For waypoint pacing comparisons ("ahead/behind expected"), we anchor to the moment you
+  // physically leave the Post Office (waypoint #0) when available. This matches carrier reality.
+  const departureTimeStr = (() => {
+    try {
+      const wp0 = (waypoints || []).find((w) => Number(w.sequence_number) === 0 && w.delivery_time);
+      if (wp0?.delivery_time) {
+        const dt = new Date(wp0.delivery_time);
+        if (!isNaN(dt.getTime())) return hhmmFromDate(dt);
+      }
+    } catch {}
+    return todayInputs.leaveOfficeTime || routeConfig?.startTime || '07:30';
+  })();
+
   useEffect(() => {
     async function loadPredictions() {
       if (!waypoints || waypoints.length === 0 || !currentRouteId) {
@@ -78,12 +97,12 @@ export default function WaypointsScreen() {
         return;
       }
 
-      const leaveOfficeTime = todayInputs.leaveOfficeTime || routeConfig?.startTime || '07:30';
-      console.log('[UI] Calculating predictions with start time:', leaveOfficeTime, 'for route:', currentRouteId);
+      const startTimeForSchedule = departureTimeStr || routeConfig?.startTime || '07:30';
+      console.log('[UI] Calculating predictions with start time:', startTimeForSchedule, 'for route:', currentRouteId);
 
       try {
         const pauseMinutes = Math.round((waypointPausedSeconds || 0) / 60);
-        const predictions = await predictWaypointTimes(waypoints, leaveOfficeTime, currentRouteId, pauseMinutes);
+        const predictions = await predictWaypointTimes(waypoints, startTimeForSchedule, currentRouteId, pauseMinutes);
         console.log('[UI] Received predictions:', predictions.map(p => ({ id: p.id, address: p.address, hasPrediction: !!p.predictedTime, confidence: p.confidence })));
         setWaypointPredictions(predictions);
       } catch (error) {
@@ -93,7 +112,7 @@ export default function WaypointsScreen() {
     }
 
     loadPredictions();
-  }, [waypoints, currentRouteId, todayInputs.leaveOfficeTime, routeConfig, waypointPausedSeconds]);
+  }, [waypoints, currentRouteId, departureTimeStr, routeConfig, waypointPausedSeconds]);
 
   // Pace baseline (compare to your own last 10 similar days)
   useEffect(() => {
@@ -139,8 +158,8 @@ export default function WaypointsScreen() {
       return;
     }
 
-    // Leave-office time should be the 721 start (leaveOfficeTime)
-    const startTimeStr = todayInputs.leaveOfficeTime || routeConfig?.startTime || '07:30';
+    // For pace comparisons, anchor to physical departure (waypoint #0) when available.
+    const startTimeStr = departureTimeStr || routeConfig?.startTime || '07:30';
     let startTime = null;
     try {
       const t = new Date(last.delivery_time);
@@ -170,7 +189,7 @@ export default function WaypointsScreen() {
       avgElapsed,
       delta
     });
-  }, [paceBaseline, waypoints, todayInputs.leaveOfficeTime, routeConfig]);
+  }, [paceBaseline, waypoints, departureTimeStr, routeConfig]);
 
   useEffect(() => {
     if (currentRouteId) {
@@ -732,8 +751,9 @@ export default function WaypointsScreen() {
               }
 
               let variance = null;
-              if (hasActualTime && hasPrediction && prediction.predictedMinutes) {
-                const startTimeStr = todayInputs.leaveOfficeTime || routeConfig?.startTime || '07:30';
+              // Don't show ahead/behind for the anchor waypoint itself.
+              if (Number(waypoint.sequence_number) !== 0 && hasActualTime && hasPrediction && prediction.predictedMinutes) {
+                const startTimeStr = departureTimeStr || routeConfig?.startTime || '07:30';
                 let startTime;
                 
                 const tempDate = new Date(startTimeStr);
