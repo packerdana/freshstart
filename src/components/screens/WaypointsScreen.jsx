@@ -834,13 +834,11 @@ export default function WaypointsScreen() {
                               const predTime = new Date(prediction.predictedTime);
                               if (isNaN(predTime.getTime())) return null;
 
-                              // Adjust expected time by pauses already taken (lunch/breaks).
-                              const adjusted = new Date(predTime.getTime() + pausedSecondsBefore(Date.now()) * 1000);
-
+                              // predictedTime is already computed using our paused minutes when we call predictWaypointTimes.
                               return (
                                 <div className="flex items-center gap-1 text-xs text-gray-500 mt-1">
                                   <Clock className="w-3 h-3" />
-                                  Expected (adjusted): {format(adjusted, 'h:mm a')}
+                                  Expected: {format(predTime, 'h:mm a')}
                                 </div>
                               );
                             } catch (e) {
