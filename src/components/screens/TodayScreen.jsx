@@ -705,8 +705,14 @@ export default function TodayScreen() {
       setCompletedStreetTimeMinutes(null);
       setStreetStartTime(null);
       
-      updateTodayInputs({ 
-        streetTimerStartTime: null 
+      updateTodayInputs({
+        streetTimerStartTime: null,
+        // Persist actual clock-out so Stats can show Prediction vs Actual after the day is ended.
+        actualClockOut: historyData.actualClockOut || new Date().toLocaleTimeString('en-US', {
+          hour12: false,
+          hour: '2-digit',
+          minute: '2-digit'
+        })
       });
       console.log('✓ Cleared 721 timer start time from state');
 

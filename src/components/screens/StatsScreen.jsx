@@ -106,8 +106,24 @@ export default function StatsScreen() {
 
   const todayStats = useMemo(() => {
     const predClockOut = todayPrediction?.clockOutTime ? new Date(todayPrediction.clockOutTime) : null;
+
+    // Actual clock-out (set when the user ends the day). Stored as HH:MM.
+    let actualClockOut = null;
+    const actualClockOutStr = String(todayInputs.actualClockOut || '').trim();
+    if (actualClockOutStr && /^\d{1,2}:\d{2}$/.test(actualClockOutStr)) {
+      const [hh, mm] = actualClockOutStr.split(':').map(Number);
+      const base = new Date(currentTime);
+      base.setHours(hh, mm, 0, 0);
+      actualClockOut = base;
+    }
+
     // Minutes until predicted clock-out. Negative means we're past predicted time.
     const minutesUntilClockOut = predClockOut ? Math.round((predClockOut - currentTime) / 1000 / 60) : null;
+
+    // Prediction error once the day is ended (actual - predicted).
+    const predictionErrorMinutes = (actualClockOut && predClockOut)
+      ? Math.round((actualClockOut - predClockOut) / 1000 / 60)
+      : null;
 
     const officeMinutes = Number(todayInputs.actualOfficeTime || 0);
     const leaveOfficeTime = todayInputs.leaveOfficeTime || '';
@@ -123,7 +139,10 @@ export default function StatsScreen() {
 
     return {
       predClockOut,
+      actualClockOut,
+      actualClockOutStr,
       minutesUntilClockOut,
+      predictionErrorMinutes,
       officeMinutes,
       leaveOfficeTime,
       stops,
@@ -360,17 +379,41 @@ export default function StatsScreen() {
             </div>
 
             <div className="bg-white/70 rounded-lg p-3">
-              <p className="text-xs text-gray-600 mb-1">Time Until Clock-Out</p>
-              {todayStats.minutesUntilClockOut == null ? (
-                <p className="text-xl font-bold text-gray-900">--</p>
+              {todayStats.actualClockOut ? (
+                <>
+                  <p className="text-xs text-gray-600 mb-1">Actual Clock-Out</p>
+                  <p className="text-xl font-bold text-gray-900">
+                    {formatTimeAMPM(todayStats.actualClockOut)}
+                  </p>
+                  {todayStats.predictionErrorMinutes != null ? (
+                    <p className={`text-xs mt-1 font-semibold ${
+                      Math.abs(todayStats.predictionErrorMinutes) <= 5
+                        ? 'text-green-700'
+                        : todayStats.predictionErrorMinutes > 0
+                          ? 'text-red-700'
+                          : 'text-blue-700'
+                    }`}>
+                      Prediction was {todayStats.predictionErrorMinutes > 0 ? 'late' : 'early'} by {Math.abs(todayStats.predictionErrorMinutes)}m
+                    </p>
+                  ) : (
+                    <p className="text-xs text-gray-500 mt-1">Prediction comparison unavailable</p>
+                  )}
+                </>
               ) : (
-                <p className={`text-xl font-bold ${
-                  todayStats.minutesUntilClockOut < 0 ? 'text-red-600' : 'text-gray-900'
-                }`}>
-                  {todayStats.minutesUntilClockOut < 0
-                    ? `Over by ${formatDurationMinutes(todayStats.minutesUntilClockOut)}`
-                    : formatDurationMinutes(todayStats.minutesUntilClockOut)}
-                </p>
+                <>
+                  <p className="text-xs text-gray-600 mb-1">Time Until Clock-Out</p>
+                  {todayStats.minutesUntilClockOut == null ? (
+                    <p className="text-xl font-bold text-gray-900">--</p>
+                  ) : (
+                    <p className={`text-xl font-bold ${
+                      todayStats.minutesUntilClockOut < 0 ? 'text-red-600' : 'text-gray-900'
+                    }`}>
+                      {todayStats.minutesUntilClockOut < 0
+                        ? `Over by ${formatDurationMinutes(todayStats.minutesUntilClockOut)}`
+                        : formatDurationMinutes(todayStats.minutesUntilClockOut)}
+                    </p>
+                  )}
+                </>
               )}
             </div>
 
