@@ -1,5 +1,6 @@
 import { Calendar } from 'lucide-react';
 import { format } from 'date-fns';
+import { getLocalDateString } from '../../utils/time';
 
 export default function DatePicker({ selectedDate, onChange, label = "Select Date", maxDate = new Date() }) {
   const handleDateChange = (e) => {
@@ -19,7 +20,7 @@ export default function DatePicker({ selectedDate, onChange, label = "Select Dat
         <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5 pointer-events-none" />
         <input
           type="date"
-          value={selectedDate || new Date().toISOString().split('T')[0]}
+          value={selectedDate || getLocalDateString()}
           onChange={handleDateChange}
           max={maxDateString}
           className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"

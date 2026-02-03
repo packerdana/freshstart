@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { getLocalDateString } from '../utils/time';
 
 export async function runDiagnostics() {
   const results = {
@@ -239,7 +240,7 @@ async function testWaypointsAccess() {
   console.log('Testing waypoints access...');
 
   try {
-    const today = new Date().toISOString().split('T')[0];
+    const today = getLocalDateString();
 
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) {

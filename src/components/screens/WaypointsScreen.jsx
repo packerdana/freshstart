@@ -3,7 +3,7 @@ import { Search, Plus, Download, Trash2, MapPin, Check, Clock, TrendingUp, Trend
 import Card from '../shared/Card';
 import Button from '../shared/Button';
 import useRouteStore from '../../stores/routeStore';
-import { parseLocalDate, formatMinutesAsTime } from '../../utils/time';
+import { parseLocalDate, formatMinutesAsTime, getLocalDateString } from '../../utils/time';
 import AddWaypointModal from '../shared/AddWaypointModal';
 import DatePicker from '../shared/DatePicker';
 import WaypointDebugModal from '../shared/WaypointDebugModal';
@@ -20,7 +20,7 @@ export default function WaypointsScreen() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingWaypoint, setEditingWaypoint] = useState(null);
   const [viewMode, setViewMode] = useState('today');
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState(getLocalDateString());
   const [historicalWaypoints, setHistoricalWaypoints] = useState([]);
   const [historicalLoading, setHistoricalLoading] = useState(false);
   const [dataVerification, setDataVerification] = useState(null);
@@ -414,7 +414,7 @@ export default function WaypointsScreen() {
 
   const handleDateChange = (newDate) => {
     setSelectedDate(newDate);
-    const today = new Date().toISOString().split('T')[0];
+    const today = getLocalDateString();
     if (newDate === today) {
       setViewMode('today');
     } else {
@@ -424,7 +424,7 @@ export default function WaypointsScreen() {
   };
 
   const handleCopyToToday = async () => {
-    const today = new Date().toISOString().split('T')[0];
+    const today = getLocalDateString();
     if (selectedDate === today) {
       alert('You are already viewing today\'s waypoints');
       return;
@@ -585,7 +585,7 @@ export default function WaypointsScreen() {
                   if (!confirm('Quick Setup creates today\'s 4 anchor waypoints. Switch to Today and continue?')) {
                     return;
                   }
-                  const today = new Date().toISOString().split('T')[0];
+                  const today = getLocalDateString();
                   setSelectedDate(today);
                   setViewMode('today');
                 }

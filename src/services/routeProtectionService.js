@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase';
 import { USPS_STANDARDS, getWorkweekStart, calculatePenaltyOT } from '../utils/uspsConstants';
+import { toLocalDateKey } from '../utils/dateKey';
 
 export const routeProtectionService = {
   async check3of5Rule(routeId) {
@@ -118,8 +119,8 @@ export const routeProtectionService = {
       .from('route_history')
       .select('*')
       .eq('route_id', routeId)
-      .gte('date', weekStart.toISOString().split('T')[0])
-      .lt('date', weekEnd.toISOString().split('T')[0])
+      .gte('date', toLocalDateKey(weekStart))
+      .lt('date', toLocalDateKey(weekEnd))
       .order('date', { ascending: true });
 
     if (error || !history) {
@@ -180,8 +181,8 @@ export const routeProtectionService = {
         .from('route_history')
         .select('overtime, penalty_overtime')
         .eq('route_id', routeId)
-        .gte('date', weekStart.toISOString().split('T')[0])
-        .lt('date', weekEnd.toISOString().split('T')[0]);
+        .gte('date', toLocalDateKey(weekStart))
+        .lt('date', toLocalDateKey(weekEnd));
 
       if (history && history.length > 0) {
         const totalOT = history.reduce((sum, day) => sum + (day.overtime || 0), 0);
@@ -189,8 +190,8 @@ export const routeProtectionService = {
         const avgDailyOT = totalOT / history.length;
 
         trends.push({
-          weekStart: weekStart.toISOString().split('T')[0],
-          weekEnd: weekEnd.toISOString().split('T')[0],
+          weekStart: toLocalDateKey(weekStart),
+          weekEnd: toLocalDateKey(weekEnd),
           totalOT,
           totalPenaltyOT,
           avgDailyOT,

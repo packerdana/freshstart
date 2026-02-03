@@ -1,11 +1,12 @@
 import { supabase } from '../lib/supabase';
+import { toLocalDateKey } from '../utils/dateKey';
 import { getDayType, getDayTypeLabel } from '../utils/holidays';
 
 export async function fetchWaypointHistory(routeId, daysBack = 30, dateFilter = null) {
   try {
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - daysBack);
-    const cutoffDateStr = cutoffDate.toISOString().split('T')[0];
+    const cutoffDateStr = toLocalDateKey(cutoffDate);
 
     const usingFilter = Array.isArray(dateFilter) && dateFilter.length > 0;
     console.log(

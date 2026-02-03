@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { getLocalDateString } from '../utils/time';
 
 export const getTemplatesForRoute = async (routeId) => {
   try {
@@ -120,7 +121,7 @@ export const instantiateTemplates = async (routeId, date = null) => {
       return [];
     }
 
-    const targetDate = date || new Date().toISOString().split('T')[0];
+    const targetDate = date || getLocalDateString();
 
     const { data: existing } = await supabase
       .from('waypoints')

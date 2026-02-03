@@ -1,10 +1,11 @@
 import { supabase } from '../lib/supabase';
 import { getDayType } from '../utils/holidays';
+import { toLocalDateKey } from '../utils/dateKey';
 
 function ymd(dateLike) {
   // route_history.date comes back as YYYY-MM-DD string
   if (typeof dateLike === 'string') return dateLike;
-  return new Date(dateLike).toISOString().split('T')[0];
+  return toLocalDateKey(dateLike);
 }
 
 /**

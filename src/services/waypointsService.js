@@ -1,8 +1,9 @@
 import { supabase } from '../lib/supabase';
+import { getLocalDateString } from '../utils/time';
 
 export const getWaypointsForRoute = async (routeId, date = null) => {
   try {
-    const targetDate = date || new Date().toISOString().split('T')[0];
+    const targetDate = date || getLocalDateString();
 
     const { data, error } = await supabase
       .from('waypoints')
@@ -69,7 +70,7 @@ export const deleteWaypoint = async (waypointId) => {
 
 export const deleteAllWaypoints = async (routeId, date = null) => {
   try {
-    const targetDate = date || new Date().toISOString().split('T')[0];
+    const targetDate = date || getLocalDateString();
 
     const { error } = await supabase
       .from('waypoints')
@@ -87,7 +88,7 @@ export const deleteAllWaypoints = async (routeId, date = null) => {
 
 export const removeDuplicateWaypoints = async (routeId, date = null) => {
   try {
-    const targetDate = date || new Date().toISOString().split('T')[0];
+    const targetDate = date || getLocalDateString();
 
     const { data: waypoints, error: fetchError } = await supabase
       .from('waypoints')
@@ -156,7 +157,7 @@ export const createQuickSetupWaypoints = async (routeId, date = null, existingWa
   try {
     if (!routeId) throw new Error('routeId is required');
 
-    const targetDate = date || new Date().toISOString().split('T')[0];
+    const targetDate = date || getLocalDateString();
 
     const current = Array.isArray(existingWaypoints)
       ? existingWaypoints
@@ -244,7 +245,7 @@ export const exportWaypointsToJSON = async (routeId, date = null) => {
 
     const exportData = {
       routeId,
-      date: date || new Date().toISOString().split('T')[0],
+      date: date || getLocalDateString(),
       totalWaypoints: waypoints.length,
       completedWaypoints: waypoints.filter(w => w.status === 'completed').length,
       waypoints: waypoints.map(w => ({

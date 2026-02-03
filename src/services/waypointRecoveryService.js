@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { getLocalDateString } from '../utils/time';
 import { getWaypointsForRoute, bulkCreateWaypoints, deleteAllWaypoints } from './waypointsService';
 
 export const getHistoricalWaypoints = async (routeId, fromDate = null, toDate = null) => {
@@ -84,7 +85,7 @@ export const getWaypointSummaryByDate = async (routeId) => {
 
 export const recoverWaypointsFromDate = async (routeId, sourceDate, targetDate = null) => {
   try {
-    const today = targetDate || new Date().toISOString().split('T')[0];
+    const today = targetDate || getLocalDateString();
 
     const historicalWaypoints = await getWaypointsForRoute(routeId, sourceDate);
 

@@ -3,6 +3,8 @@ import { Search, X } from 'lucide-react';
 import Button from './Button';
 import Card from './Card';
 import { supabase } from '../../lib/supabase';
+import { getLocalDateString } from '../../utils/time';
+import { getLocalYesterdayKey } from '../../utils/dateKey';
 
 export default function WaypointDebugModal({ isOpen, onClose, routeId }) {
   const [todayData, setTodayData] = useState(null);
@@ -12,8 +14,8 @@ export default function WaypointDebugModal({ isOpen, onClose, routeId }) {
   const checkData = async () => {
     setLoading(true);
     try {
-      const today = new Date().toISOString().split('T')[0];
-      const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+      const today = getLocalDateString();
+      const yesterday = getLocalYesterdayKey();
 
       const { data: todayWaypoints } = await supabase
         .from('waypoints')
@@ -62,7 +64,7 @@ export default function WaypointDebugModal({ isOpen, onClose, routeId }) {
     }
 
     try {
-      const today = new Date().toISOString().split('T')[0];
+      const today = getLocalDateString();
 
       const { error } = await supabase
         .from('waypoints')

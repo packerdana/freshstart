@@ -3,6 +3,7 @@ import { X, CheckCircle, AlertTriangle, XCircle, RefreshCw, Bug, Copy } from 'lu
 import Button from './Button';
 import { runDiagnostics, testWaypointQuery } from '../../services/diagnosticService';
 import useRouteStore from '../../stores/routeStore';
+import { getLocalDateString } from '../../utils/time';
 
 export default function DiagnosticsModal({ isOpen, onClose }) {
   const [results, setResults] = useState(null);
@@ -18,7 +19,7 @@ export default function DiagnosticsModal({ isOpen, onClose }) {
       setResults(diagnosticResults);
 
       if (currentRouteId) {
-        const today = new Date().toISOString().split('T')[0];
+        const today = getLocalDateString();
         const waypointTest = await testWaypointQuery(currentRouteId, today);
         setResults(prev => ({
           ...prev,

@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase';
 import { calculatePenaltyOT, getWorkweekStart, getWorkweekEnd } from '../utils/uspsConstants';
+import { toLocalDateKey } from '../utils/dateKey';
 
 /**
  * Convert snake_case database fields to camelCase for prediction service
@@ -93,8 +94,8 @@ export async function saveRouteHistory(routeId, historyData, waypoints = null) {
     .from('route_history')
     .select('office_time, pm_office_time, street_time, street_time_normalized')
     .eq('route_id', routeId)
-    .gte('date', weekStart.toISOString().split('T')[0])
-    .lt('date', weekEnd.toISOString().split('T')[0])
+    .gte('date', toLocalDateKey(weekStart))
+    .lt('date', toLocalDateKey(weekEnd))
     .neq('date', historyData.date);
 
   let weeklyHours = totalHours;
@@ -353,8 +354,8 @@ export async function getWeekTotalMinutes() {
   const weekStart = getWorkweekStart(today);
   const weekEnd = getWorkweekEnd(today);
 
-  const startDateStr = weekStart.toISOString().split('T')[0];
-  const endDateStr = weekEnd.toISOString().split('T')[0];
+  const startDateStr = toLocalDateKey(weekStart);
+  const endDateStr = toLocalDateKey(weekEnd);
 
   const { data, error } = await supabase
     .from('route_history')
