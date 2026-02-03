@@ -315,17 +315,22 @@ export default function StatsScreen() {
     const avg = (arr) => arr.reduce((s, n) => s + n, 0) / (arr.length || 1);
 
     const am722 = avg(days.map((d) => Number(d.officeTime ?? d.office_time ?? 0) || 0));
-    const street721 = avg(days.map((d) => Number(d.streetTimeNormalized ?? d.street_time_normalized ?? d.streetTime ?? d.street_time ?? 0) || 0));
+    const street721Raw = avg(days.map((d) => Number(d.streetTimeNormalized ?? d.street_time_normalized ?? d.streetTime ?? d.street_time ?? 0) || 0));
     const pm744 = avg(days.map((d) => Number(d.pmOfficeTime ?? d.pm_office_time ?? 0) || 0));
 
-    const total = am722 + street721 + pm744;
+    // USPS lunch assumption for stats: 30 minutes is deducted unless pre-approved no-lunch.
+    const street721Adjusted = Math.max(0, street721Raw - 30);
+
+    const total = am722 + street721Adjusted + pm744;
 
     return {
       days: days.length,
       am722: Math.round(am722),
-      street721: Math.round(street721),
+      street721Raw: Math.round(street721Raw),
+      street721: Math.round(street721Adjusted),
       pm744: Math.round(pm744),
       total: Math.round(total),
+      lunchDeductedMinutes: 30,
     };
   }, [history]);
 
@@ -516,8 +521,9 @@ export default function StatsScreen() {
               <p className="text-xl font-bold text-gray-900">{averageTimes.am722}m</p>
             </div>
             <div className="bg-white/70 rounded-lg p-3">
-              <p className="text-xs text-gray-600 mb-1">721 Street</p>
+              <p className="text-xs text-gray-600 mb-1">721 Street (minus lunch)</p>
               <p className="text-xl font-bold text-gray-900">{averageTimes.street721}m</p>
+              <p className="text-xs text-gray-500 mt-1">Raw: {averageTimes.street721Raw}m</p>
             </div>
             <div className="bg-white/70 rounded-lg p-3">
               <p className="text-xs text-gray-600 mb-1">744 PM Office</p>
@@ -526,7 +532,7 @@ export default function StatsScreen() {
             <div className="bg-white/70 rounded-lg p-3 border border-indigo-200">
               <p className="text-xs text-gray-600 mb-1">Average Route Time</p>
               <p className="text-xl font-bold text-indigo-700">{formatMinutesAsTime(averageTimes.total)}</p>
-              <p className="text-xs text-gray-500 mt-1">(722 + 721 + 744)</p>
+              <p className="text-xs text-gray-500 mt-1">(722 + 721 − 30 + 744)</p>
             </div>
           </div>
         </Card>
