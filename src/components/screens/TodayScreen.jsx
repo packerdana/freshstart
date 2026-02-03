@@ -1062,30 +1062,51 @@ export default function TodayScreen() {
             value={todayInputs.scannerTotal || ''}
             onChange={(e) => {
               const value = parseInt(e.target.value) || 0;
-              updateTodayInputs({ 
-                scannerTotal: value,
-                packagesManuallyUpdated: false
-              });
-              
-              if (value > 0) {
-                const sprs = Math.round(value * 0.56);
-                const parcels = value - sprs;
+
+              if (value <= 0) {
+                updateTodayInputs({
+                  scannerTotal: 0,
+                  parcels: 0,
+                  sprs: 0,
+                  packagesManuallyUpdated: false,
+                });
+                return;
+              }
+
+              // If the user already manually set parcels, keep parcels and recompute SPRs as the remainder.
+              const existingParcels = parseInt(todayInputs.parcels, 10) || 0;
+              const hasManualSplit = !!todayInputs.packagesManuallyUpdated;
+
+              if (hasManualSplit && existingParcels > 0) {
+                const parcels = Math.min(existingParcels, value);
+                const sprs = Math.max(0, value - parcels);
                 updateTodayInputs({
                   scannerTotal: value,
-                  sprs: sprs,
-                  parcels: parcels,
-                  packagesManuallyUpdated: false
+                  parcels,
+                  sprs,
+                  packagesManuallyUpdated: true,
                 });
+                return;
               }
+
+              // Default auto-split
+              const sprs = Math.round(value * 0.56);
+              const parcels = value - sprs;
+              updateTodayInputs({
+                scannerTotal: value,
+                sprs,
+                parcels,
+                packagesManuallyUpdated: false,
+              });
             }}
             placeholder="103"
-            helperText="Check your scanner for total packages"
+            helperText="Enter total packages (parcels + SPRs)"
           />
           
           {todayInputs.scannerTotal > 0 && (
             <div className="mt-2 bg-blue-50 border border-blue-200 rounded-lg p-3">
               <p className="text-xs text-blue-800 font-medium mb-2">
-                📊 {todayInputs.packagesManuallyUpdated ? 'Manual Split' : 'Auto-Split: 56% SPRs / 44% Parcels'}
+                📊 {todayInputs.packagesManuallyUpdated ? 'Manual Split (SPRs = Total − Parcels)' : 'Auto-Split: 56% SPRs / 44% Parcels'}
               </p>
               <div className="grid grid-cols-3 gap-2 text-center">
                 <div>
@@ -1155,27 +1176,13 @@ export default function TodayScreen() {
             }}
             placeholder="0"
           />
-          <Input
-            label="SPRs"
-            type="number"
-            value={todayInputs.sprs || ''}
-            onChange={(e) => {
-              const numValue = parseInt(e.target.value) || 0;
-              const scannerTotal = todayInputs.scannerTotal || 0;
-              
-              if (scannerTotal > 0) {
-                const newParcels = Math.max(0, scannerTotal - numValue);
-                updateTodayInputs({
-                  sprs: numValue,
-                  parcels: newParcels,
-                  packagesManuallyUpdated: true
-                });
-              } else {
-                handleInputChange('sprs', e.target.value);
-              }
-            }}
-            placeholder="0"
-          />
+          <div className="flex flex-col">
+            <label className="text-sm font-medium text-gray-700 mb-2">SPRs (auto)</label>
+            <div className="px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-600">
+              {todayInputs.scannerTotal > 0 ? (todayInputs.sprs || 0) : 0}
+            </div>
+            <p className="text-xs text-gray-500 mt-1">Calculated as Total Packages − Parcels</p>
+          </div>
           <Input
             label="Safety/Training (min)"
             type="number"
