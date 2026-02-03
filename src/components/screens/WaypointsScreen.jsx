@@ -56,6 +56,41 @@ export default function WaypointsScreen() {
     return total;
   };
 
+  // scheduleOffset is defined below after store values are available (avoids TDZ on refresh)
+
+  const {
+    waypoints,
+    waypointsLoading,
+    currentRouteId,
+    getCurrentRouteConfig,
+    history,
+    todayInputs,
+    hasTemplates,
+    loadWaypoints,
+    addWaypoint,
+    updateWaypoint,
+    deleteWaypoint,
+    clearAllWaypoints,
+    saveAsTemplate,
+    loadFromTemplate,
+    loadTemplates,
+  } = useRouteStore();
+
+  const routeConfig = getCurrentRouteConfig();
+
+  // For waypoint pacing comparisons ("ahead/behind expected"), we anchor to the moment you
+  // physically leave the Post Office (waypoint #0) when available. This matches carrier reality.
+  const departureTimeStr = (() => {
+    try {
+      const wp0 = (waypoints || []).find((w) => Number(w.sequence_number) === 0 && w.delivery_time);
+      if (wp0?.delivery_time) {
+        const dt = new Date(wp0.delivery_time);
+        if (!isNaN(dt.getTime())) return hhmmFromDate(dt);
+      }
+    } catch {}
+    return todayInputs.leaveOfficeTime || routeConfig?.startTime || '07:30';
+  })();
+
   // Dynamic schedule offset: after each completed waypoint, shift the remaining expected times
   // by how far ahead/behind we are at the most recently completed waypoint.
   const scheduleOffset = useMemo(() => {
@@ -103,39 +138,6 @@ export default function WaypointsScreen() {
       return { minutes: 0, fromSeq: null };
     }
   }, [waypoints, waypointPredictions, departureTimeStr, routeConfig, breakEvents, waypointPausedSeconds]);
-
-  const {
-    waypoints,
-    waypointsLoading,
-    currentRouteId,
-    getCurrentRouteConfig,
-    history,
-    todayInputs,
-    hasTemplates,
-    loadWaypoints,
-    addWaypoint,
-    updateWaypoint,
-    deleteWaypoint,
-    clearAllWaypoints,
-    saveAsTemplate,
-    loadFromTemplate,
-    loadTemplates,
-  } = useRouteStore();
-
-  const routeConfig = getCurrentRouteConfig();
-
-  // For waypoint pacing comparisons ("ahead/behind expected"), we anchor to the moment you
-  // physically leave the Post Office (waypoint #0) when available. This matches carrier reality.
-  const departureTimeStr = (() => {
-    try {
-      const wp0 = (waypoints || []).find((w) => Number(w.sequence_number) === 0 && w.delivery_time);
-      if (wp0?.delivery_time) {
-        const dt = new Date(wp0.delivery_time);
-        if (!isNaN(dt.getTime())) return hhmmFromDate(dt);
-      }
-    } catch {}
-    return todayInputs.leaveOfficeTime || routeConfig?.startTime || '07:30';
-  })();
 
   useEffect(() => {
     async function loadPredictions() {
