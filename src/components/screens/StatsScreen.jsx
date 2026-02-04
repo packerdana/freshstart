@@ -22,7 +22,7 @@ function formatDurationMinutes(totalMinutes) {
 }
 
 export default function StatsScreen() {
-  const { history, averages, currentRoute, todayInputs, loading, activeRoute, getCurrentRouteConfig, currentRouteId, waypoints, routes } = useRouteStore();
+  const { history, averages, currentRoute, todayInputs, loading, activeRoute, getCurrentRouteConfig, currentRouteId, waypoints, routes, loadRouteHistory } = useRouteStore();
   const [currentTime, setCurrentTime] = useState(new Date());
   const [todayPrediction, setTodayPrediction] = useState(null);
   // PM Office stats removed
@@ -37,6 +37,16 @@ export default function StatsScreen() {
   useEffect(() => {
     loadProtectionData();
   }, [activeRoute?.id]);
+
+  // Ensure history is loaded when visiting Stats (mobile users often jump here first)
+  useEffect(() => {
+    if (!currentRouteId) return;
+    if (loading) return;
+    if (history && history.length > 0) return;
+    if (typeof loadRouteHistory !== 'function') return;
+
+    loadRouteHistory(currentRouteId);
+  }, [currentRouteId, loading, history?.length, loadRouteHistory]);
 
   useEffect(() => {
     async function loadPrediction() {
