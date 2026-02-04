@@ -85,6 +85,7 @@ serve(async (req) => {
   try {
     const wantsStatus = path.endsWith('/admin-helper/status') || action === 'status'
     const wantsConfirm = path.endsWith('/admin-helper/confirm-email') || action === 'confirm-email' || action === 'confirm'
+    const wantsRouteHistory = path.endsWith('/admin-helper/route-history') || action === 'route-history'
 
     if (wantsStatus) {
       const user = await findUser()
@@ -115,7 +116,82 @@ serve(async (req) => {
       })
     }
 
-    return json(404, { ok: false, error: 'Unknown endpoint. Use /status, /confirm-email, or include { action }.' })
+    if (wantsRouteHistory) {
+      const user = await findUser()
+      if (!user) return json(404, { ok: false, error: 'User not found' })
+
+      const routeNumber = String(payload?.routeNumber || payload?.route_number || '').trim()
+      const days = Math.max(1, Math.min(365, Number(payload?.days || 60)))
+
+      if (!routeNumber) {
+        return json(400, { ok: false, error: 'Body must include { routeNumber }' })
+      }
+
+      // Find the route for this user
+      const { data: route, error: routeErr } = await admin
+        .from('routes')
+        .select('id, route_number, start_time, tour_length')
+        .eq('user_id', user.id)
+        .eq('route_number', routeNumber)
+        .maybeSingle()
+
+      if (routeErr) throw routeErr
+      if (!route) return json(404, { ok: false, error: 'Route not found for user' })
+
+      // Pull history
+      const { data: rows, error: histErr } = await admin
+        .from('route_history')
+        .select('date, street_time, street_time_normalized, pm_office_time, office_time, overtime')
+        .eq('route_id', route.id)
+        .order('date', { ascending: false })
+        .limit(days)
+
+      if (histErr) throw histErr
+
+      const history = (rows || []).map((r: any) => ({
+        date: r.date,
+        street_time: r.street_time,
+        street_time_normalized: r.street_time_normalized,
+        pm_office_time: r.pm_office_time,
+        office_time: r.office_time,
+        overtime: r.overtime,
+      }))
+
+      // Flag suspicious street times
+      const suspicious = history
+        .map((r: any) => {
+          const st = Number(r.street_time_normalized ?? r.street_time ?? 0) || 0
+          const pm = Number(r.pm_office_time ?? 0) || 0
+          const ot = Number(r.overtime ?? 0) || 0
+
+          const flags: string[] = []
+          if (st > 0 && st < 120) flags.push('street_time_low')
+          if (st > 600) flags.push('street_time_high')
+          if (pm > 60) flags.push('pm_office_high')
+          if (ot < -120) flags.push('undertime_large')
+          if (ot > 180) flags.push('overtime_large')
+
+          return flags.length ? { ...r, st, pm, ot, flags } : null
+        })
+        .filter(Boolean)
+
+      return json(200, {
+        ok: true,
+        email,
+        userId: user.id,
+        route: {
+          id: route.id,
+          route_number: route.route_number,
+          start_time: route.start_time,
+          tour_length: route.tour_length,
+        },
+        daysRequested: days,
+        history,
+        suspicious,
+      })
+    }
+
+    return json(404, { ok: false, error: 'Unknown endpoint. Use /status, /confirm-email, /route-history, or include { action }.' })
   } catch (e) {
     return json(500, { ok: false, error: String(e?.message || e) })
   }
