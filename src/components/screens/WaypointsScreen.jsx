@@ -332,15 +332,37 @@ export default function WaypointsScreen() {
 
   const applyForgotExpected = async () => {
     if (!forgotWaypoint) return;
-    const predictedTime = forgotPrediction?.predictedTime;
-    if (!predictedTime) {
+    const basePred = forgotPrediction?.predictedTime;
+    if (!basePred) {
       alert('No expected time available for this waypoint yet.');
       return;
     }
 
+    // Use the same "live" expected time shown in the UI (includes scheduleOffset when applicable)
+    // so tapping Forgot? doesn't create a weird jump.
+    let expectedTime = new Date(basePred);
+    try {
+      const seqNum = Number(forgotWaypoint.sequence_number || 0);
+      const shouldOffset = (scheduleOffset?.fromSeq != null && seqNum > scheduleOffset.fromSeq);
+      if (shouldOffset) {
+        expectedTime = new Date(expectedTime.getTime() + Number(scheduleOffset.minutes || 0) * 60000);
+      }
+    } catch {}
+
+    // Guard: if expected time is in the future, confirm. This prevents accidental huge jumps.
+    const now = new Date();
+    if (expectedTime.getTime() - now.getTime() > 5 * 60 * 1000) {
+      const ok = confirm(
+        `That expected time is in the future (${format(expectedTime, 'h:mm a')}).\n\nOK = use it anyway\nCancel = I'll mark it at the current time.`
+      );
+      if (!ok) {
+        expectedTime = now;
+      }
+    }
+
     try {
       setForgotBusy(true);
-      await markWaypointCompleted(forgotWaypoint.id, predictedTime);
+      await markWaypointCompleted(forgotWaypoint.id, expectedTime.toISOString());
       const tag = 'Estimated (Forgot: expected)';
       const newNotes = forgotWaypoint.notes ? `${forgotWaypoint.notes} • ${tag}` : tag;
       await updateWaypoint(forgotWaypoint.id, { notes: newNotes });
