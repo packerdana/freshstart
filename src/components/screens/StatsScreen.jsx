@@ -173,7 +173,23 @@ export default function StatsScreen() {
     );
     const avgStreetTime = history.reduce((sum, day) => sum + (day.streetTime || day.street_time || 0), 0) / totalDays;
 
-    const totalOvertime = history.reduce((sum, day) => sum + (day.overtime || 0), 0);
+    // Overtime: anything past tour length (default 8.5h) counts as OT.
+    // We compute this from 722 (office) + 721 (street) + 744 (pm office) to avoid relying on saved overtime fields.
+    const route = routes?.find((r) => r.id === currentRouteId);
+    const tourMinutes = Math.round(Number(route?.tourLength ?? route?.tour_length ?? 8.5) * 60);
+
+    const getMinutes = (day) => {
+      const am722 = Number(day.officeTime ?? day.office_time ?? 0) || 0;
+      const pm744 = Number(day.pmOfficeTime ?? day.pm_office_time ?? 0) || 0;
+      const street721 = Number(day.streetTimeNormalized ?? day.street_time_normalized ?? day.streetTime ?? day.street_time ?? 0) || 0;
+      return am722 + pm744 + street721;
+    };
+
+    const totalOvertime = history.reduce((sum, day) => {
+      const ot = Math.max(0, getMinutes(day) - tourMinutes);
+      return sum + ot;
+    }, 0);
+
     const avgOvertime = totalOvertime / totalDays;
 
     const bestDay = history.reduce((best, day) => {
