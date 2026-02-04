@@ -152,11 +152,12 @@ export default function StatsScreen() {
   }, [todayPrediction, currentTime, todayInputs, currentRouteId, routes]);
 
   const stats = useMemo(() => {
-    if (!history || history.length === 0) {
-      return null;
-    }
+    try {
+      if (!history || history.length === 0) {
+        return null;
+      }
 
-    const totalDays = history.length;
+      const totalDays = history.length;
     const last30Days = history.filter(day => {
       const dayDate = new Date(day.date);
       const now = new Date();
@@ -221,7 +222,11 @@ export default function StatsScreen() {
       bestDay,
       avgLast7Street,
     };
-  }, [history]);
+    } catch (e) {
+      console.error('[StatsScreen] stats calc failed:', e);
+      return null;
+    }
+  }, [history, routes, currentRouteId, activeRoute?.id, currentRoute?.id]);
 
   const performanceMetrics = useMemo(() => {
     if (!stats || !history || history.length < 5) return null;
