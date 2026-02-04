@@ -22,7 +22,7 @@ function formatDurationMinutes(totalMinutes) {
 }
 
 export default function StatsScreen() {
-  const { history, averages, currentRoute, todayInputs, loading, activeRoute, getCurrentRouteConfig, currentRouteId, waypoints, routes, loadRouteHistory } = useRouteStore();
+  const { history, averages, currentRoute, todayInputs, loading, error, activeRoute, getCurrentRouteConfig, currentRouteId, waypoints, routes, loadRouteHistory } = useRouteStore();
   const [currentTime, setCurrentTime] = useState(new Date());
   const [todayPrediction, setTodayPrediction] = useState(null);
   // PM Office stats removed
@@ -440,18 +440,29 @@ export default function StatsScreen() {
           <p className="text-sm text-gray-500">{format(currentTime, 'h:mm:ss a')}</p>
         </div>
 
-        <Card className="bg-gradient-to-br from-blue-50 to-sky-50 border-2 border-blue-200">
-          <div className="text-center py-8">
-            <Package className="w-16 h-16 text-blue-500 mx-auto mb-4" />
-            <h3 className="text-lg font-bold text-gray-900 mb-2">No Data Yet</h3>
-            <p className="text-gray-700 mb-4">
-              Complete your first route to start seeing statistics and insights.
-            </p>
-            <p className="text-sm text-gray-600">
-              Your route averages and predictions will improve with each completed day.
-            </p>
-          </div>
-        </Card>
+        {error ? (
+          <Card className="bg-red-50 border-2 border-red-300">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="w-6 h-6 text-red-700 mt-0.5" />
+              <div className="flex-1">
+                <h3 className="text-lg font-bold text-red-900">Stats couldn’t load</h3>
+                <p className="text-sm text-red-800 mt-1 break-words">{String(error)}</p>
+                <Button className="mt-4" onClick={() => currentRouteId && loadRouteHistory?.(currentRouteId)}>
+                  Retry
+                </Button>
+              </div>
+            </div>
+          </Card>
+        ) : (
+          <Card className="bg-gradient-to-br from-blue-50 to-sky-50 border-2 border-blue-200">
+            <div className="text-center py-8">
+              <Package className="w-16 h-16 text-blue-500 mx-auto mb-4" />
+              <h3 className="text-lg font-bold text-gray-900 mb-2">No Data Yet</h3>
+              <p className="text-gray-700 mb-4">Complete your first route to start seeing statistics and insights.</p>
+              <p className="text-sm text-gray-600">Your route averages and predictions will improve with each completed day.</p>
+            </div>
+          </Card>
+        )}
       </div>
     );
   }
