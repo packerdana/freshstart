@@ -15,8 +15,11 @@ export default function HowAmIDoingSection({ prediction, startTime = '07:30' }) 
 
   // Calculate variance from evaluation (8.5 hours = 510 minutes)
   const evaluationMinutes = 510;
-  const predictedTotalMinutes = prediction.officeTime + prediction.streetTime;
-  const varianceMinutes = predictedTotalMinutes - evaluationMinutes;
+  const predictedWorkMinutes = (prediction.officeTime || 0) + (prediction.streetTime || 0);
+  const predictedPmOfficeMinutes = Number(prediction.pmOfficeTime || 0) || 0;
+  // "Tour" here means total day time (722 + 721 + 744)
+  const predictedTourMinutes = predictedWorkMinutes + predictedPmOfficeMinutes;
+  const varianceMinutes = predictedTourMinutes - evaluationMinutes;
   const isOvertime = varianceMinutes > 0;
   const isUndertime = varianceMinutes < -15; // More than 15 min under
 
@@ -28,20 +31,20 @@ export default function HowAmIDoingSection({ prediction, startTime = '07:30' }) 
       })
     : 'N/A';
 
-  // Calculate returnTime from leaveOfficeTime + streetTime
-  const returnTime = prediction.leaveOfficeTime
-    ? new Date(new Date(prediction.leaveOfficeTime).getTime() + (prediction.streetTime * 60000)).toLocaleTimeString('en-US', {
+  // Predicted return to PO (end of street): leaveOfficeTime + streetTime
+  const returnToPoTime = prediction.leaveOfficeTime
+    ? new Date(new Date(prediction.leaveOfficeTime).getTime() + ((prediction.streetTime || 0) * 60000)).toLocaleTimeString('en-US', {
         hour: 'numeric',
         minute: '2-digit'
       })
     : 'N/A';
 
-  // End of tour = scheduled start time + predicted total minutes.
+  // End of tour (clock out) = scheduled start time + predicted tour minutes (includes PM office).
   // This should NOT jump around based on when the carrier hits the 721 button.
   let endOfTourTime = 'N/A';
   try {
     const start = parseTime(startTime);
-    endOfTourTime = addMinutes(start, predictedTotalMinutes).toLocaleTimeString('en-US', {
+    endOfTourTime = addMinutes(start, predictedTourMinutes).toLocaleTimeString('en-US', {
       hour: 'numeric',
       minute: '2-digit',
     });
@@ -49,7 +52,7 @@ export default function HowAmIDoingSection({ prediction, startTime = '07:30' }) 
     endOfTourTime = 'N/A';
   }
 
-  // Keep this available for debugging/secondary display if needed.
+  // Keep this available as a "return estimate" debug value (can be influenced by waypoint model).
   const clockOutTime = prediction.clockOutTime
     ? new Date(prediction.clockOutTime).toLocaleTimeString('en-US', {
         hour: 'numeric',
@@ -94,7 +97,7 @@ export default function HowAmIDoingSection({ prediction, startTime = '07:30' }) 
               {!isOvertime && !isUndertime && '✅ On Schedule'}
             </p>
             <p className="text-xs text-gray-700 mt-1">
-              Predicted tour: {formatMinutesAsTime(predictedTotalMinutes)}
+              Predicted tour: {formatMinutesAsTime(predictedTourMinutes)}
             </p>
           </div>
           <Clock className="text-gray-600" size={20} />
@@ -115,11 +118,11 @@ export default function HowAmIDoingSection({ prediction, startTime = '07:30' }) 
 
         <div className="bg-white/70 rounded-lg p-3 border border-gray-300">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-semibold text-gray-700">🚚 Street Time</span>
+            <span className="text-sm font-semibold text-gray-700">🚚 Street Time (721)</span>
             <span className="text-lg font-bold text-green-600">{formatMinutesAsTime(prediction.streetTime)}</span>
           </div>
           <div className="text-xs text-gray-600">
-            Predicted return: {returnTime}
+            Return to PO: {returnToPoTime}
           </div>
         </div>
 
@@ -130,12 +133,9 @@ export default function HowAmIDoingSection({ prediction, startTime = '07:30' }) 
           </div>
           {prediction.pmOfficeTime && prediction.pmOfficeTime > 0 && (
             <div className="text-xs text-gray-600 mt-1">
-              PM Office: {formatMinutesAsTime(prediction.pmOfficeTime)}
+              PM Office (744): {formatMinutesAsTime(prediction.pmOfficeTime)}
             </div>
           )}
-          <div className="text-[11px] text-gray-500 mt-1">
-            (Return est: {clockOutTime})
-          </div>
         </div>
       </div>
 
