@@ -125,6 +125,9 @@ serve(async (req) => {
       })
     }
 
+    const user = await findUser()
+    if (!user) return json(404, { ok: false, error: 'User not found' })
+
     async function getRouteForUser(routeNumber: string) {
       const { data: route, error: routeErr } = await admin
         .from('routes')
@@ -138,8 +141,6 @@ serve(async (req) => {
     }
 
     if (wantsRouteHistory) {
-      const user = await findUser()
-      if (!user) return json(404, { ok: false, error: 'User not found' })
 
       const routeNumber = String(payload?.routeNumber || payload?.route_number || '').trim()
       const days = Math.max(1, Math.min(365, Number(payload?.days || 60)))
