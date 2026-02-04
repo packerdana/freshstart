@@ -1,8 +1,8 @@
 import { Clock, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import Card from './Card';
-import { formatMinutesAsTime } from '../../utils/time';
+import { formatMinutesAsTime, parseTime, addMinutes } from '../../utils/time';
 
-export default function HowAmIDoingSection({ prediction }) {
+export default function HowAmIDoingSection({ prediction, startTime = '07:30' }) {
   if (!prediction) {
     return null;
   }
@@ -36,6 +36,20 @@ export default function HowAmIDoingSection({ prediction }) {
       })
     : 'N/A';
 
+  // End of tour = scheduled start time + predicted total minutes.
+  // This should NOT jump around based on when the carrier hits the 721 button.
+  let endOfTourTime = 'N/A';
+  try {
+    const start = parseTime(startTime);
+    endOfTourTime = addMinutes(start, predictedTotalMinutes).toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+    });
+  } catch {
+    endOfTourTime = 'N/A';
+  }
+
+  // Keep this available for debugging/secondary display if needed.
   const clockOutTime = prediction.clockOutTime
     ? new Date(prediction.clockOutTime).toLocaleTimeString('en-US', {
         hour: 'numeric',
@@ -111,14 +125,17 @@ export default function HowAmIDoingSection({ prediction }) {
 
         <div className="bg-white/70 rounded-lg p-3 border border-gray-300">
           <div className="flex items-center justify-between">
-            <span className="text-sm font-semibold text-gray-700">🕐 Clock Out</span>
-            <span className="text-lg font-bold text-purple-600">{clockOutTime}</span>
+            <span className="text-sm font-semibold text-gray-700">🕐 End of Tour</span>
+            <span className="text-lg font-bold text-purple-600">{endOfTourTime}</span>
           </div>
           {prediction.pmOfficeTime && prediction.pmOfficeTime > 0 && (
             <div className="text-xs text-gray-600 mt-1">
               PM Office: {formatMinutesAsTime(prediction.pmOfficeTime)}
             </div>
           )}
+          <div className="text-[11px] text-gray-500 mt-1">
+            (Return est: {clockOutTime})
+          </div>
         </div>
       </div>
 

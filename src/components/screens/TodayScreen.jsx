@@ -1208,7 +1208,7 @@ export default function TodayScreen() {
       {prediction && (
         <>
           <OfficeTimeBreakdown prediction={prediction} />
-          <HowAmIDoingSection prediction={prediction} />
+          <HowAmIDoingSection prediction={prediction} startTime={todayInputs.startTimeOverride || currentRoute?.startTime || '07:30'} />
         </>
       )}
 
