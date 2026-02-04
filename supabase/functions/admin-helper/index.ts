@@ -70,15 +70,29 @@ serve(async (req) => {
     const email = String(payload?.email || '').trim().toLowerCase()
     const action = String(payload?.action || '').trim().toLowerCase() // optional
 
-    if (!email || !email.includes('@')) {
-      return json(400, { ok: false, error: 'Body must include a valid { email }' })
-    }
-
     let admin
     try {
       admin = getAdminClient()
     } catch (e) {
       return json(500, { ok: false, error: `Server misconfigured: ${String(e?.message || e)}` })
+    }
+
+    // Routing that doesn't require { email }
+    const wantsUnverifiedEarly = path.endsWith('/admin-helper/unverified-users') || action === 'unverified-users'
+    if (wantsUnverifiedEarly) {
+      const { data, error } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 })
+      if (error) throw error
+
+      const unverified = (data.users || [])
+        .filter((u) => !u.email_confirmed_at)
+        .map((u) => ({ id: u.id, email: u.email, createdAt: u.created_at }))
+        .filter((u) => !!u.email)
+
+      return json(200, { ok: true, unverifiedCount: unverified.length, users: unverified })
+    }
+
+    if (!email || !email.includes('@')) {
+      return json(400, { ok: false, error: 'Body must include a valid { email }' })
     }
 
   // Helper: find user by email
