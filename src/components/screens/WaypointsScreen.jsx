@@ -27,6 +27,15 @@ export default function WaypointsScreen() {
   const [editingWaypoint, setEditingWaypoint] = useState(null);
   const [viewMode, setViewMode] = useState('today');
   const [selectedDate, setSelectedDate] = useState(getLocalDateString());
+
+  // Keep "Today" mode pinned to today’s date so it never shows "Viewing: yesterday".
+  useEffect(() => {
+    if (viewMode !== 'today') return;
+    const today = getLocalDateString();
+    if (selectedDate !== today) {
+      setSelectedDate(today);
+    }
+  }, [viewMode, selectedDate]);
   const [historicalWaypoints, setHistoricalWaypoints] = useState([]);
   const [historicalLoading, setHistoricalLoading] = useState(false);
   const [dataVerification, setDataVerification] = useState(null);
