@@ -35,12 +35,24 @@ function isWithinLast30Days(date) {
   return daysDiff <= 30;
 }
 
+const MIN_VALID_STREET_MINUTES = 120; // ignore obvious bad data like 5 minutes
+const MAX_VALID_STREET_MINUTES = 16 * 60; // safety cap
+
+function filterValidHistory(history) {
+  return (history || []).filter((day) => {
+    const st = getStreetTime(day);
+    return st >= MIN_VALID_STREET_MINUTES && st <= MAX_VALID_STREET_MINUTES;
+  });
+}
+
 export function calculateSimplePrediction(history) {
   if (!history || history.length === 0) {
     return null;
   }
 
-  const recentDays = history.slice(-15);
+  const valid = filterValidHistory(history);
+  const base = valid.length >= 3 ? valid : history;
+  const recentDays = base.slice(-15);
   const avgStreetTime = recentDays.reduce((sum, day) => {
     const streetTime = getStreetTime(day);
     return sum + streetTime;
@@ -104,11 +116,14 @@ function calculateVolumeWeightedPrediction(days, todayMail, dayType, routeConfig
 export function calculateSmartPrediction(todayMail, history, routeConfig) {
   const todayDayType = detectDayType();
 
-  if (!history || history.length < 3) {
-    return calculateSimplePrediction(history);
+  const validHistory = filterValidHistory(history);
+  const historyToUse = validHistory.length >= 3 ? validHistory : history;
+
+  if (!historyToUse || historyToUse.length < 3) {
+    return calculateSimplePrediction(historyToUse);
   }
 
-  const similarDayTypes = history
+  const similarDayTypes = historyToUse
     .filter(day => {
       const dayType = day.dayType || detectDayType(new Date(day.date));
       return dayType === todayDayType;

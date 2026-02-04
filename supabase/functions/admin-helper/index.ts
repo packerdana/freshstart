@@ -94,6 +94,7 @@ serve(async (req) => {
     const wantsStatus = path.endsWith('/admin-helper/status') || action === 'status'
     const wantsConfirm = path.endsWith('/admin-helper/confirm-email') || action === 'confirm-email' || action === 'confirm'
     const wantsRouteHistory = path.endsWith('/admin-helper/route-history') || action === 'route-history'
+    const wantsRouteHistoryDelete = path.endsWith('/admin-helper/route-history-delete') || action === 'route-history-delete'
 
     if (wantsStatus) {
       const user = await findUser()
@@ -124,6 +125,18 @@ serve(async (req) => {
       })
     }
 
+    async function getRouteForUser(routeNumber: string) {
+      const { data: route, error: routeErr } = await admin
+        .from('routes')
+        .select('id, route_number, start_time, tour_length')
+        .eq('user_id', user.id)
+        .eq('route_number', routeNumber)
+        .maybeSingle()
+
+      if (routeErr) throw routeErr
+      return route
+    }
+
     if (wantsRouteHistory) {
       const user = await findUser()
       if (!user) return json(404, { ok: false, error: 'User not found' })
@@ -135,15 +148,7 @@ serve(async (req) => {
         return json(400, { ok: false, error: 'Body must include { routeNumber }' })
       }
 
-      // Find the route for this user
-      const { data: route, error: routeErr } = await admin
-        .from('routes')
-        .select('id, route_number, start_time, tour_length')
-        .eq('user_id', user.id)
-        .eq('route_number', routeNumber)
-        .maybeSingle()
-
-      if (routeErr) throw routeErr
+      const route = await getRouteForUser(routeNumber)
       if (!route) return json(404, { ok: false, error: 'Route not found for user' })
 
       // Pull history
@@ -196,6 +201,38 @@ serve(async (req) => {
         daysRequested: days,
         history,
         suspicious,
+      })
+    }
+
+    if (wantsRouteHistoryDelete) {
+      const user = await findUser()
+      if (!user) return json(404, { ok: false, error: 'User not found' })
+
+      const routeNumber = String(payload?.routeNumber || payload?.route_number || '').trim()
+      const date = String(payload?.date || '').trim()
+
+      if (!routeNumber || !date) {
+        return json(400, { ok: false, error: 'Body must include { routeNumber, date }' })
+      }
+
+      const route = await getRouteForUser(routeNumber)
+      if (!route) return json(404, { ok: false, error: 'Route not found for user' })
+
+      const { error: delErr } = await admin
+        .from('route_history')
+        .delete()
+        .eq('route_id', route.id)
+        .eq('date', date)
+
+      if (delErr) throw delErr
+
+      return json(200, {
+        ok: true,
+        email,
+        userId: user.id,
+        routeId: route.id,
+        routeNumber: route.route_number,
+        deletedDate: date,
       })
     }
 
