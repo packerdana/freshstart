@@ -157,8 +157,12 @@ export default function StatsScreen() {
         return null;
       }
 
-      const totalDays = history.length;
-    const last30Days = history.filter(day => {
+      const safeHistory = (history || []).filter(Boolean);
+      const totalDays = safeHistory.length;
+
+      if (totalDays === 0) return null;
+
+      const last30Days = safeHistory.filter(day => {
       const dayDate = new Date(day.date);
       const now = new Date();
       const diffDays = (now - dayDate) / (1000 * 60 * 60 * 24);
@@ -166,13 +170,13 @@ export default function StatsScreen() {
     });
 
     const avgDPS = Math.round(
-      history.reduce((sum, day) => sum + (day.dps || 0), 0) / totalDays
+      safeHistory.reduce((sum, day) => sum + (day.dps || 0), 0) / totalDays
     );
-    const avgFlats = history.reduce((sum, day) => sum + (day.flats || 0), 0) / totalDays;
+    const avgFlats = safeHistory.reduce((sum, day) => sum + (day.flats || 0), 0) / totalDays;
     const avgParcels = Math.round(
-      history.reduce((sum, day) => sum + (day.parcels || 0), 0) / totalDays
+      safeHistory.reduce((sum, day) => sum + (day.parcels || 0), 0) / totalDays
     );
-    const avgStreetTime = history.reduce((sum, day) => sum + (day.streetTime || day.street_time || 0), 0) / totalDays;
+    const avgStreetTime = safeHistory.reduce((sum, day) => sum + (day.streetTime || day.street_time || 0), 0) / totalDays;
 
     // Overtime: anything past tour length (default 8.5h) counts as OT.
     // We compute this from 722 (office) + 721 (street) + 744 (pm office) to avoid relying on saved overtime fields.
@@ -180,26 +184,27 @@ export default function StatsScreen() {
     const tourMinutes = Math.round(Number(route?.tourLength ?? route?.tour_length ?? 8.5) * 60);
 
     const getMinutes = (day) => {
+      if (!day) return 0;
       const am722 = Number(day.officeTime ?? day.office_time ?? 0) || 0;
       const pm744 = Number(day.pmOfficeTime ?? day.pm_office_time ?? 0) || 0;
       const street721 = Number(day.streetTimeNormalized ?? day.street_time_normalized ?? day.streetTime ?? day.street_time ?? 0) || 0;
       return am722 + pm744 + street721;
     };
 
-    const totalOvertime = history.reduce((sum, day) => {
+    const totalOvertime = safeHistory.reduce((sum, day) => {
       const ot = Math.max(0, getMinutes(day) - tourMinutes);
       return sum + ot;
     }, 0);
 
     const avgOvertime = totalOvertime / totalDays;
 
-    const bestDay = history.reduce((best, day) => {
+    const bestDay = safeHistory.reduce((best, day) => {
       const streetTime = day.streetTime || day.street_time || 999999;
       const bestTime = best.streetTime || best.street_time || 999999;
       return streetTime < bestTime ? day : best;
-    }, history[0]);
+    }, safeHistory[0]);
 
-    const last7Days = history.filter(day => {
+    const last7Days = safeHistory.filter(day => {
       const dayDate = new Date(day.date);
       const now = new Date();
       const diffDays = (now - dayDate) / (1000 * 60 * 60 * 24);
