@@ -95,6 +95,7 @@ serve(async (req) => {
     const wantsConfirm = path.endsWith('/admin-helper/confirm-email') || action === 'confirm-email' || action === 'confirm'
     const wantsRouteHistory = path.endsWith('/admin-helper/route-history') || action === 'route-history'
     const wantsRouteHistoryDelete = path.endsWith('/admin-helper/route-history-delete') || action === 'route-history-delete'
+    const wantsWaypointsCount = path.endsWith('/admin-helper/waypoints-count') || action === 'waypoints-count'
 
     if (wantsStatus) {
       const user = await findUser()
@@ -206,9 +207,6 @@ serve(async (req) => {
     }
 
     if (wantsRouteHistoryDelete) {
-      const user = await findUser()
-      if (!user) return json(404, { ok: false, error: 'User not found' })
-
       const routeNumber = String(payload?.routeNumber || payload?.route_number || '').trim()
       const date = String(payload?.date || '').trim()
 
@@ -234,6 +232,38 @@ serve(async (req) => {
         routeId: route.id,
         routeNumber: route.route_number,
         deletedDate: date,
+      })
+    }
+
+    if (wantsWaypointsCount) {
+      const routeNumber = String(payload?.routeNumber || payload?.route_number || '').trim()
+      const date = payload?.date != null ? String(payload.date).trim() : null
+
+      if (!routeNumber) {
+        return json(400, { ok: false, error: 'Body must include { routeNumber }' })
+      }
+
+      const route = await getRouteForUser(routeNumber)
+      if (!route) return json(404, { ok: false, error: 'Route not found for user' })
+
+      let query = admin
+        .from('waypoints')
+        .select('id', { count: 'exact', head: true })
+        .eq('route_id', route.id)
+
+      if (date) query = query.eq('date', date)
+
+      const { count, error: countErr } = await query
+      if (countErr) throw countErr
+
+      return json(200, {
+        ok: true,
+        email,
+        userId: user.id,
+        routeId: route.id,
+        routeNumber: route.route_number,
+        date: date || null,
+        waypointCount: count || 0,
       })
     }
 
