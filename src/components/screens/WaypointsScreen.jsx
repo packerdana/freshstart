@@ -35,6 +35,13 @@ export default function WaypointsScreen() {
   const [paceBaseline, setPaceBaseline] = useState(null);
   const [paceComparison, setPaceComparison] = useState(null);
 
+  // Forgot waypoint UI (Spec v1)
+  const [showForgotModal, setShowForgotModal] = useState(false);
+  const [forgotWaypoint, setForgotWaypoint] = useState(null);
+  const [forgotPrediction, setForgotPrediction] = useState(null);
+  const [forgotManualTime, setForgotManualTime] = useState('');
+  const [forgotBusy, setForgotBusy] = useState(false);
+
   const breakEvents = useBreakStore((state) => state.breakEvents || []);
   const waypointPausedSeconds = useBreakStore((state) => state.waypointPausedSeconds || 0);
 
@@ -305,51 +312,59 @@ export default function WaypointsScreen() {
     return d.toISOString();
   };
 
-  const handleForgotWaypoint = async (waypoint, prediction) => {
+  const handleForgotWaypoint = (waypoint, prediction) => {
     if (!waypoint || waypoint.status !== 'pending') return;
+    setForgotWaypoint(waypoint);
+    setForgotPrediction(prediction || null);
+    setForgotManualTime('');
+    setShowForgotModal(true);
+  };
 
-    const hasExpected = !!prediction?.predictedTime;
-    const choice = window.prompt(
-      'Forgot this waypoint?\n\nType:\n1 = Use expected time\n2 = Enter time manually\n\n(Press Cancel to do nothing)',
-      '1'
-    );
-
-    if (!choice) return;
+  const applyForgotExpected = async () => {
+    if (!forgotWaypoint) return;
+    const predictedTime = forgotPrediction?.predictedTime;
+    if (!predictedTime) {
+      alert('No expected time available for this waypoint yet.');
+      return;
+    }
 
     try {
-      if (choice.trim() === '1') {
-        if (!hasExpected) {
-          alert('No expected time available for this waypoint yet.');
-          return;
-        }
-        await markWaypointCompleted(waypoint.id, prediction.predictedTime);
-        const tag = 'Estimated (Forgot: expected)';
-        const newNotes = waypoint.notes ? `${waypoint.notes} • ${tag}` : tag;
-        await updateWaypoint(waypoint.id, { notes: newNotes });
-        await loadWaypoints();
-        return;
-      }
-
-      if (choice.trim() === '2') {
-        const t = window.prompt('Enter the time you should have hit it (examples: 9:07 AM or 09:07):');
-        if (!t) return;
-        const iso = parseManualTimeToISO(t, new Date());
-        if (!iso) {
-          alert('Could not understand that time. Try like 9:07 AM or 09:07.');
-          return;
-        }
-        await markWaypointCompleted(waypoint.id, iso);
-        const tag = 'Estimated (Forgot: manual)';
-        const newNotes = waypoint.notes ? `${waypoint.notes} • ${tag}` : tag;
-        await updateWaypoint(waypoint.id, { notes: newNotes });
-        await loadWaypoints();
-        return;
-      }
-
-      // Any other input: ignore
+      setForgotBusy(true);
+      await markWaypointCompleted(forgotWaypoint.id, predictedTime);
+      const tag = 'Estimated (Forgot: expected)';
+      const newNotes = forgotWaypoint.notes ? `${forgotWaypoint.notes} • ${tag}` : tag;
+      await updateWaypoint(forgotWaypoint.id, { notes: newNotes });
+      await loadWaypoints();
+      setShowForgotModal(false);
     } catch (error) {
-      console.error('Failed to apply forgot waypoint action:', error);
+      console.error('Failed to apply forgot expected:', error);
       alert('Could not update waypoint. Please try again.');
+    } finally {
+      setForgotBusy(false);
+    }
+  };
+
+  const applyForgotManual = async () => {
+    if (!forgotWaypoint) return;
+    const iso = parseManualTimeToISO(forgotManualTime, new Date());
+    if (!iso) {
+      alert('Could not understand that time. Try like 9:07 AM or 09:07.');
+      return;
+    }
+
+    try {
+      setForgotBusy(true);
+      await markWaypointCompleted(forgotWaypoint.id, iso);
+      const tag = 'Estimated (Forgot: manual)';
+      const newNotes = forgotWaypoint.notes ? `${forgotWaypoint.notes} • ${tag}` : tag;
+      await updateWaypoint(forgotWaypoint.id, { notes: newNotes });
+      await loadWaypoints();
+      setShowForgotModal(false);
+    } catch (error) {
+      console.error('Failed to apply forgot manual:', error);
+      alert('Could not update waypoint. Please try again.');
+    } finally {
+      setForgotBusy(false);
     }
   };
 
@@ -1040,6 +1055,76 @@ export default function WaypointsScreen() {
         }}
         routeId={currentRouteId}
       />
+
+      {showForgotModal && forgotWaypoint && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <Card className="w-full max-w-md">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-lg font-bold text-gray-900">Forgot waypoint?</h3>
+              <button
+                className="text-gray-500 hover:text-gray-700"
+                onClick={() => !forgotBusy && setShowForgotModal(false)}
+              >
+                ✕
+              </button>
+            </div>
+
+            <p className="text-sm text-gray-700 mb-3">
+              <span className="font-semibold">#{forgotWaypoint.sequence_number}</span> {forgotWaypoint.address}
+            </p>
+
+            <div className="space-y-3">
+              <div className="p-3 bg-gray-50 rounded-lg">
+                <p className="text-xs text-gray-600 mb-2">Option 1</p>
+                <Button
+                  onClick={applyForgotExpected}
+                  className="w-full"
+                  disabled={forgotBusy || !forgotPrediction?.predictedTime}
+                >
+                  Use expected time
+                </Button>
+                <p className="text-xs text-gray-500 mt-2">
+                  {forgotPrediction?.predictedTime
+                    ? `Expected: ${format(new Date(forgotPrediction.predictedTime), 'h:mm a')}`
+                    : 'Expected time not available yet.'}
+                </p>
+              </div>
+
+              <div className="p-3 bg-gray-50 rounded-lg">
+                <p className="text-xs text-gray-600 mb-2">Option 2</p>
+                <label className="text-sm font-medium text-gray-700">Enter time</label>
+                <input
+                  type="text"
+                  value={forgotManualTime}
+                  onChange={(e) => setForgotManualTime(e.target.value)}
+                  placeholder="9:07 AM or 09:07"
+                  className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  disabled={forgotBusy}
+                />
+                <div className="mt-2">
+                  <Button
+                    variant="secondary"
+                    onClick={applyForgotManual}
+                    className="w-full"
+                    disabled={forgotBusy}
+                  >
+                    Save manual time
+                  </Button>
+                </div>
+              </div>
+
+              <Button
+                variant="secondary"
+                onClick={() => setShowForgotModal(false)}
+                className="w-full"
+                disabled={forgotBusy}
+              >
+                Cancel
+              </Button>
+            </div>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }
