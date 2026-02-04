@@ -668,6 +668,28 @@ export default function TodayScreen() {
         console.warn('Could not add prediction data to history:', predError);
       }
 
+      // Data-quality sanity checks (prevents bad days from poisoning predictions)
+      const warnings = [];
+      const st = Number(historyData.streetTime || 0) || 0;
+      const am = Number(historyData.officeTime || 0) || 0;
+      const pm = Number(historyData.pmOfficeTime || 0) || 0;
+      const total = am + st + pm;
+
+      if (st > 0 && st < 120) warnings.push(`721 street time looks too low: ${st} min`);
+      if (st > 720) warnings.push(`721 street time looks very high: ${st} min`);
+      if (am > 240) warnings.push(`722 AM office time looks very high: ${am} min`);
+      if (pm > 120) warnings.push(`744 PM office time looks very high: ${pm} min`);
+      if (total > 14 * 60) warnings.push(`Total day time looks very high: ${total} min`);
+
+      if (warnings.length) {
+        const ok = confirm(
+          `⚠️ This day has unusual times.\n\n${warnings.map((w) => `• ${w}`).join('\n')}\n\nSaving this can mess up predictions.\n\nPress OK to Save anyway, or Cancel to go back and fix.`
+        );
+        if (!ok) {
+          return;
+        }
+      }
+
       console.log('Saving route history:', historyData);
       const savedHistory = await saveRouteHistory(currentRouteId, historyData);
       console.log('Route history saved:', savedHistory);
