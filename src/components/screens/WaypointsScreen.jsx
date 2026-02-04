@@ -135,8 +135,9 @@ export default function WaypointsScreen() {
 
       const deliveryMs = t.getTime();
       const rawActualMinutes = Math.round((deliveryMs - s.getTime()) / (1000 * 60));
-      const pausedMinutes = Math.round(pausedSecondsBefore(deliveryMs) / 60);
-      const actualMinutes = rawActualMinutes - pausedMinutes;
+      // IMPORTANT: For "predicted finish" drift, we want real clock drift.
+      // Pauses/breaks still make you later in real life, so do NOT subtract paused minutes here.
+      const actualMinutes = rawActualMinutes;
 
       const offsetMinutes = Math.round(actualMinutes - Number(pred.predictedMinutes || 0));
       return { minutes: offsetMinutes, fromSeq: Number(last.sequence_number || 0) };
