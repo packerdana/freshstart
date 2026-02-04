@@ -28,7 +28,9 @@ function json(status: number, body: unknown) {
 
 function requireToken(req: Request) {
   const expected = Deno.env.get('ADMIN_TOKEN')
-  if (!expected) throw new Error('Missing ADMIN_TOKEN secret')
+  if (!expected) {
+    return json(500, { ok: false, error: 'Server misconfigured: missing ADMIN_TOKEN secret' })
+  }
   const provided = req.headers.get('x-admin-token')
   if (!provided || provided !== expected) {
     return json(401, { ok: false, error: 'Unauthorized' })
@@ -39,39 +41,45 @@ function requireToken(req: Request) {
 function getAdminClient() {
   const url = Deno.env.get('SUPABASE_URL')
   const key = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
-  if (!url) throw new Error('Missing SUPABASE_URL secret')
-  if (!key) throw new Error('Missing SUPABASE_SERVICE_ROLE_KEY secret')
+  if (!url) throw new Error('missing SUPABASE_URL secret')
+  if (!key) throw new Error('missing SUPABASE_SERVICE_ROLE_KEY secret')
   return createClient(url, key, { auth: { persistSession: false } })
 }
 
 serve(async (req) => {
-  // Auth
-  const authFail = requireToken(req)
-  if (authFail) return authFail
-
-  // Routing
-  const url = new URL(req.url)
-  const path = url.pathname.replace(/\/+$/, '')
-
-  if (req.method !== 'POST') {
-    return json(405, { ok: false, error: 'Use POST' })
-  }
-
-  let payload: any = null
   try {
-    payload = await req.json()
-  } catch {
-    payload = {}
-  }
+    // Auth
+    const authFail = requireToken(req)
+    if (authFail) return authFail
 
-  const email = String(payload?.email || '').trim().toLowerCase()
-  const action = String(payload?.action || '').trim().toLowerCase() // optional
+    // Routing
+    const url = new URL(req.url)
+    const path = url.pathname.replace(/\/+$/, '')
 
-  if (!email || !email.includes('@')) {
-    return json(400, { ok: false, error: 'Body must include a valid { email }' })
-  }
+    if (req.method !== 'POST') {
+      return json(405, { ok: false, error: 'Use POST' })
+    }
 
-  const admin = getAdminClient()
+    let payload: any = null
+    try {
+      payload = await req.json()
+    } catch {
+      payload = {}
+    }
+
+    const email = String(payload?.email || '').trim().toLowerCase()
+    const action = String(payload?.action || '').trim().toLowerCase() // optional
+
+    if (!email || !email.includes('@')) {
+      return json(400, { ok: false, error: 'Body must include a valid { email }' })
+    }
+
+    let admin
+    try {
+      admin = getAdminClient()
+    } catch (e) {
+      return json(500, { ok: false, error: `Server misconfigured: ${String(e?.message || e)}` })
+    }
 
   // Helper: find user by email
   async function findUser() {
@@ -193,6 +201,10 @@ serve(async (req) => {
 
     return json(404, { ok: false, error: 'Unknown endpoint. Use /status, /confirm-email, /route-history, or include { action }.' })
   } catch (e) {
+    return json(500, { ok: false, error: String(e?.message || e) })
+  }
+  } catch (e) {
+    // Catch anything thrown before our inner try/catch (misconfigured secrets, etc.)
     return json(500, { ok: false, error: String(e?.message || e) })
   }
 })
