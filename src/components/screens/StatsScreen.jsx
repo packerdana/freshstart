@@ -1017,14 +1017,23 @@ export default function StatsScreen() {
             These days have unusual time values and can hurt prediction accuracy.
           </p>
           <div className="space-y-2">
-            {suspiciousDays.slice(0, 5).map((d) => (
-              <div key={d.date} className="bg-white/70 rounded-lg p-3 border border-amber-200">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="text-sm font-semibold text-gray-800">{format(parseLocalDate(d.date), 'EEE, MMM d')}</div>
-                  <div className="text-xs text-amber-800">{d.flags.join(' • ')}</div>
+            {suspiciousDays.slice(0, 5).map((d) => {
+              let label = String(d.date || '');
+              try {
+                if (d.date && /^\d{4}-\d{2}-\d{2}$/.test(String(d.date))) {
+                  label = format(parseLocalDate(d.date), 'EEE, MMM d');
+                }
+              } catch {}
+
+              return (
+                <div key={String(d.date || Math.random())} className="bg-white/70 rounded-lg p-3 border border-amber-200">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-sm font-semibold text-gray-800">{label}</div>
+                    <div className="text-xs text-amber-800">{d.flags.join(' • ')}</div>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
           <p className="text-[11px] text-amber-700 mt-3">
             Tip: If one of these was a bad/partial day, delete it so it doesn’t poison your averages.
