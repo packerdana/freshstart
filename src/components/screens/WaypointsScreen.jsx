@@ -280,6 +280,79 @@ export default function WaypointsScreen() {
     }
   };
 
+  const parseManualTimeToISO = (timeStr, baseDate = new Date()) => {
+    // Accept: "H:MM", "HH:MM", optional "AM/PM" (case-insensitive)
+    const raw = String(timeStr || '').trim();
+    const m = raw.match(/^(\d{1,2}):(\d{2})(?:\s*([aApP][mM]))?$/);
+    if (!m) return null;
+
+    let h = parseInt(m[1], 10);
+    const min = parseInt(m[2], 10);
+    const ampm = m[3] ? m[3].toUpperCase() : null;
+
+    if (min < 0 || min > 59) return null;
+
+    if (ampm) {
+      if (h < 1 || h > 12) return null;
+      if (ampm === 'PM' && h !== 12) h += 12;
+      if (ampm === 'AM' && h === 12) h = 0;
+    } else {
+      if (h < 0 || h > 23) return null;
+    }
+
+    const d = new Date(baseDate);
+    d.setHours(h, min, 0, 0);
+    return d.toISOString();
+  };
+
+  const handleForgotWaypoint = async (waypoint, prediction) => {
+    if (!waypoint || waypoint.status !== 'pending') return;
+
+    const hasExpected = !!prediction?.predictedTime;
+    const choice = window.prompt(
+      'Forgot this waypoint?\n\nType:\n1 = Use expected time\n2 = Enter time manually\n\n(Press Cancel to do nothing)',
+      '1'
+    );
+
+    if (!choice) return;
+
+    try {
+      if (choice.trim() === '1') {
+        if (!hasExpected) {
+          alert('No expected time available for this waypoint yet.');
+          return;
+        }
+        await markWaypointCompleted(waypoint.id, prediction.predictedTime);
+        const tag = 'Estimated (Forgot: expected)';
+        const newNotes = waypoint.notes ? `${waypoint.notes} • ${tag}` : tag;
+        await updateWaypoint(waypoint.id, { notes: newNotes });
+        await loadWaypoints();
+        return;
+      }
+
+      if (choice.trim() === '2') {
+        const t = window.prompt('Enter the time you should have hit it (examples: 9:07 AM or 09:07):');
+        if (!t) return;
+        const iso = parseManualTimeToISO(t, new Date());
+        if (!iso) {
+          alert('Could not understand that time. Try like 9:07 AM or 09:07.');
+          return;
+        }
+        await markWaypointCompleted(waypoint.id, iso);
+        const tag = 'Estimated (Forgot: manual)';
+        const newNotes = waypoint.notes ? `${waypoint.notes} • ${tag}` : tag;
+        await updateWaypoint(waypoint.id, { notes: newNotes });
+        await loadWaypoints();
+        return;
+      }
+
+      // Any other input: ignore
+    } catch (error) {
+      console.error('Failed to apply forgot waypoint action:', error);
+      alert('Could not update waypoint. Please try again.');
+    }
+  };
+
   const handleClearAll = async () => {
     if (confirm('Are you sure you want to delete all waypoints for today?')) {
       try {
@@ -931,6 +1004,14 @@ export default function WaypointsScreen() {
                             className="text-green-600 text-xs font-medium hover:text-green-700"
                           >
                             Complete
+                          </button>
+                        )}
+                        {waypoint.status !== 'completed' && (
+                          <button
+                            onClick={() => handleForgotWaypoint(waypoint, prediction)}
+                            className="text-purple-600 text-xs font-medium hover:text-purple-700"
+                          >
+                            Forgot?
                           </button>
                         )}
                         <button
