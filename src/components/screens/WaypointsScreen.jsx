@@ -873,47 +873,10 @@ export default function WaypointsScreen() {
                 });
               }
 
-              let variance = null;
-              // Don't show ahead/behind for the anchor waypoint itself.
-              if (Number(waypoint.sequence_number) !== 0 && hasActualTime && hasPrediction && prediction.predictedMinutes) {
-                const startTimeStr = departureTimeStr || routeConfig?.startTime || '07:30';
-                let startTime;
-                
-                const tempDate = new Date(startTimeStr);
-                if (!isNaN(tempDate.getTime())) {
-                  startTime = tempDate;
-                } else {
-                  const timeMatch = startTimeStr.match(/^(\d{1,2}):(\d{2})$/);
-                  if (timeMatch) {
-                    const today = new Date(waypoint.delivery_time);
-                    today.setHours(parseInt(timeMatch[1], 10), parseInt(timeMatch[2], 10), 0, 0);
-                    startTime = today;
-                  } else {
-                    startTime = null;
-                  }
-                }
-                
-                if (startTime) {
-                  const deliveryMs = new Date(waypoint.delivery_time).getTime();
-                  const rawActualMinutes = Math.round((deliveryMs - startTime) / (1000 * 60));
-
-                  // Adjust by pauses that happened before this delivery time.
-                  const pausedMinutes = Math.round(pausedSecondsBefore(deliveryMs) / 60);
-                  const actualMinutes = rawActualMinutes - pausedMinutes;
-
-                  // Compare to baseline pace (same day type) when available; otherwise fall back to prediction variance
-                  const baselineAvg = paceBaseline?.avgBySequence?.get(Number(waypoint.sequence_number));
-
-                  // Dynamic schedule: shift expected minutes for waypoints AFTER the last completed anchor.
-                  const effectivePredictedMinutes = (scheduleOffset?.fromSeq != null && Number(waypoint.sequence_number) > scheduleOffset.fromSeq)
-                    ? (Number(prediction.predictedMinutes || 0) + Number(scheduleOffset.minutes || 0))
-                    : Number(prediction.predictedMinutes || 0);
-
-                  variance = (baselineAvg !== undefined && baselineAvg !== null)
-                    ? (actualMinutes - baselineAvg)
-                    : (actualMinutes - effectivePredictedMinutes);
-                }
-              }
+              // Ahead/Behind predicted finish time (Spec v1): derive from schedule offset at the most
+              // recently completed waypoint.
+              const finishDriftMinutes = Number(scheduleOffset?.minutes || 0);
+              const showFinishDrift = Number(waypoint.sequence_number) !== 0 && (scheduleOffset?.fromSeq != null);
 
               return (
                 <Card key={waypoint.id}>
@@ -940,20 +903,22 @@ export default function WaypointsScreen() {
                                 try {
                                   const deliveryTime = new Date(waypoint.delivery_time);
                                   if (isNaN(deliveryTime.getTime())) return 'Not delivered';
-                                  return format(deliveryTime, 'h:mm a');
+                                  const label = format(deliveryTime, 'h:mm a');
+                                  const isEstimated = typeof waypoint.notes === 'string' && waypoint.notes.includes('Estimated (Forgot:');
+                                  return isEstimated ? `${label} (Estimated)` : label;
                                 } catch (e) {
                                   return 'Not delivered';
                                 }
                               })()}
                             </p>
 
-                            {variance !== null && (
+                            {showFinishDrift && (
                               <span className={`flex items-center gap-1 text-xs font-medium ${
-                                variance < -5 ? 'text-blue-600' : variance > 5 ? 'text-amber-600' : 'text-gray-600'
+                                finishDriftMinutes < -5 ? 'text-blue-600' : finishDriftMinutes > 5 ? 'text-amber-600' : 'text-gray-600'
                               }`}>
-                                {variance < -5 && <TrendingUp className="w-3 h-3" />}
-                                {variance > 5 && <TrendingDown className="w-3 h-3" />}
-                                {Math.abs(variance)}m {variance < 0 ? 'ahead of expected' : 'behind expected'}
+                                {finishDriftMinutes < -5 && <TrendingUp className="w-3 h-3" />}
+                                {finishDriftMinutes > 5 && <TrendingDown className="w-3 h-3" />}
+                                {Math.abs(finishDriftMinutes)}m {finishDriftMinutes < 0 ? 'ahead of predicted finish' : 'behind predicted finish'}
                               </span>
                             )}
                           </div>
