@@ -39,6 +39,7 @@ function convertHistoryFieldNames(dbRecord) {
     actualOfficeTime: dbRecord.actual_office_time,
     casingWithdrawalMinutes: dbRecord.casing_withdrawal_minutes,
     dailyLog: dbRecord.daily_log,
+    hasBoxholder: dbRecord.has_boxholder,
     createdAt: dbRecord.created_at,
     updatedAt: dbRecord.updated_at,
   };
@@ -130,6 +131,7 @@ export async function saveRouteHistory(routeId, historyData, waypoints = null) {
     mail_not_delivered: historyData.mailNotDelivered || false,
     notes: historyData.notes || null,
     pm_office_time: Math.round(historyData.pmOfficeTime || 0),
+    has_boxholder: !!historyData.hasBoxholder,
     waypoint_timings: waypointTimings,
     penalty_overtime: penaltyOvertimeMinutes,
     is_ns_day: isNSDay,
