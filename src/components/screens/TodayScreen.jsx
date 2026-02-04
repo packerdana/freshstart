@@ -26,7 +26,7 @@ import { getLocalDateString, formatTimeAMPM, parseLocalDate } from '../../utils/
 import { supabase } from '../../lib/supabase';
 
 export default function TodayScreen() {
-  const { todayInputs, updateTodayInputs, history, getCurrentRouteConfig, currentRouteId, addHistoryEntry, waypoints, routeStarted, setRouteStarted, routes, switchToRoute, preRouteLoadingMinutes } = useRouteStore();
+  const { todayInputs, updateTodayInputs, history, getCurrentRouteConfig, currentRouteId, addHistoryEntry, waypoints, routeStarted, setRouteStarted, routes, switchToRoute, preRouteLoadingMinutes, streetPreloadSeconds, setStreetPreloadSeconds } = useRouteStore();
   const waypointPausedSeconds = useBreakStore((state) => state.waypointPausedSeconds);
   const [date, setDate] = useState(new Date());
   const [showCompletionDialog, setShowCompletionDialog] = useState(false);
@@ -158,7 +158,8 @@ export default function TodayScreen() {
       
       console.log('📊 [loadStreetTimeSession] Getting total street time for today...');
       const totalMinutes = await offRouteService.getTotalStreetTimeToday();
-      const totalSeconds = Math.floor(totalMinutes * 60); // ✅ Force to whole seconds
+      const preload = Math.max(0, Number(useRouteStore.getState().streetPreloadSeconds || 0) || 0);
+      const totalSeconds = Math.floor(totalMinutes * 60) + preload; // include pre-route load seconds
       console.log('📊 [loadStreetTimeSession] Total:', totalMinutes, 'min =', totalSeconds, 'sec');
       
       if (session) {
@@ -270,6 +271,7 @@ export default function TodayScreen() {
 
       // If user tracked load truck before leaving, include it in totals without backdating leave time.
       const preloadSeconds = Math.max(0, Math.round(preRouteLoadingMinutes * 60));
+      setStreetPreloadSeconds(preloadSeconds);
       setAccumulatedStreetSeconds(preloadSeconds);
       setStreetTime(preloadSeconds);
       
@@ -323,6 +325,8 @@ export default function TodayScreen() {
         useRouteStore.getState().setPreRouteLoadingMinutes(0);
         console.log('✓ Pre-route loading time cleared from state');
       }
+      // Keep streetPreloadSeconds for the rest of the day so it never disappears from the 721 timer.
+      // It will be reset on route completion/cancel and at the next daily reset.
 
       console.log('Route started with data:', todayInputs);
       console.log('Street time tracking started:', session);
@@ -350,6 +354,7 @@ export default function TodayScreen() {
     }
 
     setRouteStarted(false);
+    setStreetPreloadSeconds(0);
     setStreetTimeSession(null);
     setStreetTime(0);
     setAccumulatedStreetSeconds(0);
@@ -734,6 +739,7 @@ export default function TodayScreen() {
       setShowEodReport(true);
       setShowCompletionDialog(false);
       setRouteStarted(false);
+      setStreetPreloadSeconds(0);
       setCompletedStreetTimeMinutes(null);
       setStreetStartTime(null);
       

@@ -67,8 +67,12 @@ const useRouteStore = create(
 
       // ADDED: Track pre-route loading time for carriers who load before starting route
       preRouteLoadingMinutes: 0,
+      // ADDED: Once applied to the 721 timer, keep the preload seconds stable for the rest of the day
+      // so navigation/refresh can’t make it “disappear”.
+      streetPreloadSeconds: 0,
 
       setPreRouteLoadingMinutes: (minutes) => set({ preRouteLoadingMinutes: minutes }),
+      setStreetPreloadSeconds: (seconds) => set({ streetPreloadSeconds: Math.max(0, Math.floor(seconds || 0)) }),
 
       checkAndResetDailyData: () => {
         const today = getLocalDateString(new Date());
@@ -104,6 +108,7 @@ const useRouteStore = create(
             },
             routeStarted: false,
             preRouteLoadingMinutes: 0, // ADDED: Reset loading time daily
+            streetPreloadSeconds: 0,
             lastResetDate: today,
             waypoints: [],
           });
