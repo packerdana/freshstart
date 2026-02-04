@@ -14,6 +14,7 @@ import Reason3996Modal from '../shared/Reason3996Modal';
 import { confidenceToMinutes } from '../../utils/predictionConfidence';
 import useRouteStore from '../../stores/routeStore';
 import useBreakStore from '../../stores/breakStore';
+import { addMinutes } from '../../utils/time';
 import { calculateFullDayPrediction } from '../../services/predictionService';
 import { saveRouteHistory, getWeekTotalMinutes } from '../../services/routeHistoryService';
 import { getDayType } from '../../utils/holidays';
@@ -25,7 +26,7 @@ import { getLocalDateString, formatTimeAMPM, parseLocalDate } from '../../utils/
 import { supabase } from '../../lib/supabase';
 
 export default function TodayScreen() {
-  const { todayInputs, updateTodayInputs, history, getCurrentRouteConfig, currentRouteId, addHistoryEntry, waypoints, routeStarted, setRouteStarted, routes, switchToRoute } = useRouteStore();
+  const { todayInputs, updateTodayInputs, history, getCurrentRouteConfig, currentRouteId, addHistoryEntry, waypoints, routeStarted, setRouteStarted, routes, switchToRoute, preRouteLoadingMinutes } = useRouteStore();
   const waypointPausedSeconds = useBreakStore((state) => state.waypointPausedSeconds);
   const [date, setDate] = useState(new Date());
   const [showCompletionDialog, setShowCompletionDialog] = useState(false);
@@ -1424,15 +1425,20 @@ export default function TodayScreen() {
                 <p className="text-sm font-semibold text-gray-700 mb-2">Leave Office</p>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <p className="text-xs text-gray-500">Predicted Leave</p>
+                    <p className="text-xs text-gray-500">Predicted 722 Done</p>
                     <p className="text-lg font-bold text-blue-700">
                       {prediction?.leaveOfficeTime
                         ? new Date(prediction.leaveOfficeTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
                         : '—'}
                     </p>
+                    {prediction?.leaveOfficeTime && (preRouteLoadingMinutes || 0) > 0 && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        Projected depart (with Load): {addMinutes(new Date(prediction.leaveOfficeTime), preRouteLoadingMinutes).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                      </p>
+                    )}
                   </div>
                   <div>
-                    <p className="text-xs text-gray-500">Actual Leave (721)</p>
+                    <p className="text-xs text-gray-500">Actual 721 Start</p>
                     <p className="text-lg font-bold text-gray-900">
                       {todayInputs.leaveOfficeTime
                         ? new Date(`1970-01-01T${todayInputs.leaveOfficeTime}:00`).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
@@ -1449,10 +1455,14 @@ export default function TodayScreen() {
                     </p>
                   </div>
                   <div>
-                    <p className="text-xs text-gray-500">Variance</p>
+                    <p className="text-xs text-gray-500">Variance (vs projected depart)</p>
                     <p className="text-base font-bold text-gray-900">
                       {prediction?.leaveOfficeTime
-                        ? `${Math.round((new Date(streetTimeSession.start_time) - new Date(prediction.leaveOfficeTime)) / 60000)} min`
+                        ? (() => {
+                            const base = new Date(prediction.leaveOfficeTime);
+                            const projected = (preRouteLoadingMinutes || 0) > 0 ? addMinutes(base, preRouteLoadingMinutes) : base;
+                            return `${Math.round((new Date(streetTimeSession.start_time) - projected) / 60000)} min`;
+                          })()
                         : '—'}
                     </p>
                   </div>
