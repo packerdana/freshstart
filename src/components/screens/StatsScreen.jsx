@@ -243,6 +243,39 @@ export default function StatsScreen() {
     }
   }, [history, routes, currentRouteId, activeRoute?.id, currentRoute?.id]);
 
+  const suspiciousDays = useMemo(() => {
+    const safeHistory = (history || []).filter(Boolean);
+    if (!safeHistory.length) return [];
+
+    const route = routes?.find((r) => r.id === currentRouteId);
+    const tourMinutes = Math.round(Number(route?.tourLength ?? route?.tour_length ?? 8.5) * 60);
+
+    const out = [];
+    for (const day of safeHistory) {
+      const st = Number(day.streetTimeNormalized ?? day.street_time_normalized ?? day.streetTime ?? day.street_time ?? 0) || 0;
+      const am = Number(day.officeTime ?? day.office_time ?? 0) || 0;
+      const pm = Number(day.pmOfficeTime ?? day.pm_office_time ?? 0) || 0;
+      const total = st + am + pm;
+
+      const flags = [];
+      if (st > 0 && st < 120) flags.push(`721 low (${st}m)`);
+      if (st > 720) flags.push(`721 high (${st}m)`);
+      if (am > 240) flags.push(`722 high (${am}m)`);
+      if (pm > 120) flags.push(`744 high (${pm}m)`);
+      if (total > 14 * 60) flags.push(`total high (${total}m)`);
+      if (tourMinutes && (total - tourMinutes) > 240) flags.push(`OT huge (+${total - tourMinutes}m)`);
+
+      if (flags.length) {
+        out.push({
+          date: day.date,
+          flags,
+        });
+      }
+    }
+
+    return out.slice(0, 10);
+  }, [history, routes, currentRouteId]);
+
   const performanceMetrics = useMemo(() => {
     if (!stats || !history || history.length < 5) return null;
 
@@ -962,6 +995,31 @@ export default function StatsScreen() {
           </div>
         </div>
       </Card>
+
+      {suspiciousDays.length > 0 && (
+        <Card className="bg-gradient-to-br from-amber-50 to-yellow-50 border-2 border-amber-200">
+          <h3 className="text-lg font-bold text-gray-900 mb-2 flex items-center gap-2">
+            <AlertTriangle className="w-5 h-5 text-amber-700" />
+            Data Quality
+          </h3>
+          <p className="text-xs text-amber-800 mb-3">
+            These days have unusual time values and can hurt prediction accuracy.
+          </p>
+          <div className="space-y-2">
+            {suspiciousDays.slice(0, 5).map((d) => (
+              <div key={d.date} className="bg-white/70 rounded-lg p-3 border border-amber-200">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="text-sm font-semibold text-gray-800">{format(parseLocalDate(d.date), 'EEE, MMM d')}</div>
+                  <div className="text-xs text-amber-800">{d.flags.join(' • ')}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+          <p className="text-[11px] text-amber-700 mt-3">
+            Tip: If one of these was a bad/partial day, delete it so it doesn’t poison your averages.
+          </p>
+        </Card>
+      )}
 
       <Card>
         <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
