@@ -316,7 +316,20 @@ export default function StatsScreen() {
 
     const am722 = avg(days.map((d) => Number(d.officeTime ?? d.office_time ?? 0) || 0));
     const street721Raw = avg(days.map((d) => Number(d.streetTimeNormalized ?? d.street_time_normalized ?? d.streetTime ?? d.street_time ?? 0) || 0));
-    const pm744 = avg(days.map((d) => Number(d.pmOfficeTime ?? d.pm_office_time ?? 0) || 0));
+    const pm744Samples = days
+      .map((d) => Number(d.pmOfficeTime ?? d.pm_office_time ?? 0) || 0)
+      .filter((n) => n > 0)
+      .slice(0, 30);
+
+    const pm744 = avg(pm744Samples.length ? pm744Samples : days.map((d) => Number(d.pmOfficeTime ?? d.pm_office_time ?? 0) || 0));
+
+    // P85 cap for 744 (last 30 days) to reduce "helping others" outliers.
+    let pm744P85 = 0;
+    if (pm744Samples.length) {
+      const sorted = [...pm744Samples].sort((a, b) => a - b);
+      const idx = Math.max(0, Math.min(sorted.length - 1, Math.ceil(0.85 * sorted.length) - 1));
+      pm744P85 = Math.round(sorted[idx]);
+    }
 
     // USPS lunch assumption for stats: 30 minutes is deducted unless pre-approved no-lunch.
     const street721Adjusted = Math.max(0, street721Raw - 30);
@@ -329,6 +342,8 @@ export default function StatsScreen() {
       street721Raw: Math.round(street721Raw),
       street721: Math.round(street721Adjusted),
       pm744: Math.round(pm744),
+      pm744P85,
+      pm744Used: pm744P85 ? Math.min(Math.round(pm744), pm744P85) : Math.round(pm744),
       total: Math.round(total),
       lunchDeductedMinutes: 30,
     };
@@ -528,11 +543,17 @@ export default function StatsScreen() {
             <div className="bg-white/70 rounded-lg p-3">
               <p className="text-xs text-gray-600 mb-1">744 PM Office</p>
               <p className="text-xl font-bold text-gray-900">{averageTimes.pm744}m</p>
+              {averageTimes.pm744P85 ? (
+                <p className="text-xs text-gray-500 mt-1">P85 cap: {averageTimes.pm744P85}m</p>
+              ) : null}
             </div>
             <div className="bg-white/70 rounded-lg p-3 border border-indigo-200">
               <p className="text-xs text-gray-600 mb-1">Average Route Time</p>
               <p className="text-xl font-bold text-indigo-700">{formatMinutesAsTime(averageTimes.total)}</p>
               <p className="text-xs text-gray-500 mt-1">(722 + 721 − 30 + 744)</p>
+              {averageTimes.pm744P85 ? (
+                <p className="text-xs text-gray-500 mt-1">Prediction uses min(avg 744, P85) = {averageTimes.pm744Used}m</p>
+              ) : null}
             </div>
           </div>
         </Card>
