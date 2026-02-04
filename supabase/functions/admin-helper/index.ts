@@ -96,6 +96,7 @@ serve(async (req) => {
     const wantsRouteHistory = path.endsWith('/admin-helper/route-history') || action === 'route-history'
     const wantsRouteHistoryDelete = path.endsWith('/admin-helper/route-history-delete') || action === 'route-history-delete'
     const wantsWaypointsCount = path.endsWith('/admin-helper/waypoints-count') || action === 'waypoints-count'
+    const wantsUnverified = path.endsWith('/admin-helper/unverified-users') || action === 'unverified-users'
 
     if (wantsStatus) {
       const user = await findUser()
@@ -123,6 +124,26 @@ serve(async (req) => {
         email,
         userId: user.id,
         emailConfirmedAt: data.user?.email_confirmed_at,
+      })
+    }
+
+    if (wantsUnverified) {
+      const { data, error } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 })
+      if (error) throw error
+
+      const unverified = (data.users || [])
+        .filter((u) => !u.email_confirmed_at)
+        .map((u) => ({
+          id: u.id,
+          email: u.email,
+          createdAt: u.created_at,
+        }))
+        .filter((u) => !!u.email)
+
+      return json(200, {
+        ok: true,
+        unverifiedCount: unverified.length,
+        users: unverified,
       })
     }
 
