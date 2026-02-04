@@ -100,6 +100,7 @@ export default function WaypointsScreen() {
 
   // Dynamic schedule offset: after each completed waypoint, shift the remaining expected times
   // by how far ahead/behind we are at the most recently completed waypoint.
+  // NOTE: This drives the per-waypoint "Expected (live)" times.
   const scheduleOffset = useMemo(() => {
     try {
       if (!waypoints?.length || !waypointPredictions?.length) return { minutes: 0, fromSeq: null };
@@ -888,10 +889,9 @@ export default function WaypointsScreen() {
                 });
               }
 
-              // Ahead/Behind predicted finish time (Spec v1): derive from schedule offset at the most
-              // recently completed waypoint.
-              const finishDriftMinutes = Number(scheduleOffset?.minutes || 0);
-              const showFinishDrift = Number(waypoint.sequence_number) !== 0 && (scheduleOffset?.fromSeq != null);
+              // Ahead/Behind predicted finish is shown ONLY in the top pace card (not per-waypoint)
+              const showFinishDrift = false;
+              const finishDriftMinutes = 0;
 
               return (
                 <Card key={waypoint.id}>
