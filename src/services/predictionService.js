@@ -229,8 +229,33 @@ export async function calculateFullDayPrediction(todayMail, routeConfig, history
   const leaveOfficeTime = addMinutes(startTime, totalOfficeTime);
   
   // Clock out = leave + street time (load truck is DURING street time, not added separately)
-  // PM office time is NOT added to prediction - carriers should drop and go
   let clockOutTime = addMinutes(leaveOfficeTime, totalStreetTime);
+
+  // Estimate PM office (744) from history, but cap it at P85 so "helping others" outliers
+  // don't inflate the route prediction.
+  const pmOfficeSamples = (history || [])
+    .filter((d) => {
+      const v = Number(d.pmOfficeTime ?? d.pm_office_time ?? 0) || 0;
+      return v > 0;
+    })
+    // history is already limited upstream in many calls, but we enforce last ~30 records here.
+    .slice(0, 30)
+    .map((d) => Number(d.pmOfficeTime ?? d.pm_office_time ?? 0) || 0);
+
+  let pmOfficeAvg = 0;
+  let pmOfficeP85 = 0;
+  let pmOfficeUsed = 0;
+
+  if (pmOfficeSamples.length) {
+    const sorted = [...pmOfficeSamples].sort((a, b) => a - b);
+    const avg = sorted.reduce((s, n) => s + n, 0) / sorted.length;
+    const idx = Math.max(0, Math.min(sorted.length - 1, Math.ceil(0.85 * sorted.length) - 1));
+    const p85 = sorted[idx];
+
+    pmOfficeAvg = Math.round(avg);
+    pmOfficeP85 = Math.round(p85);
+    pmOfficeUsed = Math.min(pmOfficeAvg, pmOfficeP85);
+  }
 
   let waypointEnhanced = false;
   let returnTimeEstimate = null;
@@ -244,29 +269,31 @@ export async function calculateFullDayPrediction(todayMail, routeConfig, history
       const hasCompletedWaypoints = waypoints.some(wp => wp.status === 'completed');
 
       // DEFENSIVE FIX: Validate waypoint prediction before using it
-      const waypointClockOut = returnTimeEstimate.predictedReturnTime;
+      // NOTE: predictedReturnTime is a "return to office" estimate (not ET). We'll add PM office later.
+      const waypointReturn = returnTimeEstimate.predictedReturnTime;
       const timeBasedClockOut = clockOutTime;
-      
-      // Reject waypoint prediction if:
-      // 1. It's before leave office time (impossible)
-      // 2. It's more than 2 hours before time-based prediction (suspicious)
-      const isBeforeLeave = waypointClockOut < leaveOfficeTime;
-      const isSuspiciouslyEarly = (timeBasedClockOut - waypointClockOut) > (120 * 60 * 1000); // 2 hours in ms
-      
+
+      const isBeforeLeave = waypointReturn < leaveOfficeTime;
+      const isSuspiciouslyEarly = (timeBasedClockOut - waypointReturn) > (120 * 60 * 1000); // 2 hours in ms
+
       if (isBeforeLeave || isSuspiciouslyEarly) {
         console.warn('[PREDICTION] Rejecting waypoint prediction - unreasonable time:', {
-          waypointPrediction: waypointClockOut.toLocaleTimeString(),
+          waypointPrediction: waypointReturn.toLocaleTimeString(),
           timeBasedPrediction: timeBasedClockOut.toLocaleTimeString(),
           leaveTime: leaveOfficeTime.toLocaleTimeString(),
           isBeforeLeave,
           isSuspiciouslyEarly
         });
-        // Don't use waypoint prediction - stick with time-based
       } else if (hasCompletedWaypoints || returnTimeEstimate.confidence !== 'low') {
-        clockOutTime = waypointClockOut;
+        clockOutTime = waypointReturn;
         waypointEnhanced = true;
       }
     }
+  }
+
+  // Add capped PM office time (744) at the end.
+  if (pmOfficeUsed > 0) {
+    clockOutTime = addMinutes(clockOutTime, pmOfficeUsed);
   }
 
   const tourLengthMinutes = routeConfig.tourLength * 60;
@@ -280,6 +307,9 @@ export async function calculateFullDayPrediction(todayMail, routeConfig, history
     leaveOfficeTime,
     clockOutTime,
     overtime,
+    pmOfficeTime: pmOfficeUsed,
+    pmOfficeTimeAvg: pmOfficeAvg,
+    pmOfficeTimeP85: pmOfficeP85,
     prediction: streetPrediction,
     breakdown,
     components: {
