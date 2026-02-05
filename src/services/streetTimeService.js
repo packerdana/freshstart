@@ -47,7 +47,9 @@ export const streetTimeService = {
     
     const endedAt = new Date();
     const startedAt = new Date(session.start_time);
-    const durationMinutes = Math.round((endedAt - startedAt) / 1000 / 60);
+    // Prevent noisy 0-minute sessions (often caused by accidental double-taps or quick start/stop).
+    const rawMinutes = (endedAt - startedAt) / 1000 / 60;
+    const durationMinutes = Math.max(1, Math.round(rawMinutes));
     
     const { data, error } = await supabase
       .from('operation_codes')

@@ -101,11 +101,14 @@ export async function getOperationCodesForDate(currentRouteId, date) {
 
     console.log('[STREET TIME SERVICE] Loaded', data.length, 'codes for route', currentRouteId, 'date', date);
 
-    return data.map(record => ({
-      ...record,
-      code_name: CODE_NAMES[record.code] || 'Unknown',
-      duration_formatted: formatDuration(record.duration_minutes)
-    }));
+    // Hide noisy 0-minute rows (usually accidental starts/stops).
+    return (data || [])
+      .filter((record) => (Number(record.duration_minutes) || 0) > 0)
+      .map(record => ({
+        ...record,
+        code_name: CODE_NAMES[record.code] || 'Unknown',
+        duration_formatted: formatDuration(record.duration_minutes)
+      }));
   } catch (error) {
     console.error('Failed to load operation codes for date:', error);
     throw error;
