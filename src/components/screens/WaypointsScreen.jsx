@@ -4,6 +4,7 @@ import Card from '../shared/Card';
 import Button from '../shared/Button';
 import useRouteStore from '../../stores/routeStore';
 import { parseLocalDate, formatMinutesAsTime, getLocalDateString } from '../../utils/time';
+import { isValidPredictedMinutes, applyLiveOffsetToPredictedTime, shouldApplyLiveOffset } from '../../utils/liveExpected';
 
 function hhmmFromDate(date) {
   const h = String(date.getHours()).padStart(2, '0');
@@ -125,8 +126,7 @@ export default function WaypointsScreen() {
       // Find the most recent completed waypoint that has a predictedMinutes baseline.
       const last = completed.find((w) => {
         const pred = byId.get(w.id);
-        const mins = Number(pred?.predictedMinutes);
-        return Number.isFinite(mins) && Number(w.sequence_number) !== 0;
+        return isValidPredictedMinutes(pred?.predictedMinutes) && Number(w.sequence_number) !== 0;
       });
 
       if (!last) return { minutes: 0, fromSeq: null };
@@ -976,16 +976,13 @@ export default function WaypointsScreen() {
                               if (isNaN(predTime.getTime())) return null;
 
                               const seqNum = Number(waypoint.sequence_number || 0);
-                              const shouldOffset = (scheduleOffset?.fromSeq != null && seqNum > scheduleOffset.fromSeq);
-                              const adjustedTime = shouldOffset
-                                ? new Date(predTime.getTime() + Number(scheduleOffset.minutes || 0) * 60000)
-                                : predTime;
+                              const adjustedTime = applyLiveOffsetToPredictedTime(predTime, seqNum, scheduleOffset);
 
                               return (
                                 <div className="flex items-center gap-1 text-xs text-gray-500 mt-1">
                                   <Clock className="w-3 h-3" />
                                   Expected: {format(adjustedTime, 'h:mm a')}
-                                  {(scheduleOffset?.fromSeq != null && seqNum > scheduleOffset.fromSeq) && (
+                                  {shouldApplyLiveOffset(seqNum, scheduleOffset) && (
                                     <span className="text-[10px] text-gray-400 ml-1">(live)</span>
                                   )}
                                 </div>

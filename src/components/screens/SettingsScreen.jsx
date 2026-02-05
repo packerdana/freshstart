@@ -364,8 +364,8 @@ export default function SettingsScreen() {
         </div>
         <div className="space-y-3">
           <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-            <span className="text-sm text-gray-700">Version</span>
-            <span className="text-sm font-mono text-gray-900">1.0.0</span>
+            <span className="text-sm text-gray-700">App Version</span>
+            <span className="text-sm font-mono text-gray-900">{typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : 'dev'}</span>
           </div>
           <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
             <span className="text-sm text-gray-700">Last Updated</span>
@@ -375,6 +375,9 @@ export default function SettingsScreen() {
             <p className="text-xs text-blue-900 font-semibold mb-1">Postal Route Tracker</p>
             <p className="text-xs text-blue-700">
               Track mail volume, predict street time, and analyze your delivery performance.
+            </p>
+            <p className="text-[11px] text-blue-700 mt-2">
+              Tip: when reporting a bug, include the App Version above so we know you’re on the latest deploy.
             </p>
           </div>
         </div>

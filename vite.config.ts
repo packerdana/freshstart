@@ -10,6 +10,13 @@ export default defineConfig(() => {
 
   const sentryEnabled = !!(sentryAuthToken && sentryOrg && sentryProject);
 
+  const appVersion = (
+    process.env.VERCEL_GIT_COMMIT_SHA ||
+    process.env.GITHUB_SHA ||
+    process.env.COMMIT_SHA ||
+    'dev'
+  ).slice(0, 8);
+
   return {
     plugins: [
       react(),
@@ -28,6 +35,10 @@ export default defineConfig(() => {
           ]
         : []),
     ],
+
+    define: {
+      __APP_VERSION__: JSON.stringify(appVersion),
+    },
 
     build: {
       // Required for readable stack traces in Sentry.
