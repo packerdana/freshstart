@@ -631,6 +631,7 @@ export default function TodayScreen() {
         leaveOfficeTime: todayInputs.leaveOfficeTime || null,
         actualClockOut: completionData.actualClockOut || null,
         auxiliaryAssistance: completionData.auxiliaryAssistance || false,
+        assistanceMinutes: completionData.assistanceMinutes || 0,
         mailNotDelivered: completionData.mailNotDelivered || false,
         routeId: currentRouteId,
         notes: completionData.notes || null,

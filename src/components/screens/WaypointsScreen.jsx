@@ -790,17 +790,75 @@ export default function WaypointsScreen() {
             </Button>
 
             {viewMode === 'today' && (
-              <Button
-                onClick={() => {
-                  setEditingWaypoint(null);
-                  setIsModalOpen(true);
-                }}
-                className="w-full mb-3 flex items-center justify-center gap-2"
-                disabled={!currentRouteId}
-              >
-                <Plus className="w-5 h-5" />
-                Add Waypoint
-              </Button>
+              <>
+                <Button
+                  onClick={() => {
+                    setEditingWaypoint(null);
+                    setIsModalOpen(true);
+                  }}
+                  className="w-full mb-3 flex items-center justify-center gap-2"
+                  disabled={!currentRouteId}
+                >
+                  <Plus className="w-5 h-5" />
+                  Add Waypoint
+                </Button>
+
+                <Button
+                  variant="secondary"
+                  onClick={async () => {
+                    try {
+                      if (!currentRouteId) return;
+
+                      const completed = (waypoints || [])
+                        .filter((w) => w?.status === 'completed')
+                        .sort((a, b) => Number(b.sequence_number || 0) - Number(a.sequence_number || 0));
+
+                      const lastCompletedSeq = completed.length ? Number(completed[0].sequence_number || 0) : null;
+                      const defaultSeq = lastCompletedSeq != null ? lastCompletedSeq : 1;
+
+                      const raw = prompt(
+                        'Gave away the rest of your route?\n\nEnter the last waypoint number you personally delivered (example: 12).\n\nWe will mark everything after that as Skipped (assistance).',
+                        String(defaultSeq)
+                      );
+                      if (raw == null) return;
+                      const cutoff = Number(raw);
+                      if (!Number.isFinite(cutoff)) {
+                        alert('Please enter a valid waypoint number.');
+                        return;
+                      }
+
+                      if (!confirm(`Mark all waypoints after #${cutoff} as Skipped (assistance)?`)) return;
+
+                      const toSkip = (waypoints || []).filter((w) => {
+                        const seq = Number(w.sequence_number || 0);
+                        if (!Number.isFinite(seq)) return false;
+                        if (seq <= cutoff) return false;
+                        if (w.status === 'completed') return false;
+                        return true;
+                      });
+
+                      await Promise.all(
+                        toSkip.map((w) =>
+                          updateWaypoint(w.id, {
+                            status: 'skipped',
+                            notes: w.notes ? `${w.notes} | Skipped (assistance)` : 'Skipped (assistance)',
+                          })
+                        )
+                      );
+
+                      // Reload to ensure UI reflects saved status
+                      await loadWaypoints();
+                    } catch (e) {
+                      console.error('Failed to skip remaining waypoints:', e);
+                      alert('Could not mark remaining waypoints as skipped.');
+                    }
+                  }}
+                  className="w-full mb-3 flex items-center justify-center gap-2"
+                  disabled={!currentRouteId || (waypoints || []).length === 0}
+                >
+                  Gave away rest of route (skip remaining)
+                </Button>
+              </>
             )}
 
             <div className="flex gap-2 mb-4">

@@ -20,6 +20,7 @@ export default function RouteCompletionDialog({
   const [streetTimeMinutes, setStreetTimeMinutes] = useState(initialMins.toString());
   const [actualClockOut, setActualClockOut] = useState('');
   const [auxiliaryAssistance, setAuxiliaryAssistance] = useState(false);
+  const [assistanceMinutes, setAssistanceMinutes] = useState('');
   const [mailNotDelivered, setMailNotDelivered] = useState(false);
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
@@ -46,6 +47,7 @@ export default function RouteCompletionDialog({
         streetTime: totalMinutes,
         actualClockOut,
         auxiliaryAssistance,
+        assistanceMinutes: auxiliaryAssistance ? (parseInt(assistanceMinutes) || 0) : 0,
         mailNotDelivered,
         notes: notes.trim() || null,
       });
@@ -172,10 +174,22 @@ export default function RouteCompletionDialog({
                   className="w-5 h-5 text-blue-600"
                 />
                 <div>
-                  <span className="font-semibold text-gray-900">Auxiliary Assistance</span>
-                  <p className="text-xs text-gray-600">I received help from another carrier</p>
+                  <span className="font-semibold text-gray-900">Assistance / Gave Away Part of Route</span>
+                  <p className="text-xs text-gray-600">I got help or gave away part of my route (don’t use this day for clean averages)</p>
                 </div>
               </label>
+
+              {auxiliaryAssistance && (
+                <Input
+                  label="Minutes given away / assisted"
+                  type="number"
+                  value={assistanceMinutes}
+                  onChange={(e) => setAssistanceMinutes(e.target.value)}
+                  placeholder="60"
+                  min="0"
+                  helperText="Optional: estimate how many minutes you gave away or received"
+                />
+              )}
 
               <label className="flex items-center gap-3 p-3 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50">
                 <input

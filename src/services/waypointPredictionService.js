@@ -13,13 +13,16 @@ export async function calculateWaypointAverages(routeId, waypointName = null, da
 }
 
 export async function predictWaypointTimes(waypoints, startTime, routeId, waypointPauseMinutes = 0, similarDates = null) {
-  if (!waypoints || waypoints.length === 0) {
+  // Skip waypoints that are explicitly skipped (e.g., route assistance / gave away portion).
+  const input = (waypoints || []).filter((w) => w?.status !== 'skipped');
+
+  if (!input || input.length === 0) {
     return [];
   }
 
   if (!startTime) {
     console.log('No start time provided for predictions');
-    return waypoints.map(wp => ({
+    return input.map(wp => ({
       ...wp,
       predictedTime: null,
       predictedMinutes: null,
@@ -38,7 +41,7 @@ export async function predictWaypointTimes(waypoints, startTime, routeId, waypoi
       console.log(`Converted time string "${startTime}" to full date:`, baseStartTime);
     } else {
       console.error('Invalid start time format:', startTime);
-      return waypoints.map(wp => ({
+      return input.map(wp => ({
         ...wp,
         predictedTime: null,
         predictedMinutes: null,
@@ -51,7 +54,7 @@ export async function predictWaypointTimes(waypoints, startTime, routeId, waypoi
 
   if (!allAverages || allAverages.length === 0) {
     console.log('No averages calculated from history - predictions unavailable');
-    return waypoints.map(wp => ({
+    return input.map(wp => ({
       ...wp,
       predictedTime: null,
       predictedMinutes: null,
@@ -69,7 +72,7 @@ export async function predictWaypointTimes(waypoints, startTime, routeId, waypoi
   // This is the anchor time that each prediction builds from
   let previousWaypointTime = baseStartTime;
 
-  const predictions = waypoints.map((waypoint, index) => {
+  const predictions = input.map((waypoint, index) => {
     const waypointName = waypoint.address || waypoint.name;
 
     // If waypoint is already completed, use actual time

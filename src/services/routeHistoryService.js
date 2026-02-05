@@ -42,6 +42,7 @@ function convertHistoryFieldNames(dbRecord) {
     hasBoxholder: dbRecord.has_boxholder,
     predictedReturnTime: dbRecord.predicted_return_time,
     actualClockOut: dbRecord.actual_clock_out,
+    assistanceMinutes: dbRecord.assistance_minutes,
     createdAt: dbRecord.created_at,
     updatedAt: dbRecord.updated_at,
   };
@@ -146,6 +147,9 @@ export async function saveRouteHistory(routeId, historyData, waypoints = null) {
     // Prediction accuracy chart support (stored as HH:MM)
     predicted_return_time: historyData.predictedReturnTime || null,
     actual_clock_out: historyData.actualClockOut || null,
+
+    // Assistance tracking
+    assistance_minutes: historyData.assistanceMinutes != null ? Math.round(Number(historyData.assistanceMinutes) || 0) : null,
   };
 
   const extendedPayload = {
