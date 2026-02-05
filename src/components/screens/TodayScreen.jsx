@@ -607,6 +607,34 @@ export default function TodayScreen() {
           })
         : null;
 
+      // If the app refreshed mid-day, we can lose computed 722 in state.
+      // Recover it from start time + leave office time when possible.
+      const recoveredOfficeMinutes = (() => {
+        const leaveStr = String(todayInputs.leaveOfficeTime || '').trim();
+        if (!/^\d{1,2}:\d{2}$/.test(leaveStr)) return null;
+
+        const routeConfig = getCurrentRouteConfig();
+        const startStr = String(todayInputs.startTimeOverride || routeConfig?.startTime || '07:30').trim();
+        if (!/^\d{1,2}:\d{2}$/.test(startStr)) return null;
+
+        const [sh, sm] = startStr.split(':').map(Number);
+        const [lh, lm] = leaveStr.split(':').map(Number);
+        if (![sh, sm, lh, lm].every((n) => Number.isFinite(n))) return null;
+
+        let mins = (lh * 60 + lm) - (sh * 60 + sm);
+        if (mins < 0) mins += 1440;
+
+        // Subtract any load-truck minutes; those belong to 721.
+        const preload = Number(useRouteStore.getState().preRouteLoadingMinutes || 0) || 0;
+        mins = Math.max(0, mins - preload);
+
+        return Math.round(mins);
+      })();
+
+      const officeMinutesFinal = (Number(actualOfficeTime || 0) > 0)
+        ? actualOfficeTime
+        : (recoveredOfficeMinutes ?? 0);
+
       const historyData = {
         date: today,
         dayType: getDayType(today),
@@ -617,7 +645,7 @@ export default function TodayScreen() {
         sprs: todayInputs.sprs || 0,
         scannerTotal: todayInputs.scannerTotal || 0,
         curtailed: 0,
-        officeTime: actualOfficeTime,
+        officeTime: officeMinutesFinal,
         streetTime: actualStreetTime,
         pmOfficeTime: pmOfficeTimeMinutes,
         totalMinutes: actualTotalMinutes,
