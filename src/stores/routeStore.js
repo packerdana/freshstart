@@ -587,6 +587,58 @@ const useRouteStore = create(
     {
       name: 'routewise-storage',
       version: 6,
+      // Preserve persisted data across version bumps (prevents "today" inputs from disappearing after deploy).
+      migrate: (persistedState, fromVersion) => {
+        try {
+          const s = persistedState || {};
+
+          // Ensure todayInputs exists and includes all expected keys.
+          const defaults = {
+            dps: 0,
+            flats: 0,
+            letters: 0,
+            parcels: 0,
+            scannerTotal: 0,
+            packagesManuallyUpdated: false,
+            sprs: 0,
+            safetyTalk: 0,
+            hasBoxholder: false,
+            startTimeOverride: '',
+            leaveOfficeTime: '',
+            actualOfficeTime: 0,
+            actualClockOut: '',
+            casingWithdrawalMinutes: 0,
+            dailyLog: {
+              lateMail: false,
+              lateParcels: false,
+              casingInterruptionsMinutes: 0,
+              waitingOnParcelsMinutes: 0,
+              accountablesMinutes: 0,
+              otherDelayMinutes: 0,
+              notes: '',
+            },
+          };
+
+          const todayInputs = {
+            ...defaults,
+            ...(s.todayInputs || {}),
+            dailyLog: {
+              ...defaults.dailyLog,
+              ...((s.todayInputs || {}).dailyLog || {}),
+            },
+          };
+
+          return {
+            ...s,
+            todayInputs,
+            routeStarted: !!s.routeStarted,
+            lastResetDate: s.lastResetDate || null,
+            preRouteLoadingMinutes: Number(s.preRouteLoadingMinutes || 0) || 0,
+          };
+        } catch {
+          return persistedState;
+        }
+      },
       partialize: (state) => ({
         todayInputs: state.todayInputs,
         routeStarted: state.routeStarted,
