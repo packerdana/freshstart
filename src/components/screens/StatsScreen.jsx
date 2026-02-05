@@ -190,7 +190,9 @@ export default function StatsScreen() {
 
     // Overtime: anything past tour length (default 8.5h) counts as OT.
     // We compute this from 722 (office) + 721 (street) + 744 (pm office) to avoid relying on saved overtime fields.
-    const route = routes?.find((r) => r.id === currentRouteId);
+    const route = Array.isArray(routes)
+      ? routes.find((r) => r?.id === currentRouteId)
+      : routes?.[currentRouteId];
     const tourMinutes = Math.round(Number(route?.tourLength ?? route?.tour_length ?? 8.5) * 60);
 
     const getMinutes = (day) => {
@@ -247,7 +249,9 @@ export default function StatsScreen() {
     const safeHistory = (history || []).filter(Boolean);
     if (!safeHistory.length) return [];
 
-    const route = routes?.find((r) => r.id === currentRouteId);
+    const route = Array.isArray(routes)
+      ? routes.find((r) => r?.id === currentRouteId)
+      : routes?.[currentRouteId];
     const tourMinutes = Math.round(Number(route?.tourLength ?? route?.tour_length ?? 8.5) * 60);
 
     const out = [];
