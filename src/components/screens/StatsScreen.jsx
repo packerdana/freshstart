@@ -871,14 +871,22 @@ export default function StatsScreen() {
           <div className="space-y-2">
             {daySummaries.map((d) => {
               const codes = d?.codes || {};
-              const m722 = Number(codes['722'] || 0) || 0;
-              const m721 = Number(codes['721'] || 0) || 0;
-              const m744 = Number(codes['744'] || 0) || 0;
+
+              // 722 is not always recorded as an operation code (often derived from clock-in -> 721 start).
+              // Use route_history office_time as the source of truth when available.
+              const hist = (history || []).find((h) => h?.date === d.date);
+
+              const m722 = Number(hist?.officeTime ?? hist?.office_time ?? codes['722'] ?? 0) || 0;
+              const m721 = Number(hist?.streetTimeNormalized ?? hist?.street_time_normalized ?? hist?.streetTime ?? hist?.street_time ?? codes['721'] ?? 0) || 0;
+              const m744 = Number(hist?.pmOfficeTime ?? hist?.pm_office_time ?? codes['744'] ?? 0) || 0;
+
               const lunch = 30;
               const core = Math.max(0, m722 + m721 + m744 - lunch);
+
               const offRoute = Object.entries(codes)
                 .filter(([code]) => !['722', '721', '744'].includes(code))
                 .reduce((s, [, mins]) => s + (Number(mins) || 0), 0);
+
               const total = core + offRoute;
 
               const isOpen = expandedDay === d.date;
