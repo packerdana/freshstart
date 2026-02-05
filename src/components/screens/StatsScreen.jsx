@@ -133,7 +133,15 @@ export default function StatsScreen() {
   const hasActiveRoute = useMemo(() => {
     // Must be boolean; returning a number here can render a stray "0" in React when used like:
     // {hasActiveRoute && (...)}
-    return !!(todayInputs.dps || todayInputs.flats || todayInputs.letters || todayInputs.parcels || todayInputs.sprs);
+    return !!(
+      todayInputs.dps ||
+      todayInputs.flats ||
+      todayInputs.letters ||
+      todayInputs.parcels ||
+      todayInputs.sprs ||
+      // Some users only enter scanner/package totals.
+      todayInputs.scannerTotal
+    );
   }, [todayInputs]);
 
   const todayStats = useMemo(() => {
