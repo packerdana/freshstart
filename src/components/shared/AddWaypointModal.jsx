@@ -3,7 +3,7 @@ import { X } from 'lucide-react';
 import Button from './Button';
 import Input from './Input';
 
-export default function AddWaypointModal({ isOpen, onClose, onSave, editWaypoint = null }) {
+export default function AddWaypointModal({ isOpen, onClose, onSave, editWaypoint = null, defaultSequenceNumber = 0 }) {
   const [formData, setFormData] = useState({
     address: '',
     sequence_number: 0,
@@ -20,11 +20,11 @@ export default function AddWaypointModal({ isOpen, onClose, onSave, editWaypoint
     } else {
       setFormData({
         address: '',
-        sequence_number: 0,
+        sequence_number: Number.isFinite(defaultSequenceNumber) ? defaultSequenceNumber : 0,
         notes: '',
       });
     }
-  }, [editWaypoint, isOpen]);
+  }, [editWaypoint, isOpen, defaultSequenceNumber]);
 
   const handleSubmit = (e) => {
     e.preventDefault();

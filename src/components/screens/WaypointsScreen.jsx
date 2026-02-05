@@ -1076,6 +1076,20 @@ export default function WaypointsScreen() {
         }}
         onSave={editingWaypoint ? handleUpdateWaypoint : handleAddWaypoint}
         editWaypoint={editingWaypoint}
+        defaultSequenceNumber={(() => {
+          // Suggest the next available sequence number between anchors.
+          // Quick Setup uses 0, 1, 98, 99. We default to 2 (or next free).
+          try {
+            const used = new Set((waypoints || []).map((w) => Number(w.sequence_number)));
+            for (let i = 2; i <= 97; i++) {
+              if (!used.has(i)) return i;
+            }
+            // If we somehow filled 2..97, just return 97.
+            return 97;
+          } catch {
+            return 2;
+          }
+        })()}
       />
 
       <WaypointDebugModal
