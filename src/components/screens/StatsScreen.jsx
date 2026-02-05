@@ -627,17 +627,30 @@ export default function StatsScreen() {
         )}
       </Card>
 
-      {predictionAccuracy && (
-        <Card className="mb-4 bg-gradient-to-br from-emerald-50 to-teal-50 border-2 border-emerald-200">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <Target className="w-5 h-5 text-emerald-700" />
-              <h3 className="font-bold text-gray-900">Prediction Accuracy</h3>
-            </div>
-            <span className="text-xs text-gray-700">last {predictionAccuracy.rows.length} days</span>
+      <Card className="mb-4 bg-gradient-to-br from-emerald-50 to-teal-50 border-2 border-emerald-200">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <Target className="w-5 h-5 text-emerald-700" />
+            <h3 className="font-bold text-gray-900">Prediction Accuracy</h3>
           </div>
+          {predictionAccuracy ? (
+            <span className="text-xs text-gray-700">last {predictionAccuracy.rows.length} days</span>
+          ) : (
+            <span className="text-xs text-gray-700">not enough data yet</span>
+          )}
+        </div>
 
-          <div className="grid grid-cols-2 gap-3 mb-3">
+        {!predictionAccuracy ? (
+          <div className="bg-white/70 rounded-lg p-4">
+            <p className="text-sm font-semibold text-gray-900 mb-1">Complete a day to start tracking accuracy</p>
+            <p className="text-sm text-gray-700">
+              When you finish a route, RouteWise saves the predicted time and your actual clock-out.
+              After that, this chart will show how close the prediction was.
+            </p>
+          </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-2 gap-3 mb-3">
             <div className="bg-white/70 rounded-lg p-3">
               <p className="text-xs text-gray-600 mb-1">Avg Error (abs)</p>
               <p className="text-xl font-bold text-gray-900">{predictionAccuracy.avgAbsError}m</p>
@@ -720,8 +733,9 @@ export default function StatsScreen() {
               })()}
             </svg>
           </div>
-        </Card>
-      )}
+          </>
+        )}
+      </Card>
 
       {protectionStatus?.needsAttention && (
         <Card className="mb-4 bg-gradient-to-br from-orange-50 to-red-50 border-2 border-orange-300">
