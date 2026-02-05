@@ -125,7 +125,8 @@ export default function WaypointsScreen() {
       // Find the most recent completed waypoint that has a predictedMinutes baseline.
       const last = completed.find((w) => {
         const pred = byId.get(w.id);
-        return pred && pred.predictedMinutes && Number(w.sequence_number) !== 0;
+        const mins = Number(pred?.predictedMinutes);
+        return Number.isFinite(mins) && Number(w.sequence_number) !== 0;
       });
 
       if (!last) return { minutes: 0, fromSeq: null };
@@ -984,7 +985,7 @@ export default function WaypointsScreen() {
                                 <div className="flex items-center gap-1 text-xs text-gray-500 mt-1">
                                   <Clock className="w-3 h-3" />
                                   Expected: {format(adjustedTime, 'h:mm a')}
-                                  {shouldOffset && (
+                                  {(scheduleOffset?.fromSeq != null && seqNum > scheduleOffset.fromSeq) && (
                                     <span className="text-[10px] text-gray-400 ml-1">(live)</span>
                                   )}
                                 </div>
