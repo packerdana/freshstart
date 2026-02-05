@@ -10,7 +10,8 @@ import { getWorkweekStart } from '../../utils/uspsConstants';
 import { calculateRecordDays, formatRecordValue, formatRecordDate } from '../../services/recordStatsService';
 import { calculateAveragePerformance } from '../../utils/percentToStandard';
 import { calculateFullDayPrediction } from '../../services/predictionService';
-import { Clock, TrendingUp, Calendar, Package, Timer, Target, Activity, Award, AlertTriangle, Shield, Trophy } from 'lucide-react';
+import { getStreetTimeSummaryByDate, getOperationCodesForDate } from '../../services/streetTimeHistoryService';
+import { Clock, TrendingUp, Calendar, Package, Timer, Target, Activity, Award, AlertTriangle, Shield, Trophy, History as HistoryIcon } from 'lucide-react';
 
 function formatDurationMinutes(totalMinutes) {
   if (!Number.isFinite(totalMinutes)) return '--';
@@ -29,6 +30,11 @@ export default function StatsScreen() {
   const [protectionStatus, setProtectionStatus] = useState(null);
   const [weeklyStats, setWeeklyStats] = useState(null);
 
+  // Day History (operation codes)
+  const [daySummaries, setDaySummaries] = useState([]);
+  const [dayDetails, setDayDetails] = useState({});
+  const [expandedDay, setExpandedDay] = useState(null);
+
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
@@ -37,6 +43,22 @@ export default function StatsScreen() {
   useEffect(() => {
     loadProtectionData();
   }, [activeRoute?.id]);
+
+  useEffect(() => {
+    // Load day summaries for the current route (recent days)
+    async function loadDaySummaries() {
+      if (!currentRouteId) return;
+      try {
+        const summary = await getStreetTimeSummaryByDate(currentRouteId);
+        setDaySummaries(Array.isArray(summary) ? summary.slice(0, 14) : []);
+      } catch (e) {
+        console.warn('[StatsScreen] Failed to load day summaries:', e?.message || e);
+        setDaySummaries([]);
+      }
+    }
+
+    loadDaySummaries();
+  }, [currentRouteId]);
 
   // Ensure history is loaded when visiting Stats (mobile users often jump here first)
   useEffect(() => {
@@ -521,6 +543,34 @@ export default function StatsScreen() {
   const weekStart = getWorkweekStart(currentTime);
   const weekEnd = new Date(weekStart.getTime() + 6 * 86400000);
 
+  const getDayDetail = async (date) => {
+    if (!currentRouteId || !date) return;
+
+    // Toggle collapse if clicking the open one
+    if (expandedDay === date) {
+      setExpandedDay(null);
+      return;
+    }
+
+    setExpandedDay(date);
+
+    if (dayDetails?.[date]) return;
+
+    try {
+      const rows = await getOperationCodesForDate(currentRouteId, date);
+      setDayDetails((prev) => ({
+        ...(prev || {}),
+        [date]: rows || [],
+      }));
+    } catch (e) {
+      console.warn('[StatsScreen] Failed to load operation codes for', date, e?.message || e);
+      setDayDetails((prev) => ({
+        ...(prev || {}),
+        [date]: [],
+      }));
+    }
+  };
+
   return (
     <div className="p-4 max-w-2xl mx-auto pb-20">
       <div className="mb-6">
@@ -796,6 +846,87 @@ export default function StatsScreen() {
                 <p className="text-xs text-gray-500 mt-1">Prediction uses min(avg 744, P85) = {averageTimes.pm744Used}m</p>
               ) : null}
             </div>
+          </div>
+        </Card>
+      )}
+
+      {daySummaries && daySummaries.length > 0 && (
+        <Card className="mb-4 bg-gradient-to-br from-white to-slate-50 border-2 border-slate-200">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <HistoryIcon className="w-5 h-5 text-slate-700" />
+              <h3 className="font-bold text-gray-900">Day History</h3>
+            </div>
+            <span className="text-xs text-gray-600">tap a day to expand</span>
+          </div>
+
+          <div className="space-y-2">
+            {daySummaries.map((d) => {
+              const codes = d?.codes || {};
+              const m722 = Number(codes['722'] || 0) || 0;
+              const m721 = Number(codes['721'] || 0) || 0;
+              const m744 = Number(codes['744'] || 0) || 0;
+              const lunch = 30;
+              const core = Math.max(0, m722 + m721 + m744 - lunch);
+              const offRoute = Object.entries(codes)
+                .filter(([code]) => !['722', '721', '744'].includes(code))
+                .reduce((s, [, mins]) => s + (Number(mins) || 0), 0);
+              const total = core + offRoute;
+
+              const isOpen = expandedDay === d.date;
+
+              return (
+                <div key={d.date} className="bg-white/70 rounded-lg border border-slate-200 overflow-hidden">
+                  <button
+                    className="w-full text-left p-3"
+                    onClick={() => getDayDetail(d.date)}
+                    type="button"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-semibold text-gray-900">
+                          {format(parseLocalDate(d.date), 'EEEE, MMM d, yyyy')}
+                        </p>
+                        <p className="text-xs text-gray-600 mt-0.5">Route time: {formatMinutesAsTime(Math.round(total))}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xs text-gray-600">722+721+744−30</p>
+                        <p className="text-sm font-bold text-gray-900">{formatMinutesAsTime(Math.round(core))}</p>
+                        {offRoute > 0 ? (
+                          <p className="text-xs font-semibold text-orange-700 mt-0.5">Off-route: +{Math.round(offRoute)}m</p>
+                        ) : null}
+                      </div>
+                    </div>
+                  </button>
+
+                  {isOpen ? (
+                    <div className="border-t border-slate-200 p-3">
+                      {(dayDetails?.[d.date] || []).length === 0 ? (
+                        <p className="text-sm text-gray-700">No detailed codes saved for this day.</p>
+                      ) : (
+                        <div className="space-y-2">
+                          {(dayDetails?.[d.date] || []).map((row) => {
+                            const mins = Number(row.duration_minutes || 0) || 0;
+                            const label = row.code_name || row.code || 'Code';
+                            const start = row.start_time ? format(new Date(row.start_time), 'h:mm a') : '--';
+                            const end = row.end_time ? format(new Date(row.end_time), 'h:mm a') : '--';
+                            return (
+                              <div key={row.id} className="flex items-center justify-between bg-white rounded p-2 text-sm">
+                                <div>
+                                  <p className="font-semibold text-gray-900">{row.code} — {label}</p>
+                                  <p className="text-xs text-gray-600">{start} → {end}</p>
+                                </div>
+                                <div className="font-mono text-gray-900">{formatMinutesAsTime(Math.round(mins))}</div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })}
           </div>
         </Card>
       )}
