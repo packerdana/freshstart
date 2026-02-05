@@ -40,6 +40,8 @@ function convertHistoryFieldNames(dbRecord) {
     casingWithdrawalMinutes: dbRecord.casing_withdrawal_minutes,
     dailyLog: dbRecord.daily_log,
     hasBoxholder: dbRecord.has_boxholder,
+    predictedReturnTime: dbRecord.predicted_return_time,
+    actualClockOut: dbRecord.actual_clock_out,
     createdAt: dbRecord.created_at,
     updatedAt: dbRecord.updated_at,
   };
@@ -140,6 +142,10 @@ export async function saveRouteHistory(routeId, historyData, waypoints = null) {
     actual_leave_time: historyData.actualLeaveTime || null,
     predicted_office_time: historyData.predictedOfficeTime ? Math.round(historyData.predictedOfficeTime) : null,
     actual_office_time: historyData.actualOfficeTime ? Math.round(historyData.actualOfficeTime) : null,
+
+    // Prediction accuracy chart support (stored as HH:MM)
+    predicted_return_time: historyData.predictedReturnTime || null,
+    actual_clock_out: historyData.actualClockOut || null,
   };
 
   const extendedPayload = {

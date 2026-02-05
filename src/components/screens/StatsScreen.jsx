@@ -422,6 +422,53 @@ export default function StatsScreen() {
     };
   }, [history]);
 
+  const predictionAccuracy = useMemo(() => {
+    const safeHistory = (history || []).filter(Boolean);
+
+    const toMins = (t) => {
+      const s = String(t || '').trim();
+      if (!/^\d{1,2}:\d{2}$/.test(s)) return null;
+      const [hh, mm] = s.split(':').map(Number);
+      if (!Number.isFinite(hh) || !Number.isFinite(mm)) return null;
+      return hh * 60 + mm;
+    };
+
+    // Use the most recent 14 records that have both times.
+    const rows = safeHistory
+      .filter((d) => d?.predictedReturnTime && d?.actualClockOut)
+      .slice(0, 30)
+      .map((d) => {
+        const predicted = toMins(d.predictedReturnTime);
+        const actual = toMins(d.actualClockOut);
+        if (predicted == null || actual == null) return null;
+        return {
+          date: d.date,
+          predicted,
+          actual,
+          error: actual - predicted,
+        };
+      })
+      .filter(Boolean)
+      .slice(0, 14)
+      .reverse();
+
+    if (!rows.length) return null;
+
+    const avgAbsError = Math.round(rows.reduce((s, r) => s + Math.abs(r.error), 0) / rows.length);
+    const within5 = rows.filter((r) => Math.abs(r.error) <= 5).length;
+
+    const minY = Math.min(...rows.flatMap((r) => [r.predicted, r.actual]));
+    const maxY = Math.max(...rows.flatMap((r) => [r.predicted, r.actual]));
+
+    return {
+      rows,
+      avgAbsError,
+      within5,
+      minY,
+      maxY,
+    };
+  }, [history]);
+
   // % to Standard uses total 722 time, so no extra setup data is required.
   const hasCasingWithdrawalData = true;
 
@@ -579,6 +626,102 @@ export default function StatsScreen() {
           </div>
         )}
       </Card>
+
+      {predictionAccuracy && (
+        <Card className="mb-4 bg-gradient-to-br from-emerald-50 to-teal-50 border-2 border-emerald-200">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <Target className="w-5 h-5 text-emerald-700" />
+              <h3 className="font-bold text-gray-900">Prediction Accuracy</h3>
+            </div>
+            <span className="text-xs text-gray-700">last {predictionAccuracy.rows.length} days</span>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 mb-3">
+            <div className="bg-white/70 rounded-lg p-3">
+              <p className="text-xs text-gray-600 mb-1">Avg Error (abs)</p>
+              <p className="text-xl font-bold text-gray-900">{predictionAccuracy.avgAbsError}m</p>
+              <p className="text-xs text-gray-600 mt-1">Within 5m: {predictionAccuracy.within5}/{predictionAccuracy.rows.length}</p>
+            </div>
+            <div className="bg-white/70 rounded-lg p-3">
+              <p className="text-xs text-gray-600 mb-1">What this is</p>
+              <p className="text-sm text-gray-700">
+                Predicted return/clock-out vs actual clock-out (saved when you end the day).
+              </p>
+            </div>
+          </div>
+
+          <div className="bg-white/70 rounded-lg p-3">
+            <svg viewBox="0 0 360 140" className="w-full h-36">
+              {(() => {
+                const rows = predictionAccuracy.rows;
+                const minY = predictionAccuracy.minY;
+                const maxY = predictionAccuracy.maxY;
+                const padL = 26;
+                const padR = 10;
+                const padT = 10;
+                const padB = 22;
+                const W = 360;
+                const H = 140;
+                const innerW = W - padL - padR;
+                const innerH = H - padT - padB;
+                const span = Math.max(1, maxY - minY);
+
+                const x = (i) => padL + (rows.length === 1 ? innerW / 2 : (i * innerW) / (rows.length - 1));
+                const y = (mins) => padT + innerH - ((mins - minY) / span) * innerH;
+
+                const pathFor = (key) =>
+                  rows
+                    .map((r, i) => `${i === 0 ? 'M' : 'L'} ${x(i).toFixed(1)} ${y(r[key]).toFixed(1)}`)
+                    .join(' ');
+
+                const fmt = (mins) => {
+                  const h = Math.floor(mins / 60) % 24;
+                  const m = mins % 60;
+                  const hh = String(h).padStart(2, '0');
+                  const mm = String(m).padStart(2, '0');
+                  return `${hh}:${mm}`;
+                };
+
+                return (
+                  <>
+                    {/* axes */}
+                    <line x1={padL} y1={padT} x2={padL} y2={H - padB} stroke="#9CA3AF" strokeWidth="1" />
+                    <line x1={padL} y1={H - padB} x2={W - padR} y2={H - padB} stroke="#9CA3AF" strokeWidth="1" />
+
+                    {/* y labels */}
+                    <text x={0} y={padT + 10} fontSize="10" fill="#6B7280">{fmt(maxY)}</text>
+                    <text x={0} y={H - padB} fontSize="10" fill="#6B7280">{fmt(minY)}</text>
+
+                    {/* predicted line */}
+                    <path d={pathFor('predicted')} fill="none" stroke="#2563EB" strokeWidth="2" />
+                    {/* actual line */}
+                    <path d={pathFor('actual')} fill="none" stroke="#16A34A" strokeWidth="2" />
+
+                    {/* points */}
+                    {rows.map((r, i) => (
+                      <g key={r.date || i}>
+                        <circle cx={x(i)} cy={y(r.predicted)} r="3" fill="#2563EB" />
+                        <circle cx={x(i)} cy={y(r.actual)} r="3" fill="#16A34A" />
+                      </g>
+                    ))}
+
+                    {/* x labels (first + last) */}
+                    <text x={padL} y={H - 6} fontSize="10" fill="#6B7280">{rows[0]?.date || ''}</text>
+                    <text x={W - padR} y={H - 6} fontSize="10" fill="#6B7280" textAnchor="end">{rows[rows.length - 1]?.date || ''}</text>
+
+                    {/* legend */}
+                    <rect x={padL} y={padT} width="8" height="8" fill="#2563EB" />
+                    <text x={padL + 12} y={padT + 8} fontSize="10" fill="#374151">Predicted</text>
+                    <rect x={padL + 80} y={padT} width="8" height="8" fill="#16A34A" />
+                    <text x={padL + 92} y={padT + 8} fontSize="10" fill="#374151">Actual</text>
+                  </>
+                );
+              })()}
+            </svg>
+          </div>
+        </Card>
+      )}
 
       {protectionStatus?.needsAttention && (
         <Card className="mb-4 bg-gradient-to-br from-orange-50 to-red-50 border-2 border-orange-300">
