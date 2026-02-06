@@ -18,6 +18,7 @@ export default function WorkOffRouteModal({ onClose, onSessionChange }) {
   const [startTime, setStartTime] = useState(null);
   const [promptShown2x, setPromptShown2x] = useState(false);
   const [offRouteSession, setOffRouteSession] = useState(null);
+  const [completedSummary, setCompletedSummary] = useState(null);
 
   useEffect(() => {
     if (!timerActive) return;
@@ -128,11 +129,24 @@ export default function WorkOffRouteModal({ onClose, onSessionChange }) {
 
       const result = await offRouteService.endOffRouteActivity();
 
+      const ended = result?.endedOffRouteSession;
+      const startedAt = ended?.start_time ? new Date(ended.start_time) : startTime;
+      const endedAt = ended?.end_time ? new Date(ended.end_time) : new Date();
+      const durationMinutes = Number(ended?.duration_minutes);
+
+      setCompletedSummary({
+        startedAt,
+        endedAt,
+        durationMinutes: Number.isFinite(durationMinutes) ? Math.round(durationMinutes) : Math.round(elapsedTime / 60),
+        code: ended?.code || (activityType === 'collections' ? '732' : '736'),
+        metadata: ended?.metadata || {},
+      });
+
       setTimerActive(false);
       setStage('completed');
 
       console.log('✓ Off-route activity ended:', result);
-      
+
       if (onSessionChange) {
         onSessionChange();
       }
@@ -496,8 +510,8 @@ export default function WorkOffRouteModal({ onClose, onSessionChange }) {
   }
 
   if (stage === 'completed') {
-    const duration = Math.round(elapsedTime / 60);
-    const code = activityType === 'collections' ? '732' : '736';
+    const duration = completedSummary?.durationMinutes ?? Math.round(elapsedTime / 60);
+    const code = completedSummary?.code || (activityType === 'collections' ? '732' : '736');
 
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -519,10 +533,10 @@ export default function WorkOffRouteModal({ onClose, onSessionChange }) {
               <p className="text-sm text-gray-700 mb-2">Helped: {routeId}</p>
             )}
             <p className="text-sm text-gray-700 mb-1">
-              Start: {startTime?.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+              Start: {(completedSummary?.startedAt || startTime)?.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
             </p>
             <p className="text-sm text-gray-700 mb-1">
-              End: {new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+              End: {(completedSummary?.endedAt || new Date())?.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
             </p>
             <p className="text-sm text-gray-700 mb-2">Duration: {duration} minutes</p>
             <p className="text-xs text-gray-500">
