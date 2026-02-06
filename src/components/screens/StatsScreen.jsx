@@ -11,6 +11,8 @@ import { calculateRecordDays, formatRecordValue, formatRecordDate } from '../../
 import { calculateAveragePerformance } from '../../utils/percentToStandard';
 import { calculateFullDayPrediction } from '../../services/predictionService';
 import { getStreetTimeSummaryByDate, getOperationCodesForDate } from '../../services/streetTimeHistoryService';
+import { formatUtcAsChicago } from '../../utils/timezone';
+import { deriveOfficeTimeMinutes, findFirst721 } from '../../utils/deriveOfficeTime';
 import { Clock, TrendingUp, Calendar, Package, Timer, Target, Activity, Award, AlertTriangle, Shield, Trophy, History as HistoryIcon } from 'lucide-react';
 
 function formatDurationMinutes(totalMinutes) {
@@ -876,7 +878,13 @@ export default function StatsScreen() {
               // Use route_history office_time as the source of truth when available.
               const hist = (history || []).find((h) => h?.date === d.date);
 
-              const m722 = Number(hist?.officeTime ?? hist?.office_time ?? codes['722'] ?? 0) || 0;
+              const routeStartHHMM = (routes?.[currentRouteId]?.startTime || todayInputs?.startTimeOverride || '07:30');
+              const first721StartUtc = d?.first_721_start || null;
+              const derived722 = first721StartUtc ? deriveOfficeTimeMinutes(routeStartHHMM, first721StartUtc) : 0;
+
+              // Prefer explicit history value, then explicitly recorded operation code; otherwise derive from route start -> first 721 start.
+              let m722 = Number(hist?.officeTime ?? hist?.office_time ?? codes['722'] ?? 0) || 0;
+              if (!m722 && derived722) m722 = derived722;
               const m721 = Number(hist?.streetTimeNormalized ?? hist?.street_time_normalized ?? hist?.streetTime ?? hist?.street_time ?? codes['721'] ?? 0) || 0;
               const m744 = Number(hist?.pmOfficeTime ?? hist?.pm_office_time ?? codes['744'] ?? 0) || 0;
 
@@ -890,6 +898,21 @@ export default function StatsScreen() {
               const total = core + offRoute;
 
               const isOpen = expandedDay === d.date;
+
+              const detailRows = (dayDetails?.[d.date] || []);
+              const hasRecorded722 = detailRows.some((r) => r?.code === '722');
+              const computed722Row = (!hasRecorded722 && derived722 > 0 && first721StartUtc)
+                ? {
+                    id: `derived-722-${d.date}`,
+                    code: '722',
+                    code_name: 'AM Office (derived)',
+                    duration_minutes: derived722,
+                    start_time: `${d.date}T${routeStartHHMM}:00`,
+                    end_time: first721StartUtc,
+                    _derived: true,
+                  }
+                : null;
+              const displayRows = computed722Row ? [computed722Row, ...detailRows] : detailRows;
 
               return (
                 <div key={d.date} className="bg-white/70 rounded-lg border border-slate-200 overflow-hidden">
@@ -917,15 +940,19 @@ export default function StatsScreen() {
 
                   {isOpen ? (
                     <div className="border-t border-slate-200 p-3">
-                      {(dayDetails?.[d.date] || []).length === 0 ? (
+                      {displayRows.length === 0 ? (
                         <p className="text-sm text-gray-700">No detailed codes saved for this day.</p>
                       ) : (
                         <div className="space-y-2">
-                          {(dayDetails?.[d.date] || []).map((row) => {
+                          {displayRows.map((row) => {
                             const mins = Number(row.duration_minutes || 0) || 0;
                             const label = row.code_name || row.code || 'Code';
-                            const start = row.start_time ? format(new Date(row.start_time), 'h:mm a') : '--';
-                            const end = row.end_time ? format(new Date(row.end_time), 'h:mm a') : '--';
+                            const start = row?._derived
+                              ? formatTimeAMPM(new Date(`${d.date}T${routeStartHHMM}:00`))
+                              : (row.start_time ? formatUtcAsChicago(row.start_time) : '--');
+                            const end = row?._derived
+                              ? (first721StartUtc ? formatUtcAsChicago(first721StartUtc) : '--')
+                              : (row.end_time ? formatUtcAsChicago(row.end_time) : '--');
                             return (
                               <div key={row.id} className="flex items-center justify-between bg-white rounded p-2 text-sm">
                                 <div>

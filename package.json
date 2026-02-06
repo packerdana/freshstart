@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.app.json",
     "guard:live-expected": "node scripts/guard-live-expected.mjs",
-    "ci": "npm run typecheck && npm run guard:live-expected && npm run build"
+    "test:unit": "node scripts/test-deriveOfficeTime.mjs",
+    "ci": "npm run typecheck && npm run test:unit && npm run guard:live-expected && npm run build"
   },
   "dependencies": {
     "@sentry/react": "^10.38.0",

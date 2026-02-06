@@ -30,7 +30,7 @@ export async function getStreetTimeSummaryByDate(currentRouteId) {
     // Filter by CURRENT ROUTE only
     const { data, error } = await supabase
       .from('operation_codes')
-      .select('date, code, duration_minutes, route_id, session_id')
+      .select('date, code, duration_minutes, start_time, route_id, session_id')
       .eq('route_id', currentRouteId)
       .not('end_time', 'is', null)
       .order('date', { ascending: false });
@@ -49,6 +49,7 @@ export async function getStreetTimeSummaryByDate(currentRouteId) {
           route_id: record.route_id,
           session_id: record.session_id,
           total_minutes: 0,
+          first_721_start: null,
           codes: {
             '722': 0,
             '721': 0,
@@ -64,6 +65,14 @@ export async function getStreetTimeSummaryByDate(currentRouteId) {
       
       daySummary.codes[record.code] = (daySummary.codes[record.code] || 0) + duration;
       daySummary.total_minutes += duration;
+
+      // Track earliest street start for derived 722 (office time)
+      if (record.code === '721' && record.start_time) {
+        const cur = daySummary.first_721_start;
+        if (!cur || new Date(record.start_time) < new Date(cur)) {
+          daySummary.first_721_start = record.start_time;
+        }
+      }
     });
 
     const result = Array.from(dateMap.values());
