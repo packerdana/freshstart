@@ -6,6 +6,9 @@ export function calculateRouteAverages(history) {
   }
 
   const validHistory = history.filter((d) => {
+    // Exclude flagged "bad data" days from averages by default.
+    if (d.excludeFromAverages) return false;
+
     if (d.streetTimeNormalized != null && d.streetTimeNormalized > 0) return true;
     if (d.streetTime != null && d.streetTime > 0) return true;
     if (d.streetHours != null && d.streetHours > 0) return true;

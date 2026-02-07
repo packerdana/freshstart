@@ -1,4 +1,4 @@
-import { Home, MapPin, Clock, BarChart3, Route, Settings, Timer, History } from 'lucide-react';
+import { Home, MapPin, Clock, BarChart3, Route, Settings, Timer, History, Bot } from 'lucide-react';
 
 export default function BottomNav({ activeTab, onTabChange }) {
   const tabs = [
@@ -8,6 +8,7 @@ export default function BottomNav({ activeTab, onTabChange }) {
     { id: 'history', label: 'History', icon: History },
     { id: 'street-time-history', label: 'Time', icon: Clock }, // ✅ ADD THIS LINE
     { id: 'timers', label: 'Timers', icon: Timer },
+    { id: 'assistant', label: 'Assist', icon: Bot },
     { id: 'stats', label: 'Stats', icon: BarChart3 },
     { id: 'settings', label: 'Settings', icon: Settings },
   ];

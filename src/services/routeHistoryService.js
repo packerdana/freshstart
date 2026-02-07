@@ -43,6 +43,7 @@ function convertHistoryFieldNames(dbRecord) {
     predictedReturnTime: dbRecord.predicted_return_time,
     actualClockOut: dbRecord.actual_clock_out,
     assistanceMinutes: dbRecord.assistance_minutes,
+    excludeFromAverages: !!dbRecord.exclude_from_averages,
     createdAt: dbRecord.created_at,
     updatedAt: dbRecord.updated_at,
   };

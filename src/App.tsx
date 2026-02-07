@@ -4,6 +4,7 @@ import RoutesScreen from './components/screens/RoutesScreen';
 import WaypointsScreen from './components/screens/WaypointsScreen';
 import WaypointHistoryScreen from './components/screens/WaypointHistoryScreen';
 import StreetTimeHistoryScreen from './components/screens/StreetTimeHistoryScreen';
+import AssistantScreen from './components/screens/AssistantScreen';
 import BreaksScreen from './components/screens/BreaksScreen';
 import StatsScreen from './components/screens/StatsScreen';
 import SettingsScreen from './components/screens/SettingsScreen';
@@ -110,6 +111,8 @@ function App() {
         return <StreetTimeHistoryScreen />;
       case 'timers':
         return <BreaksScreen />;
+      case 'assistant':
+        return <AssistantScreen />;
       case 'stats':
         return <StatsScreen />;
       case 'settings':

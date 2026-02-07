@@ -75,7 +75,36 @@ export async function getStreetTimeSummaryByDate(currentRouteId) {
       }
     });
 
-    const result = Array.from(dateMap.values());
+    let result = Array.from(dateMap.values());
+
+    // Enrich with route_history.exclude_from_averages so the UI can flag bad days.
+    try {
+      const dates = result.map((r) => r.date).filter(Boolean);
+      if (dates.length) {
+        // Some older DBs may not have exclude_from_averages yet; handle gracefully.
+        const { data: rh, error: rhErr } = await supabase
+          .from('route_history')
+          .select('date, exclude_from_averages')
+          .eq('route_id', currentRouteId)
+          .in('date', dates);
+
+        if (rhErr) {
+          const msg = String(rhErr.message || rhErr);
+          if (!msg.includes('exclude_from_averages')) {
+            throw rhErr;
+          }
+        }
+
+        const map = new Map((rh || []).map((x) => [x.date, !!x.exclude_from_averages]));
+        result = result.map((r) => ({
+          ...r,
+          exclude_from_averages: map.get(r.date) || false,
+        }));
+      }
+    } catch (e) {
+      console.warn('[STREET TIME SERVICE] Could not enrich exclude_from_averages:', e?.message || e);
+    }
+
     console.log('[STREET TIME SERVICE] Grouped into', result.length, 'days');
     
     return result;

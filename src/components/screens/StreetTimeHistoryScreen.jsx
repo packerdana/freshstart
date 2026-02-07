@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import { History, Calendar, Clock, ChevronDown, ChevronUp, Search, TrendingUp, Trash2, AlertCircle, Check } from 'lucide-react';
+import { History, Calendar, Clock, ChevronDown, ChevronUp, Search, TrendingUp, Trash2, AlertCircle, Check, Ban } from 'lucide-react';
 import Card from '../shared/Card';
 import Button from '../shared/Button';
 import useRouteStore from '../../stores/routeStore';
 import { supabase } from '../../lib/supabase';
 import { getStreetTimeSummaryByDate, getOperationCodesForDate, formatDuration } from '../../services/streetTimeHistoryService';
+import { setExcludeFromAverages } from '../../services/dataQualityService';
 import { useDayDeletion } from '../../hooks/useDayDeletion';
 import { formatMinutesAsTime } from '../../utils/time';
 import { format, parseISO, differenceInDays } from 'date-fns';
@@ -306,6 +307,12 @@ export default function StreetTimeHistoryScreen() {
                       </div>
                       <p className="text-xs text-gray-500">{daysAgo === 0 ? 'Today' : daysAgo === 1 ? 'Yesterday' : `${daysAgo} days ago`}</p>
                       {routeName && <p className="text-xs text-gray-500 mt-1">Route: {routeName}</p>}
+{item.exclude_from_averages && (
+  <p className="text-xs mt-1 inline-flex items-center gap-1 text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded">
+    <Ban className="w-3 h-3" />
+    Excluded from averages
+  </p>
+) }
                     </div>
                     <div className="flex items-center gap-2">
                       <div className="text-right">
@@ -350,10 +357,41 @@ export default function StreetTimeHistoryScreen() {
                           ))}
                         </div>
                         
-                        <Button onClick={(e) => { e.stopPropagation(); handleDeleteClick(e, item); }} variant="danger" className="w-full flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700">
-                          <Trash2 className="w-4 h-4" />
-                          Delete This Day
-                        </Button>
+                        <div className="grid grid-cols-1 gap-2">
+                          <Button
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              try {
+                                await setExcludeFromAverages({
+                                  routeId: currentRouteId,
+                                  date: item.date,
+                                  exclude: !item.exclude_from_averages,
+                                });
+                                await loadHistorySummary();
+                              } catch (err) {
+                                console.error('Failed to toggle exclude_from_averages:', err);
+                                alert(err?.message || 'Failed to update day');
+                              }
+                            }}
+                            variant="secondary"
+                            className={`w-full flex items-center justify-center gap-2 ${item.exclude_from_averages ? 'bg-amber-600 hover:bg-amber-700 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-900'}`}
+                          >
+                            <Ban className="w-4 h-4" />
+                            {item.exclude_from_averages ? 'Excluded from averages (tap to include)' : 'Exclude from averages'}
+                          </Button>
+
+                          <Button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteClick(e, item);
+                            }}
+                            variant="danger"
+                            className="w-full flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                            Delete This Day
+                          </Button>
+                        </div>
                       </>
                     ) : (
                       <p className="text-sm text-gray-500 text-center py-4">No operation code details available</p>
