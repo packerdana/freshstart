@@ -19,6 +19,7 @@ export default function AssistantScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const bottomRef = useRef(null);
+  const textareaRef = useRef(null);
 
   const modeLabel = useMemo(() => (mode === 'union' ? 'Union Steward (NALC)' : 'App Help'), [mode]);
 
@@ -50,6 +51,23 @@ export default function AssistantScreen() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, loading]);
+
+  function autosizeTextarea() {
+    const el = textareaRef.current;
+    if (!el) return;
+
+    // Reset then grow to fit content.
+    el.style.height = 'auto';
+    const next = Math.min(el.scrollHeight, 160);
+    el.style.height = `${next}px`;
+    el.style.overflowY = el.scrollHeight > 160 ? 'auto' : 'hidden';
+  }
+
+  useEffect(() => {
+    // Keep textarea height in sync when we programmatically clear/set input.
+    autosizeTextarea();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [input]);
 
   async function onNewThread() {
     setError(null);
@@ -204,8 +222,13 @@ export default function AssistantScreen() {
           <div className="max-w-2xl mx-auto">
             <form onSubmit={onSend} className="bg-white rounded-xl shadow p-4 flex gap-3">
               <textarea
+                ref={textareaRef}
                 value={input}
-                onChange={(e) => setInput(e.target.value)}
+                onChange={(e) => {
+                  setInput(e.target.value);
+                  // Let React apply the new value, then measure.
+                  requestAnimationFrame(() => autosizeTextarea());
+                }}
                 rows={2}
                 className="flex-1 border border-gray-300 rounded-md px-4 py-3 text-base resize-none"
                 placeholder={mode === 'union' ? 'Ask a union/contract question…' : 'Ask how to do something in RouteWise…'}
