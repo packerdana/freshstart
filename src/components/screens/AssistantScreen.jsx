@@ -102,7 +102,7 @@ export default function AssistantScreen() {
   }
 
   return (
-    <div className="min-h-[calc(100vh-8rem)] bg-gradient-to-br from-slate-50 to-slate-100 p-4">
+    <div className="min-h-[calc(100vh-8rem)] bg-gradient-to-br from-slate-50 to-slate-100 p-4 pb-44">
       <div className="max-w-2xl mx-auto">
         <div className="bg-white rounded-xl shadow p-4 mb-4">
           <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -200,21 +200,26 @@ export default function AssistantScreen() {
           )}
         </div>
 
-        <form onSubmit={onSend} className="bg-white rounded-xl shadow p-3 flex gap-2">
-          <input
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            className="flex-1 border border-gray-300 rounded-md px-3 py-2 text-sm"
-            placeholder={mode === 'union' ? 'Ask a union/contract question…' : 'Ask how to do something in RouteWise…'}
-          />
-          <button
-            type="submit"
-            disabled={loading}
-            className="px-4 py-2 rounded-md bg-blue-600 text-white text-sm disabled:opacity-60"
-          >
-            Send
-          </button>
-        </form>
+        <div className="fixed bottom-16 left-0 right-0 px-4 pb-[env(safe-area-inset-bottom)]">
+          <div className="max-w-2xl mx-auto">
+            <form onSubmit={onSend} className="bg-white rounded-xl shadow p-4 flex gap-3">
+              <textarea
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                rows={2}
+                className="flex-1 border border-gray-300 rounded-md px-4 py-3 text-base resize-none"
+                placeholder={mode === 'union' ? 'Ask a union/contract question…' : 'Ask how to do something in RouteWise…'}
+              />
+              <button
+                type="submit"
+                disabled={loading}
+                className="px-5 py-3 rounded-md bg-blue-600 text-white text-base disabled:opacity-60"
+              >
+                Send
+              </button>
+            </form>
+          </div>
+        </div>
       </div>
     </div>
   );
