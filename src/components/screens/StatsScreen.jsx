@@ -5,7 +5,7 @@ import Button from '../shared/Button';
 import useRouteStore from '../../stores/routeStore';
 // pmOfficeService removed (744 PM Office Time card removed)
 import { routeProtectionService } from '../../services/routeProtectionService';
-import { formatMinutesAsTime, parseLocalDate, formatTimeAMPM } from '../../utils/time';
+import { formatMinutesAsTime, parseLocalDate, formatTimeAMPM, getLocalDateString } from '../../utils/time';
 import { getWorkweekStart } from '../../utils/uspsConstants';
 import { calculateRecordDays, formatRecordValue, formatRecordDate } from '../../services/recordStatsService';
 import { calculateAveragePerformance } from '../../utils/percentToStandard';
@@ -31,6 +31,9 @@ export default function StatsScreen() {
   // PM Office stats removed
   const [protectionStatus, setProtectionStatus] = useState(null);
   const [weeklyStats, setWeeklyStats] = useState(null);
+
+  // Today's timeline
+  const [todayOps, setTodayOps] = useState([]);
 
   // Day History (operation codes)
   const [daySummaries, setDaySummaries] = useState([]);
@@ -113,6 +116,22 @@ export default function StatsScreen() {
 
     loadPrediction();
   }, [todayInputs, history, waypoints, currentRouteId, getCurrentRouteConfig]);
+
+  useEffect(() => {
+    async function loadTodayOps() {
+      if (!currentRouteId) return;
+      const today = getLocalDateString();
+      try {
+        const rows = await getOperationCodesForDate(currentRouteId, today);
+        setTodayOps(Array.isArray(rows) ? rows : []);
+      } catch (e) {
+        console.warn('[StatsScreen] Failed to load today operation codes:', e?.message || e);
+        setTodayOps([]);
+      }
+    }
+
+    loadTodayOps();
+  }, [currentRouteId]);
 
   // PM office stats section removed
 
@@ -595,96 +614,90 @@ export default function StatsScreen() {
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
             <Clock className="w-5 h-5 text-blue-600" />
-            Today's Stats
+            Today
           </h3>
           <span className="text-xs text-gray-600">live</span>
         </div>
 
-        {!hasActiveRoute ? (
-          <p className="text-sm text-gray-700">
-            Enter today's mail volumes on the Today tab to see predictions and pace.
-          </p>
-        ) : !todayStats.predClockOut ? (
-          <p className="text-sm text-gray-700">
-            Calculating today's prediction...
-          </p>
-        ) : (
-          <div className="grid grid-cols-2 gap-3">
-            <div className="bg-white/70 rounded-lg p-3">
-              <p className="text-xs text-gray-600 mb-1">Predicted Clock-Out</p>
-              <p className="text-xl font-bold text-gray-900">
-                {formatTimeAMPM(todayStats.predClockOut)}
-              </p>
-            </div>
-
-            <div className="bg-white/70 rounded-lg p-3">
-              {todayStats.actualClockOut ? (
-                <>
-                  <p className="text-xs text-gray-600 mb-1">Actual Clock-Out</p>
-                  <p className="text-xl font-bold text-gray-900">
-                    {formatTimeAMPM(todayStats.actualClockOut)}
-                  </p>
-                  {todayStats.predictionErrorMinutes != null ? (
-                    <p className={`text-xs mt-1 font-semibold ${
-                      Math.abs(todayStats.predictionErrorMinutes) <= 5
-                        ? 'text-green-700'
-                        : todayStats.predictionErrorMinutes > 0
-                          ? 'text-red-700'
-                          : 'text-blue-700'
-                    }`}>
-                      Prediction was {todayStats.predictionErrorMinutes > 0 ? 'late' : 'early'} by {Math.abs(todayStats.predictionErrorMinutes)}m
-                    </p>
-                  ) : (
-                    <p className="text-xs text-gray-500 mt-1">Prediction comparison unavailable</p>
-                  )}
-                </>
-              ) : (
-                <>
-                  <p className="text-xs text-gray-600 mb-1">Time Until Clock-Out</p>
-                  {todayStats.minutesUntilClockOut == null ? (
-                    <p className="text-xl font-bold text-gray-900">--</p>
-                  ) : (
-                    <p className={`text-xl font-bold ${
-                      todayStats.minutesUntilClockOut < 0 ? 'text-red-600' : 'text-gray-900'
-                    }`}>
-                      {todayStats.minutesUntilClockOut < 0
-                        ? `Over by ${formatDurationMinutes(todayStats.minutesUntilClockOut)}`
-                        : formatDurationMinutes(todayStats.minutesUntilClockOut)}
-                    </p>
-                  )}
-                </>
-              )}
-            </div>
-
-            <div className="bg-white/70 rounded-lg p-3">
-              <p className="text-xs text-gray-600 mb-1">Office Time So Far</p>
-              <p className="text-xl font-bold text-gray-900">
-                {Math.round(todayStats.officeMinutes)}m
-              </p>
-              {todayStats.leaveOfficeTime ? (
-                <p className="text-xs text-gray-600 mt-1">Left office: {todayStats.leaveOfficeTime}</p>
-              ) : (
-                <p className="text-xs text-gray-500 mt-1">Leave time not set</p>
-              )}
-            </div>
-
-            <div className="bg-white/70 rounded-lg p-3">
-              <p className="text-xs text-gray-600 mb-1">Street Pace (est.)</p>
-              {todayStats.paceMinPerStop ? (
-                <p className="text-xl font-bold text-gray-900">
-                  {todayStats.paceMinPerStop.toFixed(1)} min/stop
-                </p>
-              ) : (
-                <p className="text-sm text-gray-700">
-                  Add route stops in Settings to see pace.
-                </p>
-              )}
-              {todayStats.stops ? (
-                <p className="text-xs text-gray-600 mt-1">Stops: {todayStats.stops}</p>
-              ) : null}
-            </div>
+        <div className="grid grid-cols-2 gap-3 mb-3">
+          <div className="bg-white/70 rounded-lg p-3">
+            <p className="text-xs text-gray-600 mb-1">Office Time So Far</p>
+            <p className="text-xl font-bold text-gray-900">
+              {Math.round(todayStats.officeMinutes)}m
+            </p>
+            {todayStats.leaveOfficeTime ? (
+              <p className="text-xs text-gray-600 mt-1">Left office: {todayStats.leaveOfficeTime}</p>
+            ) : (
+              <p className="text-xs text-gray-500 mt-1">Leave time not set</p>
+            )}
           </div>
-        )}
+
+          <div className="bg-white/70 rounded-lg p-3">
+            <p className="text-xs text-gray-600 mb-1">Actual Clock-Out</p>
+            <p className="text-xl font-bold text-gray-900">
+              {todayStats.actualClockOut ? formatTimeAMPM(todayStats.actualClockOut) : '--'}
+            </p>
+            <p className="text-xs text-gray-500 mt-1">(predicted removed)</p>
+          </div>
+        </div>
+
+        <div className="bg-white/70 rounded-lg p-3">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-sm font-semibold text-gray-900">Today timeline</p>
+            <p className="text-xs text-gray-600">{getLocalDateString()}</p>
+          </div>
+
+          {todayOps.length === 0 ? (
+            <p className="text-sm text-gray-700">No timers saved yet today.</p>
+          ) : (
+            <div className="space-y-2">
+              {(() => {
+                const routeStartHHMM = (routes?.[currentRouteId]?.startTime || todayInputs?.startTimeOverride || '07:30');
+                const first721 = findFirst721(todayOps);
+                const derived722 = (first721?.start_time)
+                  ? deriveOfficeTimeMinutes(routeStartHHMM, first721.start_time)
+                  : 0;
+                const has722 = todayOps.some((r) => r?.code === '722');
+
+                const computed722Row = (!has722 && derived722 > 0 && first721?.start_time)
+                  ? {
+                      id: `derived-722-${getLocalDateString()}`,
+                      code: '722',
+                      code_name: 'AM Office (derived)',
+                      duration_minutes: derived722,
+                      start_time: `${getLocalDateString()}T${routeStartHHMM}:00`,
+                      end_time: first721.start_time,
+                      _derived: true,
+                    }
+                  : null;
+
+                const displayRows = computed722Row ? [computed722Row, ...todayOps] : todayOps;
+
+                return displayRows.map((row) => {
+                  const mins = Number(row.duration_minutes || 0) || 0;
+                  const label = row.code_name || row.code || 'Code';
+
+                  const start = row?._derived
+                    ? formatTimeAMPM(new Date(`${getLocalDateString()}T${routeStartHHMM}:00`))
+                    : (row.start_time ? formatUtcAsChicago(row.start_time) : '--');
+                  const end = row?._derived
+                    ? (row.end_time ? formatUtcAsChicago(row.end_time) : '--')
+                    : (row.end_time ? formatUtcAsChicago(row.end_time) : '--');
+
+                  return (
+                    <div key={row.id} className="flex items-center justify-between bg-white rounded p-2 text-sm">
+                      <div>
+                        <p className="font-semibold text-gray-900">{row.code} — {label}</p>
+                        <p className="text-xs text-gray-600">{start} → {end}</p>
+                      </div>
+                      <div className="font-mono text-gray-900">{formatMinutesAsTime(Math.round(mins))}</div>
+                    </div>
+                  );
+                });
+              })()}
+            </div>
+          )}
+        </div>
       </Card>
 
       <Card className="mb-4 bg-gradient-to-br from-emerald-50 to-teal-50 border-2 border-emerald-200">
