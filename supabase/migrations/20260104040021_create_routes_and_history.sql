@@ -96,29 +96,34 @@ CREATE INDEX IF NOT EXISTS idx_routes_user ON routes(user_id);
 ALTER TABLE routes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE route_history ENABLE ROW LEVEL SECURITY;
 
--- Routes policies
+-- Routes policies (idempotent)
+DROP POLICY IF EXISTS "Users can view own routes" ON routes;
 CREATE POLICY "Users can view own routes"
   ON routes FOR SELECT
   TO authenticated
   USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can create own routes" ON routes;
 CREATE POLICY "Users can create own routes"
   ON routes FOR INSERT
   TO authenticated
   WITH CHECK (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can update own routes" ON routes;
 CREATE POLICY "Users can update own routes"
   ON routes FOR UPDATE
   TO authenticated
   USING (auth.uid() = user_id)
   WITH CHECK (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can delete own routes" ON routes;
 CREATE POLICY "Users can delete own routes"
   ON routes FOR DELETE
   TO authenticated
   USING (auth.uid() = user_id);
 
--- Route history policies
+-- Route history policies (idempotent)
+DROP POLICY IF EXISTS "Users can view own route history" ON route_history;
 CREATE POLICY "Users can view own route history"
   ON route_history FOR SELECT
   TO authenticated
@@ -130,6 +135,7 @@ CREATE POLICY "Users can view own route history"
     )
   );
 
+DROP POLICY IF EXISTS "Users can create own route history" ON route_history;
 CREATE POLICY "Users can create own route history"
   ON route_history FOR INSERT
   TO authenticated
@@ -141,6 +147,7 @@ CREATE POLICY "Users can create own route history"
     )
   );
 
+DROP POLICY IF EXISTS "Users can update own route history" ON route_history;
 CREATE POLICY "Users can update own route history"
   ON route_history FOR UPDATE
   TO authenticated
@@ -159,6 +166,7 @@ CREATE POLICY "Users can update own route history"
     )
   );
 
+DROP POLICY IF EXISTS "Users can delete own route history" ON route_history;
 CREATE POLICY "Users can delete own route history"
   ON route_history FOR DELETE
   TO authenticated

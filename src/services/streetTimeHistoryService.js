@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { deriveOfficeTimeMinutes, findFirst721 } from '../utils/deriveOfficeTime';
 
 /**
  * Street Time History Service
@@ -27,10 +28,24 @@ export async function getStreetTimeSummaryByDate(currentRouteId) {
       return [];
     }
 
+    // Fetch the route's configured start time (used to derive 722 when it's not explicitly recorded)
+    let routeStartTime = '07:30';
+    try {
+      const { data: routeRow, error: routeErr } = await supabase
+        .from('routes')
+        .select('start_time')
+        .eq('id', currentRouteId)
+        .maybeSingle();
+      if (!routeErr && routeRow?.start_time) routeStartTime = routeRow.start_time;
+    } catch (e) {
+      // Non-fatal; we'll just fall back to default.
+      console.warn('[STREET TIME SERVICE] Could not load route start_time; using default 07:30');
+    }
+
     // Filter by CURRENT ROUTE only
     const { data, error } = await supabase
       .from('operation_codes')
-      .select('date, code, duration_minutes, start_time, route_id, session_id')
+      .select('date, code, duration_minutes, start_time, route_id, session_id, end_time')
       .eq('route_id', currentRouteId)
       .not('end_time', 'is', null)
       .order('date', { ascending: false });
@@ -42,7 +57,7 @@ export async function getStreetTimeSummaryByDate(currentRouteId) {
     // Group by date and sum durations by code
     const dateMap = new Map();
 
-    data.forEach(record => {
+    data.forEach((record) => {
       if (!dateMap.has(record.date)) {
         dateMap.set(record.date, {
           date: record.date,
@@ -55,14 +70,14 @@ export async function getStreetTimeSummaryByDate(currentRouteId) {
             '721': 0,
             '736': 0,
             '732': 0,
-            '744': 0
-          }
+            '744': 0,
+          },
         });
       }
 
       const daySummary = dateMap.get(record.date);
       const duration = parseFloat(record.duration_minutes) || 0;
-      
+
       daySummary.codes[record.code] = (daySummary.codes[record.code] || 0) + duration;
       daySummary.total_minutes += duration;
 
@@ -77,36 +92,77 @@ export async function getStreetTimeSummaryByDate(currentRouteId) {
 
     let result = Array.from(dateMap.values());
 
-    // Enrich with route_history.exclude_from_averages so the UI can flag bad days.
+    // Enrich from route_history (exclude flag + optional stored 722)
+    // Then derive 722 from start_time -> first 721 start if needed.
     try {
       const dates = result.map((r) => r.date).filter(Boolean);
       if (dates.length) {
-        // Some older DBs may not have exclude_from_averages yet; handle gracefully.
         const { data: rh, error: rhErr } = await supabase
           .from('route_history')
-          .select('date, exclude_from_averages')
+          .select('date, exclude_from_averages, actual_office_time, office_722_time, office_time')
           .eq('route_id', currentRouteId)
           .in('date', dates);
 
+        // Some older DBs may not have newer columns yet; be tolerant.
         if (rhErr) {
           const msg = String(rhErr.message || rhErr);
-          if (!msg.includes('exclude_from_averages')) {
+          if (!msg.includes('exclude_from_averages') && !msg.includes('actual_office_time') && !msg.includes('office_722_time')) {
             throw rhErr;
           }
         }
 
-        const map = new Map((rh || []).map((x) => [x.date, !!x.exclude_from_averages]));
-        result = result.map((r) => ({
-          ...r,
-          exclude_from_averages: map.get(r.date) || false,
-        }));
+        const rhMap = new Map((rh || []).map((x) => [x.date, x]));
+
+        result = result.map((r) => {
+          const meta = rhMap.get(r.date) || {};
+
+          // Prefer an explicitly stored office-time value if present.
+          const stored722 =
+            Number(meta.actual_office_time ?? meta.office_722_time ?? meta.office_time ?? 0) || 0;
+
+          const next = {
+            ...r,
+            exclude_from_averages: !!meta.exclude_from_averages,
+          };
+
+          if ((next.codes['722'] || 0) <= 0 && stored722 > 0) {
+            next.codes['722'] = stored722;
+            next.total_minutes += stored722;
+          }
+
+          // If we still don't have a 722 value, derive it from route start -> first 721 start.
+          if ((next.codes['722'] || 0) <= 0 && next.first_721_start) {
+            const derived = deriveOfficeTimeMinutes(routeStartTime, next.first_721_start);
+            if (derived > 0) {
+              next.codes['722'] = derived;
+              next.total_minutes += derived;
+            }
+          }
+
+          return next;
+        });
       }
     } catch (e) {
-      console.warn('[STREET TIME SERVICE] Could not enrich exclude_from_averages:', e?.message || e);
+      console.warn('[STREET TIME SERVICE] Could not enrich route_history:', e?.message || e);
+
+      // Fallback: still try to derive 722 if we can.
+      result = result.map((r) => {
+        if ((r.codes?.['722'] || 0) <= 0 && r.first_721_start) {
+          const derived = deriveOfficeTimeMinutes(routeStartTime, r.first_721_start);
+          if (derived > 0) {
+            return {
+              ...r,
+              codes: { ...r.codes, '722': derived },
+              total_minutes: (Number(r.total_minutes) || 0) + derived,
+            };
+          }
+        }
+        return r;
+      });
     }
 
     console.log('[STREET TIME SERVICE] Grouped into', result.length, 'days');
-    
+
     return result;
   } catch (error) {
     console.error('Failed to load street time summary:', error);
@@ -128,6 +184,19 @@ export async function getOperationCodesForDate(currentRouteId, date) {
       return [];
     }
 
+    // Route start time (for derived 722 row)
+    let routeStartTime = '07:30';
+    try {
+      const { data: routeRow, error: routeErr } = await supabase
+        .from('routes')
+        .select('start_time')
+        .eq('id', currentRouteId)
+        .maybeSingle();
+      if (!routeErr && routeRow?.start_time) routeStartTime = routeRow.start_time;
+    } catch (e) {
+      // ignore
+    }
+
     const { data, error } = await supabase
       .from('operation_codes')
       .select('*')
@@ -140,13 +209,40 @@ export async function getOperationCodesForDate(currentRouteId, date) {
     console.log('[STREET TIME SERVICE] Loaded', data.length, 'codes for route', currentRouteId, 'date', date);
 
     // Hide noisy 0-minute rows (usually accidental starts/stops).
-    return (data || [])
-      .filter((record) => (Number(record.duration_minutes) || 0) > 0)
-      .map(record => ({
-        ...record,
-        code_name: CODE_NAMES[record.code] || 'Unknown',
-        duration_formatted: formatDuration(record.duration_minutes)
-      }));
+    let rows = (data || []).filter((record) => (Number(record.duration_minutes) || 0) > 0);
+
+    // If 722 isn't recorded, synthesize it from route start -> first 721 start.
+    const has722 = rows.some((r) => r?.code === '722');
+    if (!has722) {
+      const first721 = findFirst721(rows);
+      if (first721?.start_time) {
+        const derived = deriveOfficeTimeMinutes(routeStartTime, first721.start_time);
+        if (derived > 0) {
+          const endUtc = new Date(first721.start_time);
+          const startUtc = new Date(endUtc.getTime() - derived * 60 * 1000);
+          rows = [
+            {
+              id: `derived-722-${date}`,
+              route_id: currentRouteId,
+              date,
+              code: '722',
+              start_time: startUtc.toISOString(),
+              end_time: endUtc.toISOString(),
+              duration_minutes: derived,
+              created_at: null,
+              updated_at: null,
+            },
+            ...rows,
+          ].sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
+        }
+      }
+    }
+
+    return rows.map((record) => ({
+      ...record,
+      code_name: CODE_NAMES[record.code] || 'Unknown',
+      duration_formatted: formatDuration(record.duration_minutes),
+    }));
   } catch (error) {
     console.error('Failed to load operation codes for date:', error);
     throw error;

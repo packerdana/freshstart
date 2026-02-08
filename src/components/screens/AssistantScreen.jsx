@@ -225,7 +225,7 @@ export default function AssistantScreen() {
                   >
                     <div className="text-sm leading-relaxed whitespace-pre-wrap">{m.content}</div>
 
-                    {/* Citations */}
+                    {/* Sources + external union references (union mode) */}
                     {m.citations && Array.isArray(m.citations) && m.citations.length > 0 && (
                       <div className={`mt-3 pt-3 border-t text-xs ${m.role === 'user' ? 'border-white/20' : 'border-gray-100'}`}>
                         <div className="font-semibold mb-1 opacity-90 flex items-center gap-1">
@@ -240,6 +240,40 @@ export default function AssistantScreen() {
                           ))}
                         </ul>
                       </div>
+                    )}
+
+                    {m.metadata?.relevantWins && Array.isArray(m.metadata.relevantWins) && m.metadata.relevantWins.length > 0 && (
+                      <details className={`mt-3 pt-3 border-t text-xs ${m.role === 'user' ? 'border-white/20' : 'border-gray-100'}`}>
+                        <summary className="font-semibold cursor-pointer select-none opacity-90">Relevant wins</summary>
+                        <ul className="list-disc pl-4 mt-1 space-y-0.5 opacity-80">
+                          {m.metadata.relevantWins.map((w, idx) => (
+                            <li key={idx}>
+                              <a href={w.url} target="_blank" rel="noreferrer" className="underline">
+                                {w.title || 'Link'}
+                              </a>
+                              {w.article ? ` — ${w.article}` : ''}{w.doc_type ? ` (${w.doc_type})` : ''}
+                              {w.notes ? `: ${w.notes}` : ''}
+                            </li>
+                          ))}
+                        </ul>
+                      </details>
+                    )}
+
+                    {m.metadata?.helpfulResources && Array.isArray(m.metadata.helpfulResources) && m.metadata.helpfulResources.length > 0 && (
+                      <details className={`mt-3 pt-3 border-t text-xs ${m.role === 'user' ? 'border-white/20' : 'border-gray-100'}`}>
+                        <summary className="font-semibold cursor-pointer select-none opacity-90">Helpful resources</summary>
+                        <ul className="list-disc pl-4 mt-1 space-y-0.5 opacity-80">
+                          {m.metadata.helpfulResources.map((w, idx) => (
+                            <li key={idx}>
+                              <a href={w.url} target="_blank" rel="noreferrer" className="underline">
+                                {w.title || 'Link'}
+                              </a>
+                              {w.article ? ` — ${w.article}` : ''}
+                              {w.notes ? `: ${w.notes}` : ''}
+                            </li>
+                          ))}
+                        </ul>
+                      </details>
                     )}
 
                     <div className={`text-[10px] mt-1.5 text-right opacity-70 font-medium`}>

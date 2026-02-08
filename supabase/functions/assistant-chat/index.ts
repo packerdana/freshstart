@@ -24,6 +24,14 @@ type Citation = {
   url?: string
 }
 
+type RelevantItem = {
+  title: string
+  article?: string
+  doc_type?: string
+  url: string
+  notes?: string
+}
+
 function json(status: number, body: unknown) {
   return new Response(JSON.stringify(body, null, 2), {
     status,
@@ -118,9 +126,11 @@ serve(async (req) => {
 
     if (userMsgErr) throw userMsgErr
 
-    // Retrieve relevant snippets (union mode)
+    // Retrieve relevant snippets + external wins/resources (union mode)
     let citations: Citation[] = []
     let retrieved: Array<{ content: string; meta: any; source: any }> = []
+    let relevantWins: RelevantItem[] = []
+    let helpfulResources: RelevantItem[] = []
 
     if (mode === 'union') {
       const term = pickSearchTerm(message)
@@ -159,6 +169,42 @@ serve(async (req) => {
           }))
           .filter((c) => c.source)
           .slice(0, 4)
+
+        // External precedent/resources index (metadata + link out)
+        // Query by title/notes. Tags-based search can come later.
+        const { data: idx, error: iErr } = await admin
+          .from('union_precedent_index')
+          .select('title, article, doc_type, url, notes')
+          .or(`title.ilike.%${term}%,notes.ilike.%${term}%`)
+          .limit(10)
+
+        if (iErr) {
+          // Non-fatal; keep the answer working even if this table doesn't exist yet.
+          console.warn('union_precedent_index lookup failed:', iErr)
+        } else {
+          const rows = (idx || []) as any[]
+          relevantWins = rows
+            .filter((r) => String(r.doc_type || '').toLowerCase() === 'win')
+            .slice(0, 5)
+            .map((r) => ({
+              title: String(r.title || 'Untitled'),
+              article: r.article ? String(r.article) : undefined,
+              doc_type: r.doc_type ? String(r.doc_type) : undefined,
+              url: String(r.url),
+              notes: r.notes ? String(r.notes).slice(0, 160) : undefined,
+            }))
+
+          helpfulResources = rows
+            .filter((r) => String(r.doc_type || '').toLowerCase() === 'resource')
+            .slice(0, 5)
+            .map((r) => ({
+              title: String(r.title || 'Untitled'),
+              article: r.article ? String(r.article) : undefined,
+              doc_type: r.doc_type ? String(r.doc_type) : undefined,
+              url: String(r.url),
+              notes: r.notes ? String(r.notes).slice(0, 160) : undefined,
+            }))
+        }
       }
     }
 
@@ -193,7 +239,11 @@ serve(async (req) => {
         role: 'assistant',
         content: assistantText,
         citations: citations.length ? citations : null,
-        metadata: { mode },
+        metadata: {
+          mode,
+          relevantWins: relevantWins.length ? relevantWins : null,
+          helpfulResources: helpfulResources.length ? helpfulResources : null,
+        },
       })
 
     if (asstErr) throw asstErr

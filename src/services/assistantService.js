@@ -32,7 +32,7 @@ export async function getAssistantThreadMessages(threadId) {
   requireSupabase();
   const { data, error } = await supabase
     .from('assistant_messages')
-    .select('id, role, content, citations, created_at')
+    .select('id, role, content, citations, metadata, created_at')
     .eq('thread_id', threadId)
     .order('created_at', { ascending: true })
     .limit(200);
