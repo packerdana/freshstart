@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { format } from 'date-fns';
 import { Clock, Pause, Play, FileText, Navigation } from 'lucide-react';
 import Card from '../shared/Card';
@@ -13,6 +13,8 @@ import ForgotRouteDialog from '../shared/ForgotRouteDialog';
 import Reason3996Modal from '../shared/Reason3996Modal';
 import { confidenceToMinutes } from '../../utils/predictionConfidence';
 import useRouteStore from '../../stores/routeStore';
+import { upsertTodayVolumes } from '../../services/todayVolumesService';
+import { getTodayRouteHistory } from '../../services/routeHistoryService';
 import useBreakStore from '../../stores/breakStore';
 import { addMinutes } from '../../utils/time';
 import { calculateFullDayPrediction } from '../../services/predictionService';
@@ -27,6 +29,7 @@ import { supabase } from '../../lib/supabase';
 
 export default function TodayScreen() {
   const { todayInputs, updateTodayInputs, history, getCurrentRouteConfig, currentRouteId, addHistoryEntry, waypoints, routeStarted, setRouteStarted, routes, switchToRoute, preRouteLoadingMinutes, streetPreloadSeconds, setStreetPreloadSeconds } = useRouteStore();
+  const today = getLocalDateString();
   const waypointPausedSeconds = useBreakStore((state) => state.waypointPausedSeconds);
   const [date, setDate] = useState(new Date());
   const [showCompletionDialog, setShowCompletionDialog] = useState(false);
@@ -62,11 +65,79 @@ export default function TodayScreen() {
     return () => clearInterval(timer);
   }, []);
 
+  // Hydrate critical inputs from Supabase in case mobile storage gets wiped mid-day.
+  useEffect(() => {
+    let cancelled = false;
+
+    const hydrate = async () => {
+      if (!currentRouteId) return;
+
+      // Only hydrate if local volumes are empty.
+      const hasLocalVolumes =
+        (Number(todayInputs.dps || 0) || 0) > 0 ||
+        (Number(todayInputs.flats || 0) || 0) > 0 ||
+        (Number(todayInputs.letters || 0) || 0) > 0 ||
+        (Number(todayInputs.parcels || 0) || 0) > 0 ||
+        (Number(todayInputs.sprs || 0) || 0) > 0;
+
+      if (hasLocalVolumes) return;
+
+      try {
+        const rh = await getTodayRouteHistory(currentRouteId, today);
+        if (cancelled || !rh) return;
+
+        const next = {};
+        if (rh.dps) next.dps = rh.dps;
+        if (rh.flats) next.flats = rh.flats;
+        if (rh.letters) next.letters = rh.letters;
+        if (rh.parcels) next.parcels = rh.parcels;
+        if (rh.sprs) next.sprs = rh.sprs;
+        if (rh.safetyTalk != null) next.safetyTalk = rh.safetyTalk;
+        if (rh.hasBoxholder != null) next.hasBoxholder = rh.hasBoxholder;
+        if (rh.dailyLog != null) next.dailyLog = rh.dailyLog;
+
+        if (Object.keys(next).length) {
+          console.log('[TodayScreen] Hydrated volumes from route_history for', today);
+          updateTodayInputs(next);
+        }
+      } catch (e) {
+        console.warn('[TodayScreen] Could not hydrate today volumes:', e?.message || e);
+      }
+    };
+
+    hydrate();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentRouteId, today]);
+
   useEffect(() => {
     loadActiveSession();
     loadStreetTimeSession();
     loadOffRouteSession();
     loadWeekTotal();
+
+    // If the user navigates away (Waypts/History/etc) and comes back,
+    // re-check active timers so off-route sessions don't "disappear".
+    const onFocus = () => {
+      loadStreetTimeSession();
+      loadOffRouteSession();
+    };
+
+    const onVis = () => {
+      if (document.visibilityState === 'visible') {
+        loadStreetTimeSession();
+        loadOffRouteSession();
+      }
+    };
+
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVis);
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVis);
+    };
   }, []);
 
   useEffect(() => {
@@ -192,6 +263,16 @@ export default function TodayScreen() {
       }
     } catch (error) {
       console.error('Error loading off-route session:', error);
+
+      // If we somehow have multiple active sessions, pick the newest so the UI still works.
+      try {
+        const list = await offRouteService.listActiveOffRouteSessions?.(10);
+        const newest = Array.isArray(list) && list.length ? list[0] : null;
+        if (newest) {
+          setOffRouteSession(newest);
+          setOffRouteTime(offRouteService.calculateCurrentDuration(newest));
+        }
+      } catch {}
     }
   };
 
@@ -246,10 +327,53 @@ export default function TodayScreen() {
     loadPrediction();
   }, [todayInputs, history, waypoints, currentRouteId, getCurrentRouteConfig]);
 
+  // Autosave critical volumes to Supabase so mobile state loss can't wipe them.
+  const volumesSaveTimerRef = useRef(null);
+  const lastVolumesSavedRef = useRef(null);
+
+  const scheduleVolumesAutosave = (nextInputs) => {
+    if (!currentRouteId) return;
+
+    const payload = {
+      routeId: currentRouteId,
+      date: today,
+      dps: nextInputs.dps || 0,
+      flats: nextInputs.flats || 0,
+      letters: nextInputs.letters || 0,
+      parcels: nextInputs.parcels || 0,
+      sprs: nextInputs.sprs || 0,
+      safetyTalk: nextInputs.safetyTalk || 0,
+      hasBoxholder: nextInputs.hasBoxholder || false,
+      dailyLog: nextInputs.dailyLog || null,
+    };
+
+    // Avoid spamming identical writes.
+    const fingerprint = JSON.stringify(payload);
+    if (fingerprint === lastVolumesSavedRef.current) return;
+
+    if (volumesSaveTimerRef.current) clearTimeout(volumesSaveTimerRef.current);
+    volumesSaveTimerRef.current = setTimeout(async () => {
+      try {
+        await upsertTodayVolumes(payload);
+        lastVolumesSavedRef.current = fingerprint;
+      } catch (e) {
+        // Non-fatal: keep UI working even if offline.
+        console.warn('[TodayScreen] Volume autosave failed:', e?.message || e);
+      }
+    }, 900);
+  };
+
   const handleInputChange = (field, value) => {
     const isDecimalField = field === 'flats' || field === 'letters';
     const numValue = isDecimalField ? (parseFloat(value) || 0) : (parseInt(value) || 0);
+
+    const nextInputs = { ...todayInputs, [field]: numValue };
     updateTodayInputs({ [field]: numValue });
+
+    // Only autosave critical volume-ish fields (and a few key day context flags).
+    if (['dps', 'flats', 'letters', 'parcels', 'sprs', 'safetyTalk'].includes(field)) {
+      scheduleVolumesAutosave(nextInputs);
+    }
   };
 
   const handleStartRoute = async () => {
@@ -399,6 +523,30 @@ export default function TodayScreen() {
     }
   };
 
+  const handleEndOffRouteNow = async () => {
+    try {
+      await offRouteService.endOffRouteActivity(offRouteSession?.id || null);
+      await loadOffRouteSession();
+      await loadStreetTimeSession();
+
+      // If a stray duplicate is still active, clean it up.
+      try {
+        const list = await offRouteService.listActiveOffRouteSessions?.(5);
+        if (Array.isArray(list) && list.length) {
+          await offRouteService.forceEndAllActiveOffRouteSessions?.();
+          await loadOffRouteSession();
+        }
+      } catch {}
+    } catch (error) {
+      console.error('Error ending off-route activity:', error);
+      alert(error.message || 'Failed to end activity');
+      try {
+        await loadOffRouteSession();
+        await loadStreetTimeSession();
+      } catch {}
+    }
+  };
+
   const handleStopPmOffice = async () => {
     if (!pmOfficeSession) return;
 
@@ -471,7 +619,7 @@ export default function TodayScreen() {
       const activeOffRoute = await offRouteService.getActiveOffRouteSession();
       if (activeOffRoute) {
         console.log('⚠️ Found active off-route session during route completion - ending it automatically...');
-        await offRouteService.endOffRouteActivity();
+        await offRouteService.endOffRouteActivity(offRouteSession?.id || null);
         console.log('✓ Off-route timer auto-ended');
       
       // Reload sessions to update UI
@@ -1380,6 +1528,22 @@ export default function TodayScreen() {
           <p className="text-xs text-orange-700 text-center">
             Route timer will resume from {streetTimeService.formatDuration(streetTime)} when off-route work ends
           </p>
+
+          <div className="mt-4 grid grid-cols-2 gap-2">
+            <Button
+              onClick={() => setShowWorkOffRouteModal(true)}
+              variant="secondary"
+              className="w-full"
+            >
+              View / End
+            </Button>
+            <Button
+              onClick={handleEndOffRouteNow}
+              className="w-full bg-green-600 hover:bg-green-700"
+            >
+              End Now
+            </Button>
+          </div>
         </Card>
       )}
 
