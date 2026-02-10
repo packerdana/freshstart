@@ -105,14 +105,20 @@ function groupDeliveriesByDate(deliveries) {
       // Calculate duration from PREVIOUS waypoint (not from start!)
       const durationFromPreviousMs = deliveryTime - previousTime;
       const durationFromPreviousMinutes = Math.round(durationFromPreviousMs / (1000 * 60));
+
+      // Guardrail: ignore obviously bad segment durations (usually caused by forgetting to end a day
+      // or a bad timestamp). Cap to keep predictions sane.
+      const SAFE_MAX_SEGMENT_MINUTES = 180;
       
       // Also calculate cumulative time from start (for reference/debugging)
       const cumulativeMs = deliveryTime - startTime;
       const cumulativeMinutes = Math.round(cumulativeMs / (1000 * 60));
 
+      const safeSegment = Math.max(0, Math.min(SAFE_MAX_SEGMENT_MINUTES, durationFromPreviousMinutes));
+
       waypoint_timings.push({
         name: delivery.address,
-        durationFromPrevious: Math.max(0, durationFromPreviousMinutes), // ← DURATION!
+        durationFromPrevious: safeSegment, // ← DURATION!
         cumulativeFromStart: Math.max(0, cumulativeMinutes), // ← For reference
         timestamp: delivery.delivery_time,
         sequence: delivery.sequence_number,
