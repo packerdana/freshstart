@@ -259,7 +259,7 @@ const useBreakStore = create(
     startAutoSave(get); // ADDED: Start auto-save
   },
 
-  endBreak: async () => {
+  endBreak: async (overrideMinutes = null) => {
     const { breakTime, breakType, breakStartTime, todaysBreaks, waypointPausedSeconds, breakEvents } = get();
     let duration;
 
@@ -270,7 +270,9 @@ const useBreakStore = create(
     }
 
     // Add actual break seconds to the waypoint pause accumulator
-    const breakSeconds = Math.max(0, duration * 60);
+    // If the user forgot to stop the timer, allow an override duration.
+    const override = overrideMinutes != null ? Math.max(0, Math.round(Number(overrideMinutes) || 0)) : null;
+    const breakSeconds = Math.max(0, (override != null ? override : duration) * 60);
 
     const endTime = Date.now();
     const startTime = breakStartTime || (endTime - breakSeconds * 1000);
@@ -297,7 +299,7 @@ const useBreakStore = create(
           type: breakType.label,
           icon: breakType.icon,
           time: new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
-          duration: `${duration}m`,
+          duration: `${(override != null ? override : duration)}m`,
         },
       ],
     });
@@ -307,11 +309,12 @@ const useBreakStore = create(
     stopAutoSave(); // ADDED: Stop auto-save
   },
 
-  completeBreak: async () => {
+  completeBreak: async (overrideMinutes = null) => {
     const { breakType, breakStartTime, todaysBreaks, waypointPausedSeconds, breakEvents } = get();
     const duration = Math.round(breakType.duration / 60);
 
-    const breakSeconds = Math.max(0, duration * 60);
+    const override = overrideMinutes != null ? Math.max(0, Math.round(Number(overrideMinutes) || 0)) : null;
+    const breakSeconds = Math.max(0, (override != null ? override : duration) * 60);
     const endTime = Date.now();
     const startTime = breakStartTime || (endTime - breakSeconds * 1000);
 
@@ -331,7 +334,7 @@ const useBreakStore = create(
           type: breakType.label,
           icon: breakType.icon,
           time: new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
-          duration: `${duration}m`,
+          duration: `${(override != null ? override : duration)}m`,
         },
       ],
     });

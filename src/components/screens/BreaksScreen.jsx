@@ -199,7 +199,38 @@ export default function BreaksScreen() {
           </div>
         </Card>
 
-        <Button onClick={endBreak} className="w-full">
+        <Button
+          onClick={async () => {
+            // If someone forgets to stop the timer (very common for bathroom),
+            // let them correct the actual minutes when ending.
+            let overrideMinutes = null;
+
+            try {
+              // breakTime is seconds (countdown remaining or count-up elapsed).
+              const computedMins = breakType.countDown
+                ? Math.round(((breakType.duration || 0) - (breakTime || 0)) / 60)
+                : Math.round((breakTime || 0) / 60);
+
+              // Only prompt for non-countdown timers (bathroom/vehicle/phone/etc).
+              if (!breakType.countDown) {
+                const input = prompt(
+                  `How many minutes was your ${breakType.label} break?\n\n(We’ll use this to keep your stats accurate.)`,
+                  String(Math.max(0, computedMins))
+                );
+                if (input === null) {
+                  // User cancelled; don't end the timer.
+                  return;
+                }
+                overrideMinutes = Math.max(0, Math.round(Number(input) || 0));
+              }
+            } catch {
+              // ignore; we'll end normally
+            }
+
+            await endBreak(overrideMinutes);
+          }}
+          className="w-full"
+        >
           ✅ {breakType.countDown ? 'END BREAK EARLY' : 'END TIMER'}
         </Button>
       </div>
