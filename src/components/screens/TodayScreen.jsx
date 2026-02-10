@@ -1031,8 +1031,25 @@ export default function TodayScreen() {
   if (todayInputs.dailyLog?.lateMail) drivers.unshift('Late mail / delayed distribution.');
   if (todayInputs.dailyLog?.lateParcels) drivers.unshift('Late parcels / delayed Amazon.');
 
+  const modelConfidence = prediction?.returnTimeEstimate?.confidence || prediction?.prediction?.confidence;
+
+  // Confidence meter based on how much personal history we have (simple + transparent).
+  const includedHistoryDays = (history || []).filter((d) => !d?.excludeFromAverages && !d?.exclude_from_averages).length;
+
+  const confidenceMeter = useMemo(() => {
+    // 0-21 days ramps up; after that we consider it "learned".
+    const days = Math.max(0, Math.min(21, includedHistoryDays));
+    const pct = Math.round((days / 21) * 100);
+    let label = 'Low';
+    if (days >= 14) label = 'High';
+    else if (days >= 5) label = 'Medium';
+    return { pct, label, days };
+  }, [includedHistoryDays]);
+
+  const shouldShowLearningBanner = includedHistoryDays < 14;
+
   const confidenceMinutes = confidenceToMinutes(
-    prediction?.returnTimeEstimate?.confidence || prediction?.prediction?.confidence,
+    modelConfidence,
     { waypointEnhanced: !!prediction?.waypointEnhanced }
   );
 
@@ -1086,6 +1103,35 @@ export default function TodayScreen() {
               <h3 className="text-lg font-bold text-gray-900">Go-around Estimate</h3>
               <p className="text-xs text-gray-600">Real clock time (what you tell the supervisor)</p>
             </div>
+          </div>
+
+          {/* Confidence meter + expectation setting */}
+          <div className="bg-white/70 rounded-lg p-4 mb-3 border border-emerald-100">
+            <div className="flex items-center justify-between gap-3 mb-2">
+              <div>
+                <p className="text-xs text-gray-600">Confidence</p>
+                <p className="text-sm font-semibold text-gray-900">
+                  {confidenceMeter.label}
+                  <span className="text-xs font-normal text-gray-600"> · {confidenceMeter.days} day(s) learned</span>
+                </p>
+              </div>
+              {modelConfidence && (
+                <p className="text-xs text-gray-600">Model: {String(modelConfidence)}</p>
+              )}
+            </div>
+
+            <div className="w-full h-2 bg-emerald-100 rounded-full overflow-hidden">
+              <div
+                className="h-2 bg-emerald-600"
+                style={{ width: `${confidenceMeter.pct}%` }}
+              />
+            </div>
+
+            {shouldShowLearningBanner && (
+              <p className="text-xs text-gray-700 mt-2">
+                Your predictions will improve over the next <strong>2–3 weeks</strong> as RouteWise learns your route.
+              </p>
+            )}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
