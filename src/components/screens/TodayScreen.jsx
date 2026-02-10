@@ -1770,7 +1770,7 @@ export default function TodayScreen() {
                 Cancel Route
               </Button>
               <Button onClick={handleCompleteRouteClick} className="w-full">
-                Complete Route
+                End Tour
               </Button>
             </div>
           </div>
