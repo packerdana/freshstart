@@ -113,7 +113,31 @@ RouteWise includes an **Exclude from averages** option in history screens.
 
 ---
 
-## 7) Common problems + what to do
+## 7) Assistance vs. Work Off Route vs. Load Truck (don’t mix these up)
+
+### A) “I got help today” (assistance received)
+Use this when someone helped **your** route (they carried part of your work).
+- Record it at **End Tour** as **Assistance = Yes**
+- Enter **Assistance minutes** (about how long the help saved you)
+
+**Why:** A helper can make your day look “fast” and can confuse predictions if it’s treated like a normal day.
+
+### B) “I helped someone else” (you did extra)
+Use **Work Off Route** when you are doing work that isn’t your normal route.
+- This is **not** “assistance received”
+- It’s extra work you did (which can make your day longer)
+
+### C) When to use the Load Truck timer
+Use **Load Truck** when you’re loading parcels **before** you start 721.
+- Start Load Truck when you begin loading
+- Finish Load Truck when done
+- Tap **Start Route (721)** when you actually leave the office
+
+**Why:** Load Truck time is real work time, but it shouldn’t backdate your 721 start or make it look like you left early.
+
+---
+
+## 8) Common problems + what to do
 
 ### Problem: “My volumes disappeared mid-day”
 What happened: your phone/browser can sometimes drop temporary state.
@@ -137,7 +161,7 @@ Checklist:
 
 ---
 
-## 8) What RouteWise stores (for trust + transparency)
+## 9) What RouteWise stores (for trust + transparency)
 
 RouteWise stores data so it can learn your route:
 - Daily totals (volumes, times)
@@ -148,7 +172,7 @@ It’s built so **you can correct or exclude bad days**.
 
 ---
 
-## 9) How to talk to the RouteWise Assistant (so it helps you)
+## 10) How to talk to the RouteWise Assistant (so it helps you)
 
 When asking the assistant, include:
 - Your route type (CCA/PTF/Regular)
@@ -160,7 +184,7 @@ The assistant should answer in carrier language, with practical steps.
 
 ---
 
-## 10) Safety + compliance note
+## 11) Safety + compliance note
 
 RouteWise is a **personal planning tool**. Always follow local instructions and USPS/NALC guidance.
 
