@@ -496,6 +496,7 @@ const useBreakStore = create(
 
     waypointPausedSeconds: state.waypointPausedSeconds,
     breakEvents: state.breakEvents,
+    todaysBreaks: state.todaysBreaks,
   }),
   onRehydrateStorage: () => (state) => {
     try {
@@ -527,6 +528,9 @@ const useBreakStore = create(
       // If mobile storage is evicted, we'd rehydrate an "empty" state and then skip the
       // server restore (initializeFromDatabase) in App.tsx, making timers appear to vanish.
       // App.tsx / BreaksScreen will call initializeFromDatabase once auth is ready.
+
+      // Ensure todaysBreaks always exists (older persisted versions didn't include it).
+      if (!Array.isArray(state.todaysBreaks)) state.todaysBreaks = [];
 
       // Note: we also don't auto-start the save interval here because we don't have access
       // to the live store getter in this hook.

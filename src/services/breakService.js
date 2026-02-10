@@ -60,6 +60,8 @@ export const saveBreakState = async (breakState) => {
         waypointPausedSeconds: breakState.waypointPausedSeconds || 0,
         // Detailed events so we can adjust expected times per waypoint
         breakEvents: Array.isArray(breakState.breakEvents) ? breakState.breakEvents : [],
+        // Simple UI history list (Timers screen)
+        todaysBreaks: Array.isArray(breakState.todaysBreaks) ? breakState.todaysBreaks : [],
         lastUpdated: Date.now(),
       }
     };
