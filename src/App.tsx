@@ -17,6 +17,7 @@ import useRouteStore from './stores/routeStore';
 import useAuthStore from './stores/authStore';
 import useBreakTimer from './hooks/useBreakTimer';
 import useBreakStore from './stores/breakStore';
+import useWakeLock from './hooks/useWakeLock';
 
 function App() {
   const [showSignup, setShowSignup] = useState(false);
@@ -37,6 +38,7 @@ function App() {
   const initializeBreaksFromDatabase = useBreakStore((state: any) => state.initializeFromDatabase);
 
   // Break/Load Truck overrun nudges (prevents bad data when timers are left running)
+  const lunchActive = useBreakStore((state: any) => state.lunchActive);
   const breakActive = useBreakStore((state: any) => state.breakActive);
   const breakType = useBreakStore((state: any) => state.breakType);
   const breakStartTime = useBreakStore((state: any) => state.breakStartTime);
@@ -56,6 +58,9 @@ function App() {
   const [breakNudgeVisible, setBreakNudgeVisible] = useState(false);
   const [loadTruckNudgeVisible, setLoadTruckNudgeVisible] = useState(false);
   const [expectedLoadSeconds, setExpectedLoadSeconds] = useState<number | null>(null);
+
+  const keepAwakeDuringTimers = useBreakStore((state: any) => state.keepAwakeDuringTimers);
+  const setWakeLockActive = useBreakStore((state: any) => state.setWakeLockActive);
 
 
   useEffect(() => {
@@ -198,6 +203,16 @@ function App() {
   };
 
   const requireRouteSetup = !hasRoutes || !currentRouteId;
+
+  // Keep the screen awake during active timers (user toggle).
+  const anyTimersActive = !!(lunchActive || breakActive || loadTruckActive);
+  useWakeLock({ enabled: !!keepAwakeDuringTimers, active: anyTimersActive });
+
+  // Best-effort: reflect wake lock state in store (for UI if needed).
+  useEffect(() => {
+    // We can't reliably detect the lock status across browsers, so this is just a best effort.
+    setWakeLockActive(!!(keepAwakeDuringTimers && anyTimersActive));
+  }, [keepAwakeDuringTimers, anyTimersActive, setWakeLockActive]);
 
   return (
     <div className="min-h-screen flex flex-col">
