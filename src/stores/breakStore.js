@@ -522,11 +522,13 @@ const useBreakStore = create(
         state.loadTruckTime = Math.max(0, elapsed);
       }
 
-      // Mark store as initialized so screens don't try to re-init unnecessarily.
-      state.initialized = true;
-      state.initializing = false;
+      // IMPORTANT:
+      // Do NOT mark the store as initialized here.
+      // If mobile storage is evicted, we'd rehydrate an "empty" state and then skip the
+      // server restore (initializeFromDatabase) in App.tsx, making timers appear to vanish.
+      // App.tsx / BreaksScreen will call initializeFromDatabase once auth is ready.
 
-      // Note: we don't auto-start the save interval here because we don't have access
+      // Note: we also don't auto-start the save interval here because we don't have access
       // to the live store getter in this hook.
     } catch (e) {
       console.warn('Failed to rehydrate break timers:', e?.message || e);
