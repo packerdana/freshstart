@@ -6,6 +6,76 @@ import { saveBreakState, loadBreakState, clearBreakState } from '../services/bre
 // ADDED: Auto-save interval (save state every 30 seconds while timer is active)
 let autoSaveInterval = null;
 
+// Alarm interval: repeat sound/vibrate until user acknowledges.
+let alarmInterval = null;
+
+const tryVibrate = () => {
+  try {
+    if (typeof navigator !== 'undefined' && navigator.vibrate) {
+      navigator.vibrate([250, 120, 250]);
+    }
+  } catch {
+    // ignore
+  }
+};
+
+const tryBeep = async () => {
+  try {
+    // WebAudio beep (works after any user interaction; otherwise may be blocked).
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc.type = 'sine';
+    osc.frequency.value = 880;
+
+    gain.gain.value = 0.001;
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc.start();
+    gain.gain.exponentialRampToValueAtTime(0.2, ctx.currentTime + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
+
+    osc.stop(ctx.currentTime + 0.4);
+
+    // Let it close cleanly.
+    setTimeout(() => {
+      try { ctx.close(); } catch { /* ignore */ }
+    }, 600);
+  } catch {
+    // ignore
+  }
+};
+
+const startAlarm = (setState, kind) => {
+  // kind: 'lunch' | 'break'
+  stopAlarm(setState);
+  setState({ alarmActive: true, alarmKind: kind, alarmStartedAt: Date.now() });
+
+  const fire = () => {
+    tryVibrate();
+    tryBeep();
+  };
+
+  // Fire immediately and then repeat.
+  fire();
+  alarmInterval = setInterval(fire, 15000);
+};
+
+const stopAlarm = (setState) => {
+  if (alarmInterval) {
+    clearInterval(alarmInterval);
+    alarmInterval = null;
+  }
+  // Only clear if setState passed (store context)
+  if (setState) {
+    setState({ alarmActive: false, alarmKind: null, alarmStartedAt: null });
+  }
+};
+
 const startAutoSave = (getState) => {
   if (autoSaveInterval) return; // Already running
   
@@ -57,6 +127,11 @@ const useBreakStore = create(
   // Nudge banner snoozes (so we don't spam)
   breakNudgeSnoozedUntil: null,
   loadTruckNudgeSnoozedUntil: null,
+
+  // Audible/vibrate alarm when timers finish (repeat until acknowledged)
+  alarmActive: false,
+  alarmKind: null, // 'lunch' | 'break'
+  alarmStartedAt: null,
 
   // ADDED: Initialize from database
   initialized: false,
@@ -151,6 +226,9 @@ const useBreakStore = create(
   },
 
   startLunch: async () => {
+    // If an alarm is ringing from a previous timer, stop it.
+    stopAlarm(set);
+
     const state = {
       lunchActive: true,
       lunchTime: 30 * 60,
@@ -163,6 +241,7 @@ const useBreakStore = create(
   },
 
   endLunch: async () => {
+    stopAlarm(set);
     const { lunchTime, lunchStartTime, todaysBreaks, waypointPausedSeconds, breakEvents } = get();
     const duration = Math.round((30 * 60 - lunchTime) / 60);
 
@@ -232,7 +311,9 @@ const useBreakStore = create(
     // Persist updated pause accumulator even when no timer is active
     await saveBreakState(get());
     stopAutoSave(); // ADDED: Stop auto-save
-    alert('Lunch break complete!');
+
+    // Audible/vibrate alarm (repeat until acknowledged)
+    startAlarm(set, 'lunch');
   },
 
   tickLunch: () => {
@@ -251,6 +332,9 @@ const useBreakStore = create(
   },
 
   startBreak: async (type) => {
+    // If an alarm is ringing from a previous timer, stop it.
+    stopAlarm(set);
+
     const state = {
       breakActive: true,
       breakType: type,
@@ -264,6 +348,7 @@ const useBreakStore = create(
   },
 
   endBreak: async (overrideMinutes = null) => {
+    stopAlarm(set);
     const { breakTime, breakType, breakStartTime, todaysBreaks, waypointPausedSeconds, breakEvents } = get();
     let duration;
 
@@ -346,7 +431,9 @@ const useBreakStore = create(
     // Persist updated pause accumulator even when no timer is active
     await saveBreakState(get());
     stopAutoSave(); // ADDED: Stop auto-save
-    alert(`${breakType.label} break complete!`);
+
+    // Audible/vibrate alarm (repeat until acknowledged)
+    startAlarm(set, 'break');
   },
 
   tickBreak: () => {
@@ -370,6 +457,7 @@ const useBreakStore = create(
   },
 
   cancelBreak: async () => {
+    stopAlarm(set);
     set({
       breakActive: false,
       breakType: null,
@@ -397,7 +485,14 @@ const useBreakStore = create(
 
   clearNudges: () => set({ breakNudgeSnoozedUntil: null, loadTruckNudgeSnoozedUntil: null }),
 
+  acknowledgeAlarm: () => {
+    stopAlarm(set);
+  },
+
   startLoadTruck: async (packageCount) => {
+    // If an alarm is ringing from a previous timer, stop it.
+    stopAlarm(set);
+
     console.log('Starting Load Truck Timer with', packageCount, 'packages');
 
     if (!packageCount || packageCount <= 0) {
@@ -421,6 +516,7 @@ const useBreakStore = create(
   },
 
   endLoadTruck: async (userId = null, routeStore = null) => {
+    stopAlarm(set);
     const { loadTruckTime, loadTruckPackageCount, todaysBreaks } = get();
     const duration = Math.round(loadTruckTime / 60);
     const loadingTimeMs = loadTruckTime * 1000;
@@ -518,6 +614,9 @@ const useBreakStore = create(
     todaysBreaks: state.todaysBreaks,
     breakNudgeSnoozedUntil: state.breakNudgeSnoozedUntil,
     loadTruckNudgeSnoozedUntil: state.loadTruckNudgeSnoozedUntil,
+    alarmActive: state.alarmActive,
+    alarmKind: state.alarmKind,
+    alarmStartedAt: state.alarmStartedAt,
   }),
   onRehydrateStorage: () => (state) => {
     try {
@@ -554,6 +653,9 @@ const useBreakStore = create(
       if (!Array.isArray(state.todaysBreaks)) state.todaysBreaks = [];
       if (state.breakNudgeSnoozedUntil == null) state.breakNudgeSnoozedUntil = null;
       if (state.loadTruckNudgeSnoozedUntil == null) state.loadTruckNudgeSnoozedUntil = null;
+      if (state.alarmActive == null) state.alarmActive = false;
+      if (state.alarmKind == null) state.alarmKind = null;
+      if (state.alarmStartedAt == null) state.alarmStartedAt = null;
 
       // Note: we also don't auto-start the save interval here because we don't have access
       // to the live store getter in this hook.

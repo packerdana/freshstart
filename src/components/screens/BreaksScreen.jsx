@@ -8,6 +8,10 @@ import useRouteStore from '../../stores/routeStore';
 import useAuthStore from '../../stores/authStore';
 
 export default function BreaksScreen() {
+  const alarmActive = useBreakStore((state) => state.alarmActive);
+  const alarmKind = useBreakStore((state) => state.alarmKind);
+  const acknowledgeAlarm = useBreakStore((state) => state.acknowledgeAlarm);
+
   const lunchActive = useBreakStore((state) => state.lunchActive);
   const lunchTime = useBreakStore((state) => state.lunchTime);
   const breakActive = useBreakStore((state) => state.breakActive);
@@ -287,6 +291,22 @@ export default function BreaksScreen() {
       <div className="mb-6">
         <h2 className="text-2xl font-bold text-gray-900">Breaks & Timers</h2>
         <p className="text-sm text-gray-500">Optional timers to help track your breaks</p>
+
+        {alarmActive && (
+          <Card className="mt-4 border-2 border-red-300 bg-red-50">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="font-bold text-red-900">⏰ Timer finished</p>
+                <p className="text-sm text-red-800">
+                  Your {alarmKind === 'lunch' ? 'lunch' : 'break'} timer ended. Tap stop to silence the alert.
+                </p>
+              </div>
+              <Button onClick={acknowledgeAlarm} className="bg-red-600 hover:bg-red-700">
+                Stop Alert
+              </Button>
+            </div>
+          </Card>
+        )}
       </div>
 
       {!routeStarted && (
