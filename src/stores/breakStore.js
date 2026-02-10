@@ -54,6 +54,10 @@ const useBreakStore = create(
   // Minutes/seconds of breaks that should PAUSE waypoint predictions (lunch + breaks only; NOT load truck)
   waypointPausedSeconds: 0,
 
+  // Nudge banner snoozes (so we don't spam)
+  breakNudgeSnoozedUntil: null,
+  loadTruckNudgeSnoozedUntil: null,
+
   // ADDED: Initialize from database
   initialized: false,
   initializing: false,
@@ -381,6 +385,18 @@ const useBreakStore = create(
     set({ todaysBreaks: [] });
   },
 
+  snoozeBreakNudge: (minutes = 10) => {
+    const ms = Math.max(1, Math.round(Number(minutes) || 10)) * 60 * 1000;
+    set({ breakNudgeSnoozedUntil: Date.now() + ms });
+  },
+
+  snoozeLoadTruckNudge: (minutes = 10) => {
+    const ms = Math.max(1, Math.round(Number(minutes) || 10)) * 60 * 1000;
+    set({ loadTruckNudgeSnoozedUntil: Date.now() + ms });
+  },
+
+  clearNudges: () => set({ breakNudgeSnoozedUntil: null, loadTruckNudgeSnoozedUntil: null }),
+
   startLoadTruck: async (packageCount) => {
     console.log('Starting Load Truck Timer with', packageCount, 'packages');
 
@@ -500,6 +516,8 @@ const useBreakStore = create(
     waypointPausedSeconds: state.waypointPausedSeconds,
     breakEvents: state.breakEvents,
     todaysBreaks: state.todaysBreaks,
+    breakNudgeSnoozedUntil: state.breakNudgeSnoozedUntil,
+    loadTruckNudgeSnoozedUntil: state.loadTruckNudgeSnoozedUntil,
   }),
   onRehydrateStorage: () => (state) => {
     try {
@@ -534,6 +552,8 @@ const useBreakStore = create(
 
       // Ensure todaysBreaks always exists (older persisted versions didn't include it).
       if (!Array.isArray(state.todaysBreaks)) state.todaysBreaks = [];
+      if (state.breakNudgeSnoozedUntil == null) state.breakNudgeSnoozedUntil = null;
+      if (state.loadTruckNudgeSnoozedUntil == null) state.loadTruckNudgeSnoozedUntil = null;
 
       // Note: we also don't auto-start the save interval here because we don't have access
       // to the live store getter in this hook.
