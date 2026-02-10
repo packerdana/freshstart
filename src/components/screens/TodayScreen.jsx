@@ -1681,7 +1681,7 @@ export default function TodayScreen() {
             <>
               <p className="text-sm text-gray-600">Route in progress...</p>
               <p className="text-xs text-gray-500 mt-1">
-                Complete your route when finished to save data
+                End your tour when finished to save data
               </p>
             </>
           ) : (

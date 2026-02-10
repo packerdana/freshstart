@@ -70,7 +70,7 @@ export default function RouteCompletionDialog({
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
         <div className="p-6">
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Complete Route</h2>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">End Tour</h2>
           <p className="text-sm text-gray-600 mb-6">
             Record your actual route completion data for better future predictions
           </p>
@@ -233,7 +233,7 @@ export default function RouteCompletionDialog({
                 className="flex-1"
                 disabled={loading}
               >
-                {loading ? 'Saving...' : 'Complete Route'}
+                {loading ? 'Saving...' : 'End Tour'}
               </Button>
             </div>
           </form>
