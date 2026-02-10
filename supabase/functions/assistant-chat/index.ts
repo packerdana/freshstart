@@ -17,6 +17,31 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
 
 type Mode = 'union' | 'app'
 
+// RouteWise carrier manual (condensed, AI-friendly).
+// Keep this short: it’s used as a reference to produce consistent, carrier-language help.
+const ROUTEWISE_CARRIER_MANUAL = `
+ROUTEWISE CARRIER QUICK MANUAL (reference)
+
+Core timers:
+- 722 = AM Office (before leaving)
+- 721 = Street Time (delivering)
+- 744 = PM Office (after returning)
+
+Key daily workflow:
+1) Today: enter volumes (DPS pieces, Flats ft, Letters ft, Packages total → Parcels+SPRs)
+2) Tap Start Route (721) when you leave office; app captures leave time + 722 minutes.
+3) Start 744 when you return.
+4) End Tour to save the day (this is what improves future predictions).
+
+Confidence:
+- Predictions improve over 2–3 weeks as history builds.
+- Exclude “bad data” days from averages so they don’t poison predictions.
+
+Troubleshooting:
+- If volumes disappear mid-day, re-enter them; newer versions autosave volumes.
+- If timers disappear, refresh and ensure you’re logged in; timers restore from saved state.
+`
+
 type Citation = {
   source?: string
   section?: string
@@ -213,7 +238,11 @@ serve(async (req) => {
 
     if (mode === 'app') {
       assistantText =
-        "I can help with RouteWise steps. Tell me exactly what screen you’re on and what you’re trying to do (and what you expected to happen)."
+        `${ROUTEWISE_CARRIER_MANUAL}
+
+---
+
+I can help with RouteWise steps. Tell me exactly what screen you’re on and what you’re trying to do (and what you expected to happen).`
     } else {
       if (retrieved.length === 0) {
         assistantText =
