@@ -1,0 +1,64 @@
+import { supabase } from '../lib/supabase';
+
+/**
+ * Persist critical "Today" volumes early so mobile refresh/storage-eviction can't wipe them.
+ * This writes into route_history (durable storage) keyed by (route_id, date).
+ *
+ * NOTE: DB column is spurs; app calls it sprs.
+ */
+export async function upsertTodayVolumes({
+  routeId,
+  date,
+  dps,
+  flats,
+  letters,
+  parcels,
+  sprs,
+  safetyTalk,
+  hasBoxholder,
+  dailyLog,
+}) {
+  if (!routeId) throw new Error('Missing routeId');
+  if (!date) throw new Error('Missing date');
+
+  const payload = {
+    route_id: routeId,
+    date,
+    dps: Math.round(Number(dps || 0)) || 0,
+    flats: Number(flats || 0) || 0,
+    letters: Number(letters || 0) || 0,
+    parcels: Math.round(Number(parcels || 0)) || 0,
+    spurs: Math.round(Number(sprs || 0)) || 0,
+    safety_talk: Math.round(Number(safetyTalk || 0)) || 0,
+    has_boxholder: !!hasBoxholder,
+    // daily_log exists on newer DBs; if missing we will retry without it.
+    daily_log: dailyLog ?? null,
+    updated_at: new Date().toISOString(),
+  };
+
+  const doUpsert = async (p) => {
+    return supabase
+      .from('route_history')
+      .upsert(p, { onConflict: 'route_id,date' })
+      .select('id, route_id, date, dps, flats, letters, parcels, spurs, safety_talk, has_boxholder, daily_log, updated_at')
+      .maybeSingle();
+  };
+
+  let res = await doUpsert(payload);
+
+  if (res.error) {
+    const msg = String(res.error.message || res.error);
+    const missingDailyLog = msg.includes('daily_log') && msg.includes('schema cache');
+    const missingHasBoxholder = msg.includes('has_boxholder') && msg.includes('schema cache');
+
+    if (missingDailyLog || missingHasBoxholder) {
+      const fallback = { ...payload };
+      if (missingDailyLog) delete fallback.daily_log;
+      if (missingHasBoxholder) delete fallback.has_boxholder;
+      res = await doUpsert(fallback);
+    }
+  }
+
+  if (res.error) throw res.error;
+  return res.data;
+}
