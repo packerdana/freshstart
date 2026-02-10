@@ -36,6 +36,10 @@ export default function TodayScreen() {
   const [showPmOfficePrompt, setShowPmOfficePrompt] = useState(false);
   const [pmOfficeManualMinutes, setPmOfficeManualMinutes] = useState('');
   const pmOfficeManualMinutesRef = useRef(null);
+
+  const [showAssistancePrompt, setShowAssistancePrompt] = useState(false);
+  const [assistanceMinutesInput, setAssistanceMinutesInput] = useState('');
+  const assistancePrefillRef = useRef({ auxiliaryAssistance: false, assistanceMinutes: 0 });
   const [showWorkOffRouteModal, setShowWorkOffRouteModal] = useState(false);
   const [pmOfficeSession, setPmOfficeSession] = useState(null);
   const [pmOfficeTime, setPmOfficeTime] = useState(0);
@@ -655,6 +659,29 @@ export default function TodayScreen() {
         setPmOfficeManualMinutes('');
         setShowPmOfficePrompt(true);
         return;
+      }
+
+      // Assistance prompt (only when likely missing): if user did 736 today but hasn't flagged assistance yet.
+      // This catches common "helper" days that would otherwise poison averages.
+      try {
+        const alreadyPrefilled = !!assistancePrefillRef.current?.auxiliaryAssistance;
+        if (!alreadyPrefilled && currentRouteId) {
+          const todayKey = getLocalDateString();
+          const { data: rows, error } = await supabase
+            .from('operation_codes')
+            .select('id')
+            .eq('route_id', currentRouteId)
+            .eq('date', todayKey)
+            .in('code', ['736'])
+            .limit(1);
+          if (!error && (rows || []).length > 0) {
+            setAssistanceMinutesInput('');
+            setShowAssistancePrompt(true);
+            return;
+          }
+        }
+      } catch {
+        // ignore
       }
       
       if (runningLong && predictedStreetMinutes > 0) {
@@ -1847,11 +1874,61 @@ export default function TodayScreen() {
         </div>
       )}
 
+      {showAssistancePrompt && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl max-w-lg w-full overflow-hidden">
+            <div className="p-6">
+              <h2 className="text-xl font-bold text-gray-900 mb-2">Assistance detected</h2>
+              <p className="text-sm text-gray-600 mb-4">
+                It looks like you had relay assistance activity today. If you got help or gave away part of your route, record it so your averages stay accurate.
+              </p>
+
+              <Input
+                label="Minutes helped / given away"
+                type="number"
+                value={assistanceMinutesInput}
+                onChange={(e) => setAssistanceMinutesInput(e.target.value)}
+                placeholder="0"
+                min="0"
+                helperText="Enter minutes if you got help or gave away time; leave 0 if not"
+              />
+
+              <div className="flex gap-3 pt-4">
+                <Button
+                  variant="secondary"
+                  className="flex-1"
+                  onClick={() => {
+                    assistancePrefillRef.current = { auxiliaryAssistance: false, assistanceMinutes: 0 };
+                    setShowAssistancePrompt(false);
+                    setShowCompletionDialog(true);
+                  }}
+                >
+                  No help
+                </Button>
+                <Button
+                  className="flex-1"
+                  onClick={() => {
+                    const mins = Math.max(0, Math.round(Number(assistanceMinutesInput) || 0));
+                    assistancePrefillRef.current = { auxiliaryAssistance: mins > 0, assistanceMinutes: mins };
+                    setShowAssistancePrompt(false);
+                    setShowCompletionDialog(true);
+                  }}
+                >
+                  Save
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showCompletionDialog && (
         <RouteCompletionDialog
           prediction={prediction || { officeTime: 0, streetTime: 0, clockOutTime: null, returnTime: null }}
           todayInputs={todayInputs}
           calculatedStreetTime={completedStreetTimeMinutes}
+          initialAuxiliaryAssistance={!!assistancePrefillRef.current?.auxiliaryAssistance}
+          initialAssistanceMinutes={Number(assistancePrefillRef.current?.assistanceMinutes || 0) || 0}
           onComplete={handleCompleteRoute}
           onCancel={() => setShowCompletionDialog(false)}
         />

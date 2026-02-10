@@ -8,6 +8,8 @@ export default function RouteCompletionDialog({
   prediction,
   todayInputs,
   calculatedStreetTime = null,
+  initialAuxiliaryAssistance = false,
+  initialAssistanceMinutes = 0,
   onComplete,
   onCancel
 }) {
@@ -19,8 +21,8 @@ export default function RouteCompletionDialog({
   const [streetTimeHours, setStreetTimeHours] = useState(initialHours.toString());
   const [streetTimeMinutes, setStreetTimeMinutes] = useState(initialMins.toString());
   const [actualClockOut, setActualClockOut] = useState('');
-  const [auxiliaryAssistance, setAuxiliaryAssistance] = useState(false);
-  const [assistanceMinutes, setAssistanceMinutes] = useState('');
+  const [auxiliaryAssistance, setAuxiliaryAssistance] = useState(!!initialAuxiliaryAssistance);
+  const [assistanceMinutes, setAssistanceMinutes] = useState(String(initialAssistanceMinutes || ''));
   const [mailNotDelivered, setMailNotDelivered] = useState(false);
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
