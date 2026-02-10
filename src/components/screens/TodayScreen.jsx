@@ -33,6 +33,9 @@ export default function TodayScreen() {
   const waypointPausedSeconds = useBreakStore((state) => state.waypointPausedSeconds);
   const [date, setDate] = useState(new Date());
   const [showCompletionDialog, setShowCompletionDialog] = useState(false);
+  const [showPmOfficePrompt, setShowPmOfficePrompt] = useState(false);
+  const [pmOfficeManualMinutes, setPmOfficeManualMinutes] = useState('');
+  const pmOfficeManualMinutesRef = useRef(null);
   const [showWorkOffRouteModal, setShowWorkOffRouteModal] = useState(false);
   const [pmOfficeSession, setPmOfficeSession] = useState(null);
   const [pmOfficeTime, setPmOfficeTime] = useState(0);
@@ -644,6 +647,15 @@ export default function TodayScreen() {
       
       const predictedStreetMinutes = Math.round(prediction?.streetTime || 0);
       const runningLong = actualStreetMinutes > (predictedStreetMinutes + 15);
+
+      // If the user never started 744 PM Office, prompt for manual minutes before completing.
+      // We only prompt when something is "missing".
+      const missingPmOffice = !pmOfficeSession && (pmOfficeTime || 0) <= 0;
+      if (missingPmOffice) {
+        setPmOfficeManualMinutes('');
+        setShowPmOfficePrompt(true);
+        return;
+      }
       
       if (runningLong && predictedStreetMinutes > 0) {
         console.log(`Route running long: ${actualStreetMinutes} min (predicted: ${predictedStreetMinutes} min)`);
@@ -671,6 +683,10 @@ export default function TodayScreen() {
     try {
       let pmOfficeTimeMinutes = 0;
       let streetTimeMinutes = 0;
+
+      const manualPm = pmOfficeManualMinutesRef.current != null
+        ? Math.max(0, Math.round(Number(pmOfficeManualMinutesRef.current) || 0))
+        : 0;
 
       if (streetTimeSession && !streetTimeSession.end_time) {
         try {
@@ -701,6 +717,8 @@ export default function TodayScreen() {
         } catch (error) {
           console.error('Error stopping PM Office during route completion:', error);
         }
+      } else if (manualPm > 0) {
+        pmOfficeTimeMinutes = manualPm;
       }
 
       const today = getLocalDateString();
@@ -1780,6 +1798,54 @@ export default function TodayScreen() {
           </Button>
         )}
       </Card>
+
+      {showPmOfficePrompt && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl max-w-lg w-full overflow-hidden">
+            <div className="p-6">
+              <h2 className="text-xl font-bold text-gray-900 mb-2">PM Office (744) missing</h2>
+              <p className="text-sm text-gray-600 mb-4">
+                You didn’t start a 744 timer. If you had PM office time, enter the minutes so your total tour time is accurate.
+              </p>
+
+              <Input
+                label="PM Office minutes (744)"
+                type="number"
+                value={pmOfficeManualMinutes}
+                onChange={(e) => setPmOfficeManualMinutes(e.target.value)}
+                placeholder="0"
+                min="0"
+                helperText="Leave blank or 0 if you had no PM office time"
+              />
+
+              <div className="flex gap-3 pt-4">
+                <Button
+                  variant="secondary"
+                  className="flex-1"
+                  onClick={() => {
+                    setShowPmOfficePrompt(false);
+                    pmOfficeManualMinutesRef.current = 0;
+                    setShowCompletionDialog(true);
+                  }}
+                >
+                  Skip
+                </Button>
+                <Button
+                  className="flex-1"
+                  onClick={() => {
+                    const mins = Math.max(0, Math.round(Number(pmOfficeManualMinutes) || 0));
+                    pmOfficeManualMinutesRef.current = mins;
+                    setShowPmOfficePrompt(false);
+                    setShowCompletionDialog(true);
+                  }}
+                >
+                  Continue
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showCompletionDialog && (
         <RouteCompletionDialog
