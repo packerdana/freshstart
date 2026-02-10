@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { format } from 'date-fns';
 import Card from '../shared/Card';
 import Button from '../shared/Button';
+import Input from '../shared/Input';
 import useRouteStore from '../../stores/routeStore';
 // pmOfficeService removed (744 PM Office Time card removed)
 import { routeProtectionService } from '../../services/routeProtectionService';
@@ -10,6 +11,7 @@ import { getWorkweekStart } from '../../utils/uspsConstants';
 import { calculateRecordDays, formatRecordValue, formatRecordDate } from '../../services/recordStatsService';
 import { calculateAveragePerformance } from '../../utils/percentToStandard';
 import { calculateFullDayPrediction } from '../../services/predictionService';
+import { updateRouteHistory } from '../../services/routeHistoryService';
 import { getStreetTimeSummaryByDate, getOperationCodesForDate } from '../../services/streetTimeHistoryService';
 import { formatUtcAsChicago } from '../../utils/timezone';
 import { deriveOfficeTimeMinutes, findFirst721 } from '../../utils/deriveOfficeTime';
@@ -26,6 +28,23 @@ function formatDurationMinutes(totalMinutes) {
 
 export default function StatsScreen() {
   const { history, averages, currentRoute, todayInputs, loading, error, activeRoute, getCurrentRouteConfig, currentRouteId, waypoints, routes, loadRouteHistory } = useRouteStore();
+
+  const [fixDayOpen, setFixDayOpen] = useState(false);
+  const [fixDaySaving, setFixDaySaving] = useState(false);
+  const [fixDayRecord, setFixDayRecord] = useState(null);
+  const [fixDayForm, setFixDayForm] = useState({
+    dps: '',
+    flats: '',
+    letters: '',
+    parcels: '',
+    sprs: '',
+    safetyTalk: '',
+    hasBoxholder: false,
+    excludeFromAverages: false,
+    assistance: false,
+    assistanceMinutes: '',
+    notes: '',
+  });
   const [currentTime, setCurrentTime] = useState(new Date());
   const [todayPrediction, setTodayPrediction] = useState(null);
   // PM Office stats removed
@@ -397,12 +416,13 @@ export default function StatsScreen() {
       else onTimeCount++;
 
       return {
+        id: day.id,
         date: day.date,
         predictedTime: day.predicted_leave_time,
         actualTime: day.actual_leave_time,
         variance,
         predictedOfficeTime: day.predicted_office_time,
-        actualOfficeTime: day.actual_office_time
+        actualOfficeTime: day.actual_office_time,
       };
     }).filter(Boolean);
 
@@ -1122,16 +1142,46 @@ export default function StatsScreen() {
               <div className="space-y-2">
                 {casingStats.recentDays.map((day, index) => (
                   <div key={index} className="bg-white/70 rounded p-2 text-xs">
-                    <div className="flex justify-between items-center">
+                    <div className="flex justify-between items-center gap-2">
                       <span className="font-medium text-gray-700">
                         {format(parseLocalDate(day.date), 'MMM d')}
                       </span>
-                      <span className={`font-bold ${
-                        Math.abs(day.variance) <= 5 ? 'text-green-600' :
-                        day.variance > 0 ? 'text-red-600' : 'text-blue-600'
-                      }`}>
-                        {day.variance > 0 ? '+' : ''}{day.variance}m
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className={`font-bold ${
+                          Math.abs(day.variance) <= 5 ? 'text-green-600' :
+                          day.variance > 0 ? 'text-red-600' : 'text-blue-600'
+                        }`}>
+                          {day.variance > 0 ? '+' : ''}{day.variance}m
+                        </span>
+                        <button
+                          className="text-[11px] font-semibold text-blue-700 underline"
+                          onClick={() => {
+                            const record = (history || []).find((h) => h.date === day.date) || null;
+                            if (!record) {
+                              alert('No saved day record found yet for that date.');
+                              return;
+                            }
+
+                            setFixDayRecord(record);
+                            setFixDayForm({
+                              dps: record.dps ?? '',
+                              flats: record.flats ?? '',
+                              letters: record.letters ?? '',
+                              parcels: record.parcels ?? '',
+                              sprs: record.sprs ?? '',
+                              safetyTalk: record.safetyTalk ?? '',
+                              hasBoxholder: !!record.hasBoxholder,
+                              excludeFromAverages: !!record.excludeFromAverages,
+                              assistance: !!record.auxiliaryAssistance,
+                              assistanceMinutes: record.assistanceMinutes ?? '',
+                              notes: record.notes ?? '',
+                            });
+                            setFixDayOpen(true);
+                          }}
+                        >
+                          Fix
+                        </button>
+                      </div>
                     </div>
                     <div className="flex justify-between text-gray-600 mt-1">
                       <span>Predicted: {day.predictedTime}</span>
@@ -1494,6 +1544,133 @@ export default function StatsScreen() {
             )}
           </div>
         </Card>
+      )}
+
+      {fixDayOpen && fixDayRecord && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <h2 className="text-xl font-bold text-gray-900 mb-1">Fix This Day</h2>
+              <p className="text-sm text-gray-600 mb-4">
+                {format(parseLocalDate(fixDayRecord.date), 'EEEE, MMMM d, yyyy')}
+              </p>
+
+              <div className="space-y-3">
+                <label className="flex items-center gap-3 p-3 border border-gray-200 rounded-lg">
+                  <input
+                    type="checkbox"
+                    checked={!!fixDayForm.excludeFromAverages}
+                    onChange={(e) => setFixDayForm((s) => ({ ...s, excludeFromAverages: e.target.checked }))}
+                    className="w-5 h-5"
+                  />
+                  <div>
+                    <p className="font-semibold text-gray-900">Exclude from averages</p>
+                    <p className="text-xs text-gray-600">Use for bad data days so predictions stay clean.</p>
+                  </div>
+                </label>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <Input label="DPS" type="number" value={fixDayForm.dps} onChange={(e) => setFixDayForm((s) => ({ ...s, dps: e.target.value }))} />
+                  <Input label="Parcels" type="number" value={fixDayForm.parcels} onChange={(e) => setFixDayForm((s) => ({ ...s, parcels: e.target.value }))} />
+                  <Input label="Flats (ft)" type="number" step="0.1" value={fixDayForm.flats} onChange={(e) => setFixDayForm((s) => ({ ...s, flats: e.target.value }))} />
+                  <Input label="SPRs" type="number" value={fixDayForm.sprs} onChange={(e) => setFixDayForm((s) => ({ ...s, sprs: e.target.value }))} />
+                  <Input label="Letters (ft)" type="number" step="0.1" value={fixDayForm.letters} onChange={(e) => setFixDayForm((s) => ({ ...s, letters: e.target.value }))} />
+                  <Input label="Safety/Training (min)" type="number" value={fixDayForm.safetyTalk} onChange={(e) => setFixDayForm((s) => ({ ...s, safetyTalk: e.target.value }))} />
+                </div>
+
+                <label className="flex items-center gap-2 text-sm text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={!!fixDayForm.hasBoxholder}
+                    onChange={(e) => setFixDayForm((s) => ({ ...s, hasBoxholder: e.target.checked }))}
+                    className="w-4 h-4"
+                  />
+                  Boxholder/EDDM
+                </label>
+
+                <label className="flex items-center gap-3 p-3 border border-gray-200 rounded-lg">
+                  <input
+                    type="checkbox"
+                    checked={!!fixDayForm.assistance}
+                    onChange={(e) => setFixDayForm((s) => ({ ...s, assistance: e.target.checked }))}
+                    className="w-5 h-5"
+                  />
+                  <div className="flex-1">
+                    <p className="font-semibold text-gray-900">Assistance / gave away part of route</p>
+                    <p className="text-xs text-gray-600">If yes, enter minutes.</p>
+                  </div>
+                </label>
+
+                {fixDayForm.assistance && (
+                  <Input
+                    label="Assistance minutes"
+                    type="number"
+                    value={fixDayForm.assistanceMinutes}
+                    onChange={(e) => setFixDayForm((s) => ({ ...s, assistanceMinutes: e.target.value }))}
+                  />
+                )}
+
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Notes</label>
+                  <textarea
+                    value={fixDayForm.notes}
+                    onChange={(e) => setFixDayForm((s) => ({ ...s, notes: e.target.value }))}
+                    rows={3}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-5">
+                <Button
+                  variant="secondary"
+                  className="flex-1"
+                  disabled={fixDaySaving}
+                  onClick={() => {
+                    setFixDayOpen(false);
+                    setFixDayRecord(null);
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  className="flex-1"
+                  disabled={fixDaySaving}
+                  onClick={async () => {
+                    try {
+                      setFixDaySaving(true);
+                      const updates = {
+                        dps: Number(fixDayForm.dps || 0) || 0,
+                        flats: Number(fixDayForm.flats || 0) || 0,
+                        letters: Number(fixDayForm.letters || 0) || 0,
+                        parcels: Number(fixDayForm.parcels || 0) || 0,
+                        spurs: Number(fixDayForm.sprs || 0) || 0,
+                        safety_talk: Number(fixDayForm.safetyTalk || 0) || 0,
+                        has_boxholder: !!fixDayForm.hasBoxholder,
+                        exclude_from_averages: !!fixDayForm.excludeFromAverages,
+                        auxiliary_assistance: !!fixDayForm.assistance,
+                        assistance_minutes: fixDayForm.assistance ? (Number(fixDayForm.assistanceMinutes || 0) || 0) : 0,
+                        notes: String(fixDayForm.notes || '').trim() || null,
+                        updated_at: new Date().toISOString(),
+                      };
+
+                      await updateRouteHistory(fixDayRecord.id, updates);
+                      await loadRouteHistory(currentRouteId);
+                      setFixDayOpen(false);
+                      setFixDayRecord(null);
+                    } catch (e) {
+                      alert(e?.message || 'Failed to save day');
+                    } finally {
+                      setFixDaySaving(false);
+                    }
+                  }}
+                >
+                  {fixDaySaving ? 'Saving…' : 'Save'}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Recent History removed */}
