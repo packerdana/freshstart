@@ -1241,125 +1241,17 @@ export default function TodayScreen() {
       </Card>
 
       <Card className="mb-6">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-bold text-gray-900">Daily Log (Quick)</h3>
-          <Button variant="secondary" className="px-3 py-2 text-sm" onClick={() => setShow3996Helper(true)}>
+        <div className="flex items-center justify-between mb-1">
+          <h3 className="text-lg font-bold text-gray-900">Morning Inputs</h3>
+          <Button
+            onClick={() => setShow3996Helper(true)}
+            className="px-3 py-2 text-sm bg-red-600 hover:bg-red-700"
+          >
             3996 ideas
           </Button>
         </div>
-
-        <div className="space-y-3">
-          <label className="flex items-center gap-2 text-sm text-gray-700">
-            <input
-              type="checkbox"
-              checked={todayInputs.dailyLog?.lateMail || false}
-              onChange={(e) => updateTodayInputs({
-                dailyLog: {
-                  ...(todayInputs.dailyLog || {}),
-                  lateMail: e.target.checked,
-                }
-              })}
-            />
-            Late mail
-          </label>
-
-          <label className="flex items-center gap-2 text-sm text-gray-700">
-            <input
-              type="checkbox"
-              checked={todayInputs.dailyLog?.lateParcels || false}
-              onChange={(e) => updateTodayInputs({
-                dailyLog: {
-                  ...(todayInputs.dailyLog || {}),
-                  lateParcels: e.target.checked,
-                }
-              })}
-            />
-            Late parcels / late Amazon
-          </label>
-
-          <div className="grid grid-cols-2 gap-3">
-            <Input
-              label="Casing interruptions (min)"
-              type="number"
-              value={todayInputs.dailyLog?.casingInterruptionsMinutes || ''}
-              onChange={(e) => updateTodayInputs({
-                dailyLog: {
-                  ...(todayInputs.dailyLog || {}),
-                  casingInterruptionsMinutes: parseInt(e.target.value, 10) || 0,
-                }
-              })}
-              placeholder="0"
-              className="mb-0"
-            />
-            <Input
-              label="Waiting on parcels (min)"
-              type="number"
-              value={todayInputs.dailyLog?.waitingOnParcelsMinutes || ''}
-              onChange={(e) => updateTodayInputs({
-                dailyLog: {
-                  ...(todayInputs.dailyLog || {}),
-                  waitingOnParcelsMinutes: parseInt(e.target.value, 10) || 0,
-                }
-              })}
-              placeholder="0"
-              className="mb-0"
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <Input
-              label="Accountables (min)"
-              type="number"
-              value={todayInputs.dailyLog?.accountablesMinutes || ''}
-              onChange={(e) => updateTodayInputs({
-                dailyLog: {
-                  ...(todayInputs.dailyLog || {}),
-                  accountablesMinutes: parseInt(e.target.value, 10) || 0,
-                }
-              })}
-              placeholder="0"
-              className="mb-0"
-            />
-            <Input
-              label="Other delays (min)"
-              type="number"
-              value={todayInputs.dailyLog?.otherDelayMinutes || ''}
-              onChange={(e) => updateTodayInputs({
-                dailyLog: {
-                  ...(todayInputs.dailyLog || {}),
-                  otherDelayMinutes: parseInt(e.target.value, 10) || 0,
-                }
-              })}
-              placeholder="0"
-              className="mb-0"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Notes (optional)</label>
-            <textarea
-              value={todayInputs.dailyLog?.notes || ''}
-              onChange={(e) => updateTodayInputs({
-                dailyLog: {
-                  ...(todayInputs.dailyLog || {}),
-                  notes: e.target.value,
-                }
-              })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-              rows="3"
-              placeholder="Anything unusual today?"
-            />
-          </div>
-
-          <p className="text-xs text-gray-500">
-            This is for your records and to help RouteWise learn why today ran long/short.
-          </p>
-        </div>
-      </Card>
-
-      <Card className="mb-6">
-        <h3 className="text-lg font-bold text-gray-900 mb-1">Morning Inputs</h3>
         <p className="text-xs text-gray-600 mb-4">Enter what you know. Everything is optional, but more info = better predictions.</p>
+        <p className="text-xs text-gray-500 mb-4">Need 3996 ideas? Tap the red button.</p>
         
         <div className="mb-4">
           <Input
@@ -1824,6 +1716,120 @@ export default function TodayScreen() {
             Start Route (721 Time)
           </Button>
         )}
+      </Card>
+
+      <Card className="mb-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-bold text-gray-900">Daily Log (Quick)</h3>
+        </div>
+
+        <div className="space-y-3">
+          <label className="flex items-center gap-2 text-sm text-gray-700">
+            <input
+              type="checkbox"
+              checked={todayInputs.dailyLog?.lateMail || false}
+              onChange={(e) => updateTodayInputs({
+                dailyLog: {
+                  ...(todayInputs.dailyLog || {}),
+                  lateMail: e.target.checked,
+                }
+              })}
+            />
+            Late mail
+          </label>
+
+          <label className="flex items-center gap-2 text-sm text-gray-700">
+            <input
+              type="checkbox"
+              checked={todayInputs.dailyLog?.lateParcels || false}
+              onChange={(e) => updateTodayInputs({
+                dailyLog: {
+                  ...(todayInputs.dailyLog || {}),
+                  lateParcels: e.target.checked,
+                }
+              })}
+            />
+            Late parcels / late Amazon
+          </label>
+
+          <div className="grid grid-cols-2 gap-3">
+            <Input
+              label="Casing interruptions (min)"
+              type="number"
+              value={todayInputs.dailyLog?.casingInterruptionsMinutes || ''}
+              onChange={(e) => updateTodayInputs({
+                dailyLog: {
+                  ...(todayInputs.dailyLog || {}),
+                  casingInterruptionsMinutes: parseInt(e.target.value, 10) || 0,
+                }
+              })}
+              placeholder="0"
+              className="mb-0"
+            />
+            <Input
+              label="Waiting on parcels (min)"
+              type="number"
+              value={todayInputs.dailyLog?.waitingOnParcelsMinutes || ''}
+              onChange={(e) => updateTodayInputs({
+                dailyLog: {
+                  ...(todayInputs.dailyLog || {}),
+                  waitingOnParcelsMinutes: parseInt(e.target.value, 10) || 0,
+                }
+              })}
+              placeholder="0"
+              className="mb-0"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <Input
+              label="Accountables (min)"
+              type="number"
+              value={todayInputs.dailyLog?.accountablesMinutes || ''}
+              onChange={(e) => updateTodayInputs({
+                dailyLog: {
+                  ...(todayInputs.dailyLog || {}),
+                  accountablesMinutes: parseInt(e.target.value, 10) || 0,
+                }
+              })}
+              placeholder="0"
+              className="mb-0"
+            />
+            <Input
+              label="Other delays (min)"
+              type="number"
+              value={todayInputs.dailyLog?.otherDelayMinutes || ''}
+              onChange={(e) => updateTodayInputs({
+                dailyLog: {
+                  ...(todayInputs.dailyLog || {}),
+                  otherDelayMinutes: parseInt(e.target.value, 10) || 0,
+                }
+              })}
+              placeholder="0"
+              className="mb-0"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Notes (optional)</label>
+            <textarea
+              value={todayInputs.dailyLog?.notes || ''}
+              onChange={(e) => updateTodayInputs({
+                dailyLog: {
+                  ...(todayInputs.dailyLog || {}),
+                  notes: e.target.value,
+                }
+              })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+              rows="3"
+              placeholder="Anything unusual today?"
+            />
+          </div>
+
+          <p className="text-xs text-gray-500">
+            This is for your records and to help RouteWise learn why today ran long/short.
+          </p>
+        </div>
       </Card>
 
       {showPmOfficePrompt && (
