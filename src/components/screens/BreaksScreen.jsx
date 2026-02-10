@@ -11,8 +11,6 @@ export default function BreaksScreen() {
   const alarmActive = useBreakStore((state) => state.alarmActive);
   const alarmKind = useBreakStore((state) => state.alarmKind);
   const acknowledgeAlarm = useBreakStore((state) => state.acknowledgeAlarm);
-  const keepAwakeDuringTimers = useBreakStore((state) => state.keepAwakeDuringTimers);
-  const setKeepAwakeDuringTimers = useBreakStore((state) => state.setKeepAwakeDuringTimers);
 
   const lunchActive = useBreakStore((state) => state.lunchActive);
   const lunchTime = useBreakStore((state) => state.lunchTime);
@@ -350,20 +348,6 @@ export default function BreaksScreen() {
             <p className="text-xs text-gray-500">Auto-stops, pauses route</p>
           </div>
         </div>
-
-        <label className="flex items-center justify-between gap-3 p-3 border border-gray-200 rounded-lg mb-3">
-          <div>
-            <p className="text-sm font-semibold text-gray-900">Keep screen awake</p>
-            <p className="text-xs text-gray-600">Helps alerts work reliably during timers</p>
-          </div>
-          <input
-            type="checkbox"
-            checked={!!keepAwakeDuringTimers}
-            onChange={(e) => setKeepAwakeDuringTimers(e.target.checked)}
-            className="w-5 h-5"
-          />
-        </label>
-
         <Button onClick={startLunch} className="w-full">
           Start Lunch
         </Button>

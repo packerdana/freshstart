@@ -133,10 +133,6 @@ const useBreakStore = create(
   alarmKind: null, // 'lunch' | 'break'
   alarmStartedAt: null,
 
-  // Keep the screen awake while timers are active (prevents background throttling / missed alerts)
-  keepAwakeDuringTimers: false,
-  wakeLockActive: false,
-
   // ADDED: Initialize from database
   initialized: false,
   initializing: false,
@@ -493,14 +489,6 @@ const useBreakStore = create(
     stopAlarm(set);
   },
 
-  setKeepAwakeDuringTimers: (enabled) => {
-    set({ keepAwakeDuringTimers: !!enabled });
-  },
-
-  setWakeLockActive: (active) => {
-    set({ wakeLockActive: !!active });
-  },
-
   startLoadTruck: async (packageCount) => {
     // If an alarm is ringing from a previous timer, stop it.
     stopAlarm(set);
@@ -629,7 +617,6 @@ const useBreakStore = create(
     alarmActive: state.alarmActive,
     alarmKind: state.alarmKind,
     alarmStartedAt: state.alarmStartedAt,
-    keepAwakeDuringTimers: state.keepAwakeDuringTimers,
   }),
   onRehydrateStorage: () => (state) => {
     try {
@@ -669,8 +656,6 @@ const useBreakStore = create(
       if (state.alarmActive == null) state.alarmActive = false;
       if (state.alarmKind == null) state.alarmKind = null;
       if (state.alarmStartedAt == null) state.alarmStartedAt = null;
-      if (state.keepAwakeDuringTimers == null) state.keepAwakeDuringTimers = false;
-      if (state.wakeLockActive == null) state.wakeLockActive = false;
 
       // Note: we also don't auto-start the save interval here because we don't have access
       // to the live store getter in this hook.
