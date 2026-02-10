@@ -31,9 +31,6 @@ export default function TodayScreen() {
   const { todayInputs, updateTodayInputs, history, getCurrentRouteConfig, currentRouteId, addHistoryEntry, waypoints, routeStarted, setRouteStarted, routes, switchToRoute, preRouteLoadingMinutes, streetPreloadSeconds, setStreetPreloadSeconds } = useRouteStore();
   const today = getLocalDateString();
   const waypointPausedSeconds = useBreakStore((state) => state.waypointPausedSeconds);
-  const lunchActive = useBreakStore((state) => state.lunchActive);
-  const breakActive = useBreakStore((state) => state.breakActive);
-  const loadTruckActive = useBreakStore((state) => state.loadTruckActive);
   const [date, setDate] = useState(new Date());
   const [showCompletionDialog, setShowCompletionDialog] = useState(false);
   const [showPmOfficePrompt, setShowPmOfficePrompt] = useState(false);
@@ -1123,44 +1120,6 @@ export default function TodayScreen() {
             <p className="text-sm text-gray-500">{format(date, 'a')}</p>
           </div>
         </div>
-
-        {/* Today Snapshot Bar (always-visible status) */}
-        {(() => {
-          const hasVolumes =
-            (Number(todayInputs.dps || 0) || 0) > 0 ||
-            (Number(todayInputs.flats || 0) || 0) > 0 ||
-            (Number(todayInputs.letters || 0) || 0) > 0 ||
-            (Number(todayInputs.parcels || 0) || 0) > 0 ||
-            (Number(todayInputs.sprs || 0) || 0) > 0;
-
-          const breakOn = !!(lunchActive || breakActive);
-          const offRouteOn = !!offRouteSession;
-          const pmOn = !!pmOfficeSession;
-          const streetOn = !!(routeStarted || streetTimeSession);
-
-          const pill = (label, ok, onClick) => (
-            <button
-              type="button"
-              onClick={onClick}
-              className={`px-3 py-1 rounded-full text-xs font-semibold border whitespace-nowrap ${ok ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-amber-50 text-amber-900 border-amber-200'}`}
-            >
-              {ok ? '✅' : '⚠️'} {label}
-            </button>
-          );
-
-          return (
-            <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
-              {pill('Volumes', hasVolumes, () => window.scrollTo({ top: 0, behavior: 'smooth' }))}
-              {pill('721', streetOn, () => window.scrollTo({ top: 0, behavior: 'smooth' }))}
-              {pill('744', pmOn, () => window.scrollTo({ top: 0, behavior: 'smooth' }))}
-              {pill('Break', !breakOn, () => {
-                // Best effort: user can quickly jump to the Timers tab.
-                alert('Go to the Timers tab to manage breaks.');
-              })}
-              {pill('Off-route', !offRouteOn, () => window.scrollTo({ top: 0, behavior: 'smooth' }))}
-            </div>
-          );
-        })()}
 
         {routeOptions.length > 1 && (
           <div className="mt-4">
