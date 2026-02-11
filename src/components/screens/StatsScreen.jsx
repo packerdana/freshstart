@@ -11,7 +11,7 @@ import { getWorkweekStart } from '../../utils/uspsConstants';
 import { calculateRecordDays, formatRecordValue, formatRecordDate } from '../../services/recordStatsService';
 import { calculateAveragePerformance } from '../../utils/percentToStandard';
 import { calculateFullDayPrediction } from '../../services/predictionService';
-import { updateRouteHistory } from '../../services/routeHistoryService';
+import { ensureRouteHistoryDay, updateRouteHistory } from '../../services/routeHistoryService';
 import { getStreetTimeSummaryByDate, getOperationCodesForDate } from '../../services/streetTimeHistoryService';
 import { formatUtcAsChicago } from '../../utils/timezone';
 import { deriveOfficeTimeMinutes, findFirst721 } from '../../utils/deriveOfficeTime';
@@ -979,11 +979,16 @@ export default function StatsScreen() {
                       <div className="flex items-center justify-end mb-2">
                         <button
                           className="text-xs font-semibold text-blue-700 underline"
-                          onClick={() => {
-                            const record = (history || []).find((h) => h?.date === d.date) || null;
+                          onClick={async () => {
+                            let record = (history || []).find((h) => h?.date === d.date) || null;
                             if (!record) {
-                              alert('No saved day record found yet for that date.');
-                              return;
+                              try {
+                                record = await ensureRouteHistoryDay(currentRouteId, d.date);
+                                await loadRouteHistory(currentRouteId);
+                              } catch (e) {
+                                alert(e?.message || 'No saved day record found yet for that date.');
+                                return;
+                              }
                             }
 
                             setFixDayRecord(record);
@@ -1191,11 +1196,16 @@ export default function StatsScreen() {
                         </span>
                         <button
                           className="text-[11px] font-semibold text-blue-700 underline"
-                          onClick={() => {
-                            const record = (history || []).find((h) => h.date === day.date) || null;
+                          onClick={async () => {
+                            let record = (history || []).find((h) => h.date === day.date) || null;
                             if (!record) {
-                              alert('No saved day record found yet for that date.');
-                              return;
+                              try {
+                                record = await ensureRouteHistoryDay(currentRouteId, day.date);
+                                await loadRouteHistory(currentRouteId);
+                              } catch (e) {
+                                alert(e?.message || 'No saved day record found yet for that date.');
+                                return;
+                              }
                             }
 
                             setFixDayRecord(record);

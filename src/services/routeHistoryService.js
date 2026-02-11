@@ -247,6 +247,30 @@ export async function getTodayRouteHistory(routeId, date) {
   return convertHistoryFieldNames(data);
 }
 
+export async function ensureRouteHistoryDay(routeId, date) {
+  if (!routeId || !date) throw new Error('Missing routeId/date');
+
+  // Create a minimal record so Fix-a-Day works even if End Tour never ran.
+  const { data, error } = await supabase
+    .from('route_history')
+    .upsert(
+      {
+        route_id: routeId,
+        date,
+      },
+      { onConflict: 'route_id,date' }
+    )
+    .select()
+    .maybeSingle();
+
+  if (error) {
+    console.error('Error ensuring route history day:', error);
+    throw error;
+  }
+
+  return convertHistoryFieldNames(data);
+}
+
 export async function deleteRouteHistory(id) {
   const { error } = await supabase
     .from('route_history')
