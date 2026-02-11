@@ -9,7 +9,8 @@ import { routeProtectionService } from '../../services/routeProtectionService';
 import { formatMinutesAsTime, parseLocalDate, formatTimeAMPM, getLocalDateString } from '../../utils/time';
 import { getWorkweekStart } from '../../utils/uspsConstants';
 import { calculateRecordDays, formatRecordValue, formatRecordDate } from '../../services/recordStatsService';
-import { calculateAveragePerformance } from '../../utils/percentToStandard';
+// Office Performance (% to Standard) removed (was confusing/inaccurate)
+// import { calculateAveragePerformance } from '../../utils/percentToStandard';
 import { calculateFullDayPrediction } from '../../services/predictionService';
 import { ensureRouteHistoryDay, updateRouteHistory } from '../../services/routeHistoryService';
 import { getStreetTimeSummaryByDate, getOperationCodesForDate } from '../../services/streetTimeHistoryService';
@@ -442,11 +443,12 @@ export default function StatsScreen() {
     };
   }, [history]);
 
-  const officePerformanceStats = useMemo(() => {
-    if (!history || history.length === 0) return null;
-
-    return calculateAveragePerformance(history);
-  }, [history]);
+  // Office Performance (% to Standard) removed (was confusing/inaccurate)
+  // const officePerformanceStats = useMemo(() => {
+  //   if (!history || history.length === 0) return null;
+  //
+  //   return calculateAveragePerformance(history);
+  // }, [history]);
 
   const averageTimes = useMemo(() => {
     if (!history || history.length === 0) return null;
@@ -1244,84 +1246,7 @@ export default function StatsScreen() {
         </Card>
       )}
 
-      {/* Office Performance (% to Standard) */}
-      {officePerformanceStats && (
-        <Card className="bg-gradient-to-br from-indigo-50 to-blue-50 border-2 border-indigo-200">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                <Target className="w-5 h-5 text-indigo-600" />
-                Office Performance (% to Standard)
-              </h3>
-              <p className="text-xs text-gray-600 mt-1">USPS DOIS 18/8 Standard</p>
-            </div>
-            <span className="text-2xl">📊</span>
-          </div>
-
-          <>
-              <div className="grid grid-cols-3 gap-3 mb-4">
-                <div className="bg-white/70 rounded-lg p-3 text-center">
-                  <p className="text-xs text-gray-600 mb-1">Average</p>
-                  <p className={`text-2xl font-bold ${
-                    officePerformanceStats.avgPercent < 100 ? 'text-green-600' :
-                    officePerformanceStats.avgPercent > 100 ? 'text-red-600' : 'text-blue-600'
-                  }`}>
-                    {officePerformanceStats.avgPercent}%
-                  </p>
-                  <p className="text-xs text-gray-500 mt-1">
-                    {officePerformanceStats.avgPercent < 100 ? '⬇️ Faster' :
-                     officePerformanceStats.avgPercent > 100 ? '⬆️ Slower' : '➡️ On Standard'}
-                  </p>
-                </div>
-                <div className="bg-white/70 rounded-lg p-3 text-center">
-                  <p className="text-xs text-gray-600 mb-1">Best Day</p>
-                  <p className="text-2xl font-bold text-green-600">
-                    {officePerformanceStats.best}%
-                  </p>
-                  <p className="text-xs text-gray-500 mt-1">⬇️ Fastest</p>
-                </div>
-                <div className="bg-white/70 rounded-lg p-3 text-center">
-                  <p className="text-xs text-gray-600 mb-1">Worst Day</p>
-                  <p className="text-2xl font-bold text-red-600">
-                    {officePerformanceStats.worst}%
-                  </p>
-                  <p className="text-xs text-gray-500 mt-1">⬆️ Slowest</p>
-                </div>
-              </div>
-
-              <div className="bg-white/70 rounded-lg p-3">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm font-semibold text-gray-700">
-                    Days Under 100% (Faster)
-                  </span>
-                  <span className="text-lg font-bold text-green-600">
-                    {officePerformanceStats.daysUnder100}/{officePerformanceStats.totalDays}
-                  </span>
-                </div>
-                <div className="mt-2">
-                  <div className="bg-gray-200 rounded-full h-2">
-                    <div
-                      className="bg-green-600 rounded-full h-2 transition-all"
-                      style={{ width: `${officePerformanceStats.consistency}%` }}
-                    />
-                  </div>
-                  <p className="text-xs text-gray-600 text-center mt-1">
-                    {officePerformanceStats.consistency}% consistency
-                  </p>
-                </div>
-              </div>
-
-              <div className="mt-3 p-2 bg-blue-50 border border-blue-300 rounded text-xs">
-                <p className="text-blue-800">
-                  <strong>USPS Standards:</strong> 18 letters/min • 8 flats/min • 70 pieces/min pull-down
-                </p>
-                <p className="text-blue-700 mt-1">
-                  <strong>Note:</strong> % to Standard is for carrier reference only and is not contractually binding.
-                </p>
-              </div>
-          </>
-        </Card>
-      )}
+      {/* Office Performance (% to Standard) removed (was confusing/inaccurate) */}
 
       {performanceMetrics && (
         <Card className={`bg-gradient-to-br ${
