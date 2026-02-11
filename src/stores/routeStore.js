@@ -41,6 +41,8 @@ const useRouteStore = create(
         sprs: 0,
         safetyTalk: 0, // FIXED: Default to 0 instead of 10
         hasBoxholder: false,
+        casedBoxholder: false,
+        casedBoxholderType: '',
         // Allows a one-off clock-in/start-time adjustment for "today" without changing the route default.
         startTimeOverride: '',
         // Captured when user taps Start Route (721): the actual leave-office time (HH:MM)
@@ -95,6 +97,8 @@ const useRouteStore = create(
               sprs: 0,
               safetyTalk: 0, // FIXED: Default to 0 instead of 10
               hasBoxholder: false,
+              casedBoxholder: false,
+              casedBoxholderType: '',
               startTimeOverride: '',
               leaveOfficeTime: '',
               actualOfficeTime: 0,

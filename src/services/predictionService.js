@@ -191,8 +191,20 @@ export async function calculateFullDayPrediction(todayMail, routeConfig, history
   const effectiveFlatsFeet = Math.max(0, Number(todayMail.flats || 0) - Number(todayMail.curtailedFlats || 0));
   const effectiveLettersFeet = Math.max(0, Number(todayMail.letters || 0) - Number(todayMail.curtailedLetters || 0));
 
-  const flatsInPieces = effectiveFlatsFeet * TIME_CONSTANTS.FLATS_PER_FOOT;
-  const lettersInPieces = effectiveLettersFeet * TIME_CONSTANTS.LETTERS_PER_FOOT;
+  let flatsInPieces = effectiveFlatsFeet * TIME_CONSTANTS.FLATS_PER_FOOT;
+  let lettersInPieces = effectiveLettersFeet * TIME_CONSTANTS.LETTERS_PER_FOOT;
+
+  // Cased boxholder credit: if the carrier cased an EDDM/boxholder, count one piece per stop.
+  // This is merged into letters/flats piece totals so Office Time Breakdown reflects it.
+  const stops = Math.max(0, Math.round(Number(todayMail.routeStops || 0) || 0));
+  if (stops > 0 && todayMail.casedBoxholder) {
+    const t = String(todayMail.casedBoxholderType || '').toLowerCase();
+    if (t === 'flats' || t === 'flat') {
+      flatsInPieces += stops;
+    } else if (t === 'letters' || t === 'letter') {
+      lettersInPieces += stops;
+    }
+  }
 
   const flatsCaseTime = flatsInPieces / TIME_CONSTANTS.FLATS_CASE_RATE;
   const lettersCaseTime = lettersInPieces / TIME_CONSTANTS.LETTERS_CASE_RATE;

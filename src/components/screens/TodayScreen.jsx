@@ -307,6 +307,8 @@ export default function TodayScreen() {
         return;
       }
 
+      const routeConfig = getCurrentRouteConfig();
+
       const todayMail = {
         dps: todayInputs.dps || 0,
         flats: todayInputs.flats || 0,
@@ -317,9 +319,11 @@ export default function TodayScreen() {
         curtailedFlats: todayInputs.curtailedFlats || 0,
         safetyTalk: todayInputs.safetyTalk || 0,
         hasBoxholder: todayInputs.hasBoxholder || false,
+        casedBoxholder: todayInputs.casedBoxholder || false,
+        casedBoxholderType: todayInputs.casedBoxholderType || '',
+        routeStops: routeConfig?.stops || 0,
       };
 
-      const routeConfig = getCurrentRouteConfig();
       const effectiveStartTime = todayInputs.startTimeOverride || routeConfig?.startTime || '07:30';
       const routeConfigForPrediction = {
         ...routeConfig,
@@ -357,6 +361,8 @@ export default function TodayScreen() {
       sprs: nextInputs.sprs || 0,
       safetyTalk: nextInputs.safetyTalk || 0,
       hasBoxholder: nextInputs.hasBoxholder || false,
+      casedBoxholder: nextInputs.casedBoxholder || false,
+      casedBoxholderType: nextInputs.casedBoxholderType || '',
       curtailedLetters: nextInputs.curtailedLetters || 0,
       curtailedFlats: nextInputs.curtailedFlats || 0,
       dailyLog: nextInputs.dailyLog || null,
@@ -1442,7 +1448,7 @@ export default function TodayScreen() {
             placeholder="0"
           />
         </div>
-        <div className="mt-4">
+        <div className="mt-4 space-y-2">
           <label className="flex items-center gap-2 cursor-pointer">
             <input
               type="checkbox"
@@ -1452,6 +1458,45 @@ export default function TodayScreen() {
             />
             <span className="text-sm text-gray-700">Boxholder/EDDM</span>
           </label>
+
+          {Number(getCurrentRouteConfig()?.stops || 0) > 0 ? (
+            <div className="pl-6">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={todayInputs.casedBoxholder || false}
+                  onChange={(e) => {
+                    const checked = e.target.checked;
+                    updateTodayInputs({
+                      casedBoxholder: checked,
+                      // If you cased it, you definitely had one.
+                      hasBoxholder: checked ? true : (todayInputs.hasBoxholder || false),
+                      casedBoxholderType: checked ? (todayInputs.casedBoxholderType || 'flats') : '',
+                    });
+                  }}
+                  className="w-4 h-4 text-blue-600"
+                />
+                <span className="text-sm text-gray-700">Cased boxholder?</span>
+              </label>
+
+              {todayInputs.casedBoxholder ? (
+                <div className="mt-2">
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">Boxholder size</label>
+                  <select
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    value={(todayInputs.casedBoxholderType || 'flats')}
+                    onChange={(e) => updateTodayInputs({ casedBoxholderType: e.target.value })}
+                  >
+                    <option value="letters">Letter size</option>
+                    <option value="flats">Flat size</option>
+                  </select>
+                  <p className="text-[11px] text-gray-500 mt-1">
+                    Credits 1 piece per stop into Letters or Flats casing totals.
+                  </p>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
         </div>
       </Card>
 

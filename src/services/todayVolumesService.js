@@ -16,6 +16,8 @@ export async function upsertTodayVolumes({
   sprs,
   safetyTalk,
   hasBoxholder,
+  casedBoxholder,
+  casedBoxholderType,
   curtailedLetters,
   curtailedFlats,
   dailyLog,
@@ -33,6 +35,8 @@ export async function upsertTodayVolumes({
     spurs: Math.round(Number(sprs || 0)) || 0,
     safety_talk: Math.round(Number(safetyTalk || 0)) || 0,
     has_boxholder: !!hasBoxholder,
+    cased_boxholder: !!casedBoxholder,
+    cased_boxholder_type: casedBoxholderType || null,
     curtailed_letters: Number(curtailedLetters || 0) || 0,
     curtailed_flats: Number(curtailedFlats || 0) || 0,
     // daily_log exists on newer DBs; if missing we will retry without it.
@@ -44,7 +48,7 @@ export async function upsertTodayVolumes({
     return supabase
       .from('route_history')
       .upsert(p, { onConflict: 'route_id,date' })
-      .select('id, route_id, date, dps, flats, letters, parcels, spurs, safety_talk, has_boxholder, curtailed_letters, curtailed_flats, daily_log, updated_at')
+      .select('id, route_id, date, dps, flats, letters, parcels, spurs, safety_talk, has_boxholder, cased_boxholder, cased_boxholder_type, curtailed_letters, curtailed_flats, daily_log, updated_at')
       .maybeSingle();
   };
 
@@ -56,13 +60,17 @@ export async function upsertTodayVolumes({
     const missingHasBoxholder = msg.includes('has_boxholder') && msg.includes('schema cache');
     const missingCurtailedLetters = msg.includes('curtailed_letters') && msg.includes('schema cache');
     const missingCurtailedFlats = msg.includes('curtailed_flats') && msg.includes('schema cache');
+    const missingCasedBoxholder = msg.includes('cased_boxholder') && msg.includes('schema cache');
+    const missingCasedBoxholderType = msg.includes('cased_boxholder_type') && msg.includes('schema cache');
 
-    if (missingDailyLog || missingHasBoxholder || missingCurtailedLetters || missingCurtailedFlats) {
+    if (missingDailyLog || missingHasBoxholder || missingCurtailedLetters || missingCurtailedFlats || missingCasedBoxholder || missingCasedBoxholderType) {
       const fallback = { ...payload };
       if (missingDailyLog) delete fallback.daily_log;
       if (missingHasBoxholder) delete fallback.has_boxholder;
       if (missingCurtailedLetters) delete fallback.curtailed_letters;
       if (missingCurtailedFlats) delete fallback.curtailed_flats;
+      if (missingCasedBoxholder) delete fallback.cased_boxholder;
+      if (missingCasedBoxholderType) delete fallback.cased_boxholder_type;
       res = await doUpsert(fallback);
     }
   }
