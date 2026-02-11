@@ -35,6 +35,8 @@ const useRouteStore = create(
         letters: 0,
         parcels: 0,
         scannerTotal: 0,
+        curtailedLetters: 0,
+        curtailedFlats: 0,
         packagesManuallyUpdated: false,
         sprs: 0,
         safetyTalk: 0, // FIXED: Default to 0 instead of 10
@@ -87,6 +89,8 @@ const useRouteStore = create(
               letters: 0,
               parcels: 0,
               scannerTotal: 0,
+              curtailedLetters: 0,
+              curtailedFlats: 0,
               packagesManuallyUpdated: false,
               sprs: 0,
               safetyTalk: 0, // FIXED: Default to 0 instead of 10

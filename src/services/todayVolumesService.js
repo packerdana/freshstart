@@ -16,6 +16,8 @@ export async function upsertTodayVolumes({
   sprs,
   safetyTalk,
   hasBoxholder,
+  curtailedLetters,
+  curtailedFlats,
   dailyLog,
 }) {
   if (!routeId) throw new Error('Missing routeId');
@@ -31,6 +33,8 @@ export async function upsertTodayVolumes({
     spurs: Math.round(Number(sprs || 0)) || 0,
     safety_talk: Math.round(Number(safetyTalk || 0)) || 0,
     has_boxholder: !!hasBoxholder,
+    curtailed_letters: Number(curtailedLetters || 0) || 0,
+    curtailed_flats: Number(curtailedFlats || 0) || 0,
     // daily_log exists on newer DBs; if missing we will retry without it.
     daily_log: dailyLog ?? null,
     updated_at: new Date().toISOString(),
@@ -40,7 +44,7 @@ export async function upsertTodayVolumes({
     return supabase
       .from('route_history')
       .upsert(p, { onConflict: 'route_id,date' })
-      .select('id, route_id, date, dps, flats, letters, parcels, spurs, safety_talk, has_boxholder, daily_log, updated_at')
+      .select('id, route_id, date, dps, flats, letters, parcels, spurs, safety_talk, has_boxholder, curtailed_letters, curtailed_flats, daily_log, updated_at')
       .maybeSingle();
   };
 
@@ -50,11 +54,15 @@ export async function upsertTodayVolumes({
     const msg = String(res.error.message || res.error);
     const missingDailyLog = msg.includes('daily_log') && msg.includes('schema cache');
     const missingHasBoxholder = msg.includes('has_boxholder') && msg.includes('schema cache');
+    const missingCurtailedLetters = msg.includes('curtailed_letters') && msg.includes('schema cache');
+    const missingCurtailedFlats = msg.includes('curtailed_flats') && msg.includes('schema cache');
 
-    if (missingDailyLog || missingHasBoxholder) {
+    if (missingDailyLog || missingHasBoxholder || missingCurtailedLetters || missingCurtailedFlats) {
       const fallback = { ...payload };
       if (missingDailyLog) delete fallback.daily_log;
       if (missingHasBoxholder) delete fallback.has_boxholder;
+      if (missingCurtailedLetters) delete fallback.curtailed_letters;
+      if (missingCurtailedFlats) delete fallback.curtailed_flats;
       res = await doUpsert(fallback);
     }
   }

@@ -19,6 +19,8 @@ function convertHistoryFieldNames(dbRecord) {
     parcels: dbRecord.parcels,
     sprs: dbRecord.spurs, // Note: database uses 'spurs', code uses 'sprs'
     curtailed: dbRecord.curtailed,
+    curtailedLetters: dbRecord.curtailed_letters,
+    curtailedFlats: dbRecord.curtailed_flats,
     safetyTalk: dbRecord.safety_talk,
     streetTime: dbRecord.street_time,
     streetTimeNormalized: dbRecord.street_time_normalized,
@@ -125,6 +127,8 @@ export async function saveRouteHistory(routeId, historyData, waypoints = null) {
     parcels: historyData.parcels || 0,
     spurs: historyData.sprs || 0,
     curtailed: historyData.curtailed || 0,
+    curtailed_letters: Number(historyData.curtailedLetters || 0) || 0,
+    curtailed_flats: Number(historyData.curtailedFlats || 0) || 0,
     safety_talk: historyData.safetyTalk || 0,
     street_time: Math.round(historyData.streetTime || 0),
     street_time_normalized: historyData.streetTimeNormalized ? Math.round(historyData.streetTimeNormalized) : null,

@@ -188,10 +188,11 @@ export async function calculateFullDayPrediction(todayMail, routeConfig, history
     totalStreetTime = streetPrediction.streetTime;
   }
 
-  const adjustedFlats = Math.max(0, todayMail.flats - (todayMail.curtailed || 0));
+  const effectiveFlatsFeet = Math.max(0, Number(todayMail.flats || 0) - Number(todayMail.curtailedFlats || 0));
+  const effectiveLettersFeet = Math.max(0, Number(todayMail.letters || 0) - Number(todayMail.curtailedLetters || 0));
 
-  const flatsInPieces = adjustedFlats * TIME_CONSTANTS.FLATS_PER_FOOT;
-  const lettersInPieces = (todayMail.letters || 0) * TIME_CONSTANTS.LETTERS_PER_FOOT;
+  const flatsInPieces = effectiveFlatsFeet * TIME_CONSTANTS.FLATS_PER_FOOT;
+  const lettersInPieces = effectiveLettersFeet * TIME_CONSTANTS.LETTERS_PER_FOOT;
 
   const flatsCaseTime = flatsInPieces / TIME_CONSTANTS.FLATS_CASE_RATE;
   const lettersCaseTime = lettersInPieces / TIME_CONSTANTS.LETTERS_CASE_RATE;
@@ -216,12 +217,12 @@ export async function calculateFullDayPrediction(todayMail, routeConfig, history
       excluded: false,
     },
     flats: {
-      feet: adjustedFlats,
+      feet: effectiveFlatsFeet,
       pieces: Math.round(flatsInPieces),
       time: flatsCaseTime,
     },
     letters: {
-      feet: todayMail.letters || 0,
+      feet: effectiveLettersFeet,
       pieces: Math.round(lettersInPieces),
       time: lettersCaseTime,
     },

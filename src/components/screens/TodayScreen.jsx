@@ -313,7 +313,8 @@ export default function TodayScreen() {
         letters: todayInputs.letters || 0,
         parcels: todayInputs.parcels || 0,
         sprs: todayInputs.sprs || 0,
-        curtailed: 0,
+        curtailedLetters: todayInputs.curtailedLetters || 0,
+        curtailedFlats: todayInputs.curtailedFlats || 0,
         safetyTalk: todayInputs.safetyTalk || 0,
         hasBoxholder: todayInputs.hasBoxholder || false,
       };
@@ -356,6 +357,8 @@ export default function TodayScreen() {
       sprs: nextInputs.sprs || 0,
       safetyTalk: nextInputs.safetyTalk || 0,
       hasBoxholder: nextInputs.hasBoxholder || false,
+      curtailedLetters: nextInputs.curtailedLetters || 0,
+      curtailedFlats: nextInputs.curtailedFlats || 0,
       dailyLog: nextInputs.dailyLog || null,
     };
 
@@ -1385,6 +1388,22 @@ export default function TodayScreen() {
             step="0.1"
             value={todayInputs.letters || ''}
             onChange={(e) => handleInputChange('letters', e.target.value)}
+            placeholder="0.0"
+          />
+          <Input
+            label="Curtailed Flats (Ft)"
+            type="number"
+            step="0.1"
+            value={todayInputs.curtailedFlats || ''}
+            onChange={(e) => handleInputChange('curtailedFlats', e.target.value)}
+            placeholder="0.0"
+          />
+          <Input
+            label="Curtailed Letters (Ft)"
+            type="number"
+            step="0.1"
+            value={todayInputs.curtailedLetters || ''}
+            onChange={(e) => handleInputChange('curtailedLetters', e.target.value)}
             placeholder="0.0"
           />
           <Input
