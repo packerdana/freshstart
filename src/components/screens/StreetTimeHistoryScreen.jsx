@@ -23,7 +23,7 @@ export default function StreetTimeHistoryScreen() {
   const [deleteResult, setDeleteResult] = useState(null);
   const [routeName, setRouteName] = useState(null);
 
-  const { currentRouteId } = useRouteStore();
+  const { currentRouteId, loadRouteHistory } = useRouteStore();
   const { deletingDate, deleteStreetTimeDay } = useDayDeletion();
 
   useEffect(() => {
@@ -368,6 +368,10 @@ export default function StreetTimeHistoryScreen() {
                                   exclude: !item.exclude_from_averages,
                                 });
                                 await loadHistorySummary();
+                                // Refresh route_history-based stats/averages too.
+                                if (typeof loadRouteHistory === 'function') {
+                                  await loadRouteHistory(currentRouteId);
+                                }
                               } catch (err) {
                                 console.error('Failed to toggle exclude_from_averages:', err);
                                 alert(err?.message || 'Failed to update day');
