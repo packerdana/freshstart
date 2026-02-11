@@ -182,18 +182,27 @@ export default function StatsScreen() {
   const volumeRows = useMemo(() => {
     // routeStore.loadRouteHistory loads ~90 days by default
     const rows = Array.isArray(history) ? history.slice(0, 90) : [];
+
+    // Important: treat missing (null/undefined) as “not saved yet”, not as 0.
+    // 0 is a real value; null means we don’t have data for that field/day.
+    const numOrNull = (v) => {
+      if (v === null || v === undefined || v === '') return null;
+      const n = Number(v);
+      return Number.isFinite(n) ? n : null;
+    };
+
     return rows
       .filter((r) => r?.date)
       .map((r) => ({
         date: r.date,
-        dps: Number(r.dps || 0) || 0,
-        flats: Number(r.flats || 0) || 0,
-        letters: Number(r.letters || 0) || 0,
-        parcels: Number(r.parcels || 0) || 0,
-        sprs: Number(r.sprs || 0) || 0,
-        scannerTotal: Number(r.scannerTotal || 0) || 0,
-        curtailedLetters: Number(r.curtailedLetters || 0) || 0,
-        curtailedFlats: Number(r.curtailedFlats || 0) || 0,
+        dps: numOrNull(r.dps),
+        flats: numOrNull(r.flats),
+        letters: numOrNull(r.letters),
+        parcels: numOrNull(r.parcels),
+        sprs: numOrNull(r.sprs),
+        scannerTotal: numOrNull(r.scannerTotal),
+        curtailedLetters: numOrNull(r.curtailedLetters) ?? 0,
+        curtailedFlats: numOrNull(r.curtailedFlats) ?? 0,
         hasBoxholder: !!r.hasBoxholder,
         notes: r.notes || '',
       }));
@@ -878,7 +887,10 @@ export default function StatsScreen() {
           <div className="space-y-2">
             {volumeRows.map((r) => {
               const isOpen = expandedVolumeDate === r.date;
-              const total = r.dps + r.flats + r.letters + r.parcels + r.sprs;
+              const display = (v) => (v === null || v === undefined ? '—' : v);
+              const hasAnyVolume = [r.dps, r.flats, r.letters, r.parcels, r.sprs].some((v) => v !== null && v !== undefined);
+              const total = (r.dps || 0) + (r.flats || 0) + (r.letters || 0) + (r.parcels || 0) + (r.sprs || 0);
+
               return (
                 <button
                   key={r.date}
@@ -889,11 +901,14 @@ export default function StatsScreen() {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="font-semibold text-gray-900">{format(parseLocalDate(r.date), 'EEE MMM d')}</p>
-                      <p className="text-xs text-gray-600">D {r.dps} • F {r.flats} • L {r.letters} • P {r.parcels} • SPR {r.sprs}</p>
+                      <p className="text-xs text-gray-600">
+                        D {display(r.dps)} • F {display(r.flats)} • L {display(r.letters)} • P {display(r.parcels)} • SPR {display(r.sprs)}
+                        {!hasAnyVolume ? <span className="ml-2 text-amber-700">(not saved)</span> : null}
+                      </p>
                     </div>
                     <div className="text-right">
                       <p className="text-xs text-gray-600">Total</p>
-                      <p className="font-mono text-sm text-gray-900">{total}</p>
+                      <p className="font-mono text-sm text-gray-900">{hasAnyVolume ? total : '—'}</p>
                     </div>
                   </div>
 
@@ -902,27 +917,27 @@ export default function StatsScreen() {
                       <div className="grid grid-cols-2 gap-2">
                         <div>
                           <p className="text-xs text-gray-600">DPS</p>
-                          <p className="font-mono">{r.dps}</p>
+                          <p className="font-mono">{display(r.dps)}</p>
                         </div>
                         <div>
                           <p className="text-xs text-gray-600">Flats</p>
-                          <p className="font-mono">{r.flats}</p>
+                          <p className="font-mono">{display(r.flats)}</p>
                         </div>
                         <div>
                           <p className="text-xs text-gray-600">Letters</p>
-                          <p className="font-mono">{r.letters}</p>
+                          <p className="font-mono">{display(r.letters)}</p>
                         </div>
                         <div>
                           <p className="text-xs text-gray-600">Parcels</p>
-                          <p className="font-mono">{r.parcels}</p>
+                          <p className="font-mono">{display(r.parcels)}</p>
                         </div>
                         <div>
                           <p className="text-xs text-gray-600">SPRs</p>
-                          <p className="font-mono">{r.sprs}</p>
+                          <p className="font-mono">{display(r.sprs)}</p>
                         </div>
                         <div>
                           <p className="text-xs text-gray-600">Scanner Total</p>
-                          <p className="font-mono">{r.scannerTotal || 0}</p>
+                          <p className="font-mono">{display(r.scannerTotal)}</p>
                         </div>
                       </div>
                       <div className="mt-2 text-xs text-gray-600">

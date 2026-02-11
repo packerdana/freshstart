@@ -99,13 +99,18 @@ export default function TodayScreen() {
         if (cancelled || !rh) return;
 
         const next = {};
-        if (rh.dps) next.dps = rh.dps;
-        if (rh.flats) next.flats = rh.flats;
-        if (rh.letters) next.letters = rh.letters;
-        if (rh.parcels) next.parcels = rh.parcels;
-        if (rh.sprs) next.sprs = rh.sprs;
+        // Use != null checks so we don't accidentally skip legitimate 0 values.
+        if (rh.dps != null) next.dps = rh.dps;
+        if (rh.flats != null) next.flats = rh.flats;
+        if (rh.letters != null) next.letters = rh.letters;
+        if (rh.parcels != null) next.parcels = rh.parcels;
+        if (rh.sprs != null) next.sprs = rh.sprs;
         if (rh.safetyTalk != null) next.safetyTalk = rh.safetyTalk;
         if (rh.hasBoxholder != null) next.hasBoxholder = rh.hasBoxholder;
+        if (rh.casedBoxholder != null) next.casedBoxholder = rh.casedBoxholder;
+        if (rh.casedBoxholderType != null) next.casedBoxholderType = rh.casedBoxholderType;
+        if (rh.curtailedLetters != null) next.curtailedLetters = rh.curtailedLetters;
+        if (rh.curtailedFlats != null) next.curtailedFlats = rh.curtailedFlats;
         if (rh.dailyLog != null) next.dailyLog = rh.dailyLog;
 
         if (Object.keys(next).length) {
@@ -137,18 +142,29 @@ export default function TodayScreen() {
       loadOffRouteSession();
     };
 
+    // Also flush any pending volume autosave when the app is backgrounded.
     const onVis = () => {
+      if (document.visibilityState === 'hidden') {
+        flushVolumesAutosave();
+        return;
+      }
       if (document.visibilityState === 'visible') {
         loadStreetTimeSession();
         loadOffRouteSession();
       }
     };
 
+    const onPageHide = () => {
+      flushVolumesAutosave();
+    };
+
     window.addEventListener('focus', onFocus);
     document.addEventListener('visibilitychange', onVis);
+    window.addEventListener('pagehide', onPageHide);
     return () => {
       window.removeEventListener('focus', onFocus);
       document.removeEventListener('visibilitychange', onVis);
+      window.removeEventListener('pagehide', onPageHide);
     };
   }, []);
 
@@ -347,6 +363,7 @@ export default function TodayScreen() {
   // Autosave critical volumes to Supabase so mobile state loss can't wipe them.
   const volumesSaveTimerRef = useRef(null);
   const lastVolumesSavedRef = useRef(null);
+  const pendingVolumesPayloadRef = useRef(null);
 
   const scheduleVolumesAutosave = (nextInputs) => {
     if (!currentRouteId) return;
@@ -368,11 +385,15 @@ export default function TodayScreen() {
       dailyLog: nextInputs.dailyLog || null,
     };
 
+    pendingVolumesPayloadRef.current = payload;
+
     // Avoid spamming identical writes.
     const fingerprint = JSON.stringify(payload);
     if (fingerprint === lastVolumesSavedRef.current) return;
 
     if (volumesSaveTimerRef.current) clearTimeout(volumesSaveTimerRef.current);
+
+    // Save quickly; mobile browsers can reload/evict background tabs unexpectedly.
     volumesSaveTimerRef.current = setTimeout(async () => {
       try {
         await upsertTodayVolumes(payload);
@@ -381,7 +402,18 @@ export default function TodayScreen() {
         // Non-fatal: keep UI working even if offline.
         console.warn('[TodayScreen] Volume autosave failed:', e?.message || e);
       }
-    }, 900);
+    }, 250);
+  };
+
+  const flushVolumesAutosave = async () => {
+    const payload = pendingVolumesPayloadRef.current;
+    if (!payload) return;
+    try {
+      await upsertTodayVolumes(payload);
+      lastVolumesSavedRef.current = JSON.stringify(payload);
+    } catch (e) {
+      console.warn('[TodayScreen] Volume flush failed:', e?.message || e);
+    }
   };
 
   const handleInputChange = (field, value) => {
@@ -391,8 +423,8 @@ export default function TodayScreen() {
     const nextInputs = { ...todayInputs, [field]: numValue };
     updateTodayInputs({ [field]: numValue });
 
-    // Only autosave critical volume-ish fields (and a few key day context flags).
-    if (['dps', 'flats', 'letters', 'parcels', 'sprs', 'safetyTalk'].includes(field)) {
+    // Autosave critical volume-ish fields (plus curtailed counts).
+    if (['dps', 'flats', 'letters', 'parcels', 'sprs', 'safetyTalk', 'curtailedLetters', 'curtailedFlats'].includes(field)) {
       scheduleVolumesAutosave(nextInputs);
     }
   };
@@ -1422,11 +1454,14 @@ export default function TodayScreen() {
               
               if (scannerTotal > 0) {
                 const newSprs = Math.max(0, scannerTotal - numValue);
-                updateTodayInputs({
+                const patch = {
                   parcels: numValue,
                   sprs: newSprs,
                   packagesManuallyUpdated: true
-                });
+                };
+                const nextInputs = { ...todayInputs, ...patch };
+                updateTodayInputs(patch);
+                scheduleVolumesAutosave(nextInputs);
               } else {
                 handleInputChange('parcels', e.target.value);
               }
@@ -1453,7 +1488,11 @@ export default function TodayScreen() {
             <input
               type="checkbox"
               checked={todayInputs.hasBoxholder || false}
-              onChange={(e) => updateTodayInputs({ hasBoxholder: e.target.checked })}
+              onChange={(e) => {
+                const nextInputs = { ...todayInputs, hasBoxholder: e.target.checked };
+                updateTodayInputs({ hasBoxholder: e.target.checked });
+                scheduleVolumesAutosave(nextInputs);
+              }}
               className="w-4 h-4 text-blue-600"
             />
             <span className="text-sm text-gray-700">Boxholder/EDDM</span>
@@ -1467,12 +1506,15 @@ export default function TodayScreen() {
                   checked={todayInputs.casedBoxholder || false}
                   onChange={(e) => {
                     const checked = e.target.checked;
-                    updateTodayInputs({
+                    const patch = {
                       casedBoxholder: checked,
                       // If you cased it, you definitely had one.
                       hasBoxholder: checked ? true : (todayInputs.hasBoxholder || false),
                       casedBoxholderType: checked ? (todayInputs.casedBoxholderType || 'flats') : '',
-                    });
+                    };
+                    const nextInputs = { ...todayInputs, ...patch };
+                    updateTodayInputs(patch);
+                    scheduleVolumesAutosave(nextInputs);
                   }}
                   className="w-4 h-4 text-blue-600"
                 />
@@ -1485,7 +1527,12 @@ export default function TodayScreen() {
                   <select
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
                     value={(todayInputs.casedBoxholderType || 'flats')}
-                    onChange={(e) => updateTodayInputs({ casedBoxholderType: e.target.value })}
+                    onChange={(e) => {
+                      const patch = { casedBoxholderType: e.target.value };
+                      const nextInputs = { ...todayInputs, ...patch };
+                      updateTodayInputs(patch);
+                      scheduleVolumesAutosave(nextInputs);
+                    }}
                   >
                     <option value="letters">Letter size</option>
                     <option value="flats">Flat size</option>
