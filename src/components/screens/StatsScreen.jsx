@@ -39,6 +39,8 @@ export default function StatsScreen() {
     parcels: '',
     sprs: '',
     safetyTalk: '',
+    amOfficeTime: '',
+    streetTime: '',
     pmOfficeTime: '',
     hasBoxholder: false,
     excludeFromAverages: false,
@@ -992,6 +994,8 @@ export default function StatsScreen() {
                               parcels: record.parcels ?? '',
                               sprs: record.sprs ?? '',
                               safetyTalk: record.safetyTalk ?? '',
+                              amOfficeTime: record.officeTime ?? record.office_time ?? '',
+                              streetTime: record.streetTimeNormalized ?? record.street_time_normalized ?? record.streetTime ?? record.street_time ?? '',
                               pmOfficeTime: record.pmOfficeTime ?? record.pm_office_time ?? '',
                               hasBoxholder: !!record.hasBoxholder,
                               excludeFromAverages: !!record.excludeFromAverages,
@@ -1202,6 +1206,8 @@ export default function StatsScreen() {
                               parcels: record.parcels ?? '',
                               sprs: record.sprs ?? '',
                               safetyTalk: record.safetyTalk ?? '',
+                              amOfficeTime: record.officeTime ?? record.office_time ?? '',
+                              streetTime: record.streetTimeNormalized ?? record.street_time_normalized ?? record.streetTime ?? record.street_time ?? '',
                               pmOfficeTime: record.pmOfficeTime ?? record.pm_office_time ?? '',
                               hasBoxholder: !!record.hasBoxholder,
                               excludeFromAverages: !!record.excludeFromAverages,
@@ -1609,6 +1615,8 @@ export default function StatsScreen() {
                   <Input label="SPRs" type="number" value={fixDayForm.sprs} onChange={(e) => setFixDayForm((s) => ({ ...s, sprs: e.target.value }))} />
                   <Input label="Letters (ft)" type="number" step="0.1" value={fixDayForm.letters} onChange={(e) => setFixDayForm((s) => ({ ...s, letters: e.target.value }))} />
                   <Input label="Safety/Training (min)" type="number" value={fixDayForm.safetyTalk} onChange={(e) => setFixDayForm((s) => ({ ...s, safetyTalk: e.target.value }))} />
+                  <Input label="AM Office 722 (min)" type="number" value={fixDayForm.amOfficeTime} onChange={(e) => setFixDayForm((s) => ({ ...s, amOfficeTime: e.target.value }))} />
+                  <Input label="Street 721 (min)" type="number" value={fixDayForm.streetTime} onChange={(e) => setFixDayForm((s) => ({ ...s, streetTime: e.target.value }))} />
                   <Input label="PM Office 744 (min)" type="number" value={fixDayForm.pmOfficeTime} onChange={(e) => setFixDayForm((s) => ({ ...s, pmOfficeTime: e.target.value }))} />
                 </div>
 
@@ -1680,6 +1688,9 @@ export default function StatsScreen() {
                         parcels: Number(fixDayForm.parcels || 0) || 0,
                         spurs: Number(fixDayForm.sprs || 0) || 0,
                         safety_talk: Number(fixDayForm.safetyTalk || 0) || 0,
+                        office_time: Number(fixDayForm.amOfficeTime || 0) || 0,
+                        street_time: Number(fixDayForm.streetTime || 0) || 0,
+                        street_time_normalized: Number(fixDayForm.streetTime || 0) || 0,
                         pm_office_time: Number(fixDayForm.pmOfficeTime || 0) || 0,
                         has_boxholder: !!fixDayForm.hasBoxholder,
                         exclude_from_averages: !!fixDayForm.excludeFromAverages,
