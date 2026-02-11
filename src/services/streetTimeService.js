@@ -39,6 +39,9 @@ export const streetTimeService = {
   },
   
   async endSession(sessionId = null) {
+    const { data: { session: authSession } } = await supabase.auth.getSession();
+    if (!authSession?.user) throw new Error('Not authenticated');
+
     const session = sessionId
       ? await this.getSessionById(sessionId)
       : await this.getActiveSession();

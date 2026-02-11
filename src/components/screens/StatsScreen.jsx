@@ -63,6 +63,10 @@ export default function StatsScreen() {
   const [dayDetails, setDayDetails] = useState({});
   const [expandedDay, setExpandedDay] = useState(null);
 
+
+  // Daily Volume Log (debugging volumes saved to Supabase)
+  const [expandedVolumeDate, setExpandedVolumeDate] = useState(null);
+
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
@@ -173,6 +177,27 @@ export default function StatsScreen() {
       console.error('Error loading protection data:', error);
     }
   };
+
+
+  const volumeRows = useMemo(() => {
+    // routeStore.loadRouteHistory loads ~90 days by default
+    const rows = Array.isArray(history) ? history.slice(0, 90) : [];
+    return rows
+      .filter((r) => r?.date)
+      .map((r) => ({
+        date: r.date,
+        dps: Number(r.dps || 0) || 0,
+        flats: Number(r.flats || 0) || 0,
+        letters: Number(r.letters || 0) || 0,
+        parcels: Number(r.parcels || 0) || 0,
+        sprs: Number(r.sprs || 0) || 0,
+        scannerTotal: Number(r.scannerTotal || 0) || 0,
+        curtailedLetters: Number(r.curtailedLetters || 0) || 0,
+        curtailedFlats: Number(r.curtailedFlats || 0) || 0,
+        hasBoxholder: !!r.hasBoxholder,
+        notes: r.notes || '',
+      }));
+  }, [history]);
 
   const hasActiveRoute = useMemo(() => {
     // Must be boolean; returning a number here can render a stray "0" in React when used like:
@@ -835,6 +860,87 @@ export default function StatsScreen() {
         )}
       </Card>
 
+      <Card className="mb-4 bg-gradient-to-br from-indigo-50 to-slate-50 border-2 border-indigo-200">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <Calendar className="w-5 h-5 text-indigo-700" />
+            <h3 className="font-bold text-gray-900">Daily Volume Log</h3>
+          </div>
+          <span className="text-xs text-gray-700">last {Math.min(90, volumeRows.length)} days • from Supabase</span>
+        </div>
+
+        {volumeRows.length === 0 ? (
+          <div className="bg-white/70 rounded-lg p-4">
+            <p className="text-sm text-gray-700">No saved volume history found yet.</p>
+            <p className="text-xs text-gray-600 mt-1">This list shows what RouteWise actually saved to Supabase for each day.</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {volumeRows.map((r) => {
+              const isOpen = expandedVolumeDate === r.date;
+              const total = r.dps + r.flats + r.letters + r.parcels + r.sprs;
+              return (
+                <button
+                  key={r.date}
+                  type="button"
+                  className="w-full text-left bg-white rounded-lg p-3 border border-indigo-100 hover:border-indigo-200"
+                  onClick={() => setExpandedVolumeDate((cur) => (cur === r.date ? null : r.date))}
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-semibold text-gray-900">{format(parseLocalDate(r.date), 'EEE MMM d')}</p>
+                      <p className="text-xs text-gray-600">D {r.dps} • F {r.flats} • L {r.letters} • P {r.parcels} • SPR {r.sprs}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs text-gray-600">Total</p>
+                      <p className="font-mono text-sm text-gray-900">{total}</p>
+                    </div>
+                  </div>
+
+                  {isOpen && (
+                    <div className="mt-3 pt-3 border-t border-indigo-100 text-sm text-gray-800">
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <p className="text-xs text-gray-600">DPS</p>
+                          <p className="font-mono">{r.dps}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-600">Flats</p>
+                          <p className="font-mono">{r.flats}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-600">Letters</p>
+                          <p className="font-mono">{r.letters}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-600">Parcels</p>
+                          <p className="font-mono">{r.parcels}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-600">SPRs</p>
+                          <p className="font-mono">{r.sprs}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-600">Scanner Total</p>
+                          <p className="font-mono">{r.scannerTotal || 0}</p>
+                        </div>
+                      </div>
+                      <div className="mt-2 text-xs text-gray-600">
+                        {r.hasBoxholder ? 'Boxholder: yes' : 'Boxholder: no'}
+                        {(r.curtailedLetters || r.curtailedFlats) ? ` • Curtailed L ${r.curtailedLetters} / F ${r.curtailedFlats}` : ''}
+                      </div>
+                      {r.notes ? (
+                        <p className="mt-2 text-xs text-gray-600 whitespace-pre-line">Notes: {r.notes}</p>
+                      ) : null}
+                    </div>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </Card>
+
       {protectionStatus?.needsAttention && (
         <Card className="mb-4 bg-gradient-to-br from-orange-50 to-red-50 border-2 border-orange-300">
           <div className="flex items-start gap-3">
@@ -913,18 +1019,34 @@ export default function StatsScreen() {
               const codes = d?.codes || {};
 
               // 722 is not always recorded as an operation code (often derived from clock-in -> 721 start).
-              // Use route_history office_time as the source of truth when available.
+              // route_history is normally the source of truth, BUT we must tolerate bad/partial rows
+              // (e.g. if the browser lost state or End Tour never saved correctly).
               const hist = (history || []).find((h) => h?.date === d.date);
 
               const routeStartHHMM = (routes?.[currentRouteId]?.startTime || todayInputs?.startTimeOverride || '07:30');
               const first721StartUtc = d?.first_721_start || null;
               const derived722 = first721StartUtc ? deriveOfficeTimeMinutes(routeStartHHMM, first721StartUtc) : 0;
 
-              // Prefer explicit history value, then explicitly recorded operation code; otherwise derive from route start -> first 721 start.
-              let m722 = Number(hist?.officeTime ?? hist?.office_time ?? codes['722'] ?? 0) || 0;
+              const codes722 = Number(codes['722'] ?? 0) || 0;
+              const codes721 = Number(codes['721'] ?? 0) || 0;
+              const codes744 = Number(codes['744'] ?? 0) || 0;
+
+              const hist722 = Number(hist?.officeTime ?? hist?.office_time ?? 0) || 0;
+              const hist721 = Number(hist?.streetTimeNormalized ?? hist?.street_time_normalized ?? hist?.streetTime ?? hist?.street_time ?? 0) || 0;
+              const hist744 = Number(hist?.pmOfficeTime ?? hist?.pm_office_time ?? 0) || 0;
+
+              // Prefer history when it looks sane; otherwise fall back to operation_codes.
+              // This fixes cases where timers show (e.g.) 7:12 street time but route_history shows 0:42.
+              let m722 = hist722 || codes722 || 0;
               if (!m722 && derived722) m722 = derived722;
-              const m721 = Number(hist?.streetTimeNormalized ?? hist?.street_time_normalized ?? hist?.streetTime ?? hist?.street_time ?? codes['721'] ?? 0) || 0;
-              const m744 = Number(hist?.pmOfficeTime ?? hist?.pm_office_time ?? codes['744'] ?? 0) || 0;
+
+              const m721 = (hist721 > 0 && (codes721 <= 0 || hist721 >= Math.round(codes721 * 0.8)))
+                ? hist721
+                : (codes721 || hist721 || 0);
+
+              const m744 = (hist744 > 0 && (codes744 <= 0 || hist744 >= Math.round(codes744 * 0.8)))
+                ? hist744
+                : (codes744 || hist744 || 0);
 
               const lunch = 30;
               const core = Math.max(0, m722 + m721 + m744 - lunch);
@@ -978,7 +1100,7 @@ export default function StatsScreen() {
 
                   {isOpen ? (
                     <div className="border-t border-slate-200 p-3">
-                      <div className="flex items-center justify-end mb-2">
+                      <div className="flex items-center justify-between mb-2">
                         <button
                           className="text-xs font-semibold text-blue-700 underline"
                           onClick={async () => {
@@ -1014,6 +1136,43 @@ export default function StatsScreen() {
                           }}
                         >
                           Fix this day
+                        </button>
+
+                        <button
+                          className="text-xs font-semibold text-slate-700 underline"
+                          onClick={async () => {
+                            try {
+                              let record = (history || []).find((h) => h?.date === d.date) || null;
+                              if (!record) {
+                                record = await ensureRouteHistoryDay(currentRouteId, d.date);
+                              }
+
+                              // Compute minutes from the timers (operation_codes) for this day.
+                              const c = d?.codes || {};
+                              const routeStartHHMM = (routes?.[currentRouteId]?.startTime || todayInputs?.startTimeOverride || '07:30');
+                              const first721StartUtc = d?.first_721_start || null;
+                              const derived722 = first721StartUtc ? deriveOfficeTimeMinutes(routeStartHHMM, first721StartUtc) : 0;
+
+                              const m722 = Number(c['722'] || 0) || derived722 || 0;
+                              const m721 = Number(c['721'] || 0) || 0;
+                              const m744 = Number(c['744'] || 0) || 0;
+
+                              await updateRouteHistory(record.id, {
+                                office_time: Math.round(m722),
+                                street_time: Math.round(m721),
+                                street_time_normalized: Math.round(m721),
+                                pm_office_time: Math.round(m744),
+                              });
+
+                              await loadRouteHistory(currentRouteId);
+                              alert('Synced this day from timers (operation codes).');
+                            } catch (e) {
+                              alert(e?.message || 'Could not sync from timers.');
+                            }
+                          }}
+                          type="button"
+                        >
+                          Sync from timers
                         </button>
                       </div>
                       {displayRows.length === 0 ? (

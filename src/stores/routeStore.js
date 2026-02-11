@@ -603,6 +603,58 @@ const useRouteStore = create(
         }
       },
 
+      // Reset the store to initial defaults (used on account switch/logout)
+      resetStore: () => {
+        set({
+          currentRoute: null,
+          currentRouteId: null,
+          routes: {},
+          history: [],
+          averages: {},
+          waypoints: [],
+          waypointsLoading: false,
+          templates: [],
+          templatesLoading: false,
+          hasTemplates: false,
+          loading: false,
+          error: null,
+          todayInputs: {
+            dps: 0,
+            flats: 0,
+            letters: 0,
+            parcels: 0,
+            scannerTotal: 0,
+            curtailedLetters: 0,
+            curtailedFlats: 0,
+            packagesManuallyUpdated: false,
+            sprs: 0,
+            safetyTalk: 0,
+            hasBoxholder: false,
+            casedBoxholder: false,
+            casedBoxholderType: '',
+            startTimeOverride: '',
+            leaveOfficeTime: '',
+            actualOfficeTime: 0,
+            actualClockOut: '',
+            casingWithdrawalMinutes: 0,
+            dailyLog: {
+              lateMail: false,
+              lateParcels: false,
+              casingInterruptionsMinutes: 0,
+              waitingOnParcelsMinutes: 0,
+              accountablesMinutes: 0,
+              otherDelayMinutes: 0,
+              notes: '',
+            },
+          },
+          lastResetDate: null,
+          routeStarted: false,
+          preRouteLoadingMinutes: 0,
+          streetPreloadSeconds: 0,
+        });
+      },
+
+
       switchToRoute: (routeId) => {
         get().setCurrentRoute(routeId);
       },

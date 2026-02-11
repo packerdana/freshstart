@@ -1704,6 +1704,14 @@ export default function TodayScreen() {
           <Button onClick={handleStopPmOffice} className="w-full">
             Stop PM Office Timer
           </Button>
+
+          <Button
+            onClick={handleCompleteRouteClick}
+            variant="secondary"
+            className="w-full mt-2"
+          >
+            End Tour (stop 744)
+          </Button>
         </Card>
       )}
 

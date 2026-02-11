@@ -199,7 +199,7 @@ function App() {
   return (
     <div className="min-h-screen flex flex-col">
       <header className="bg-blue-600 text-white py-4 px-6 shadow-md">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center justify-between gap-3">
           <img
             src="/routewise-icon.svg"
             alt="RouteWise"
@@ -214,6 +214,10 @@ function App() {
             <p className="text-sm text-blue-100 truncate">
               {requireRouteSetup ? 'Set up a route to get started' : `Route ${currentRoute}`}
             </p>
+          </div>
+          <div className="text-right">
+            <p className="text-xs text-blue-100">Signed in as</p>
+            <p className="text-xs font-mono text-white truncate max-w-[45vw]">{user?.email || '—'}</p>
           </div>
         </div>
       </header>

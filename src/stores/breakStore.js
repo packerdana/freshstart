@@ -589,6 +589,48 @@ const useBreakStore = create(
       console.log('Smart load history loaded for user');
     }
   },
+
+  // Reset the store to initial defaults (used on account switch/logout)
+  resetStore: async () => {
+    // Stop any repeating alarms/auto-saves
+    try { stopAlarm(set); } catch {}
+    try { stopAutoSave(); } catch {}
+
+    set({
+      lunchActive: false,
+      lunchTime: 30 * 60,
+      lunchStartTime: null,
+
+      breakActive: false,
+      breakTime: 0,
+      breakType: null,
+      breakStartTime: null,
+
+      loadTruckActive: false,
+      loadTruckTime: 0,
+      loadTruckStartTime: null,
+      loadTruckPackageCount: 0,
+      loadTruckWarning: false,
+
+      todaysBreaks: [],
+      breakEvents: [],
+      waypointPausedSeconds: 0,
+      breakNudgeSnoozedUntil: null,
+      loadTruckNudgeSnoozedUntil: null,
+      alarmActive: false,
+      alarmKind: null,
+      alarmStartedAt: null,
+
+      initialized: false,
+      initializing: false,
+    });
+
+    // Best-effort: clear persisted DB state too (so other accounts don't inherit timers)
+    try {
+      await clearBreakState();
+    } catch {}
+  },
+
 }),
 {
   name: 'routewise-break-timers',

@@ -1,9 +1,34 @@
 import { create } from 'zustand';
 import { supabase, supabaseEnvOk } from '../lib/supabase';
 import useRouteStore from './routeStore';
+import useBreakStore from './breakStore';
 
 const missingEnvMessage =
   'RouteWise is missing Supabase config. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your Vercel Environment Variables, then redeploy.';
+
+
+async function clearUserScopedState() {
+  // Clear persisted + in-memory state that should never carry across accounts.
+  try {
+    // Route store
+    try {
+      useRouteStore.persist?.clearStorage?.();
+    } catch {}
+    try {
+      useRouteStore.getState().resetStore?.();
+    } catch {}
+
+    // Break store
+    try {
+      useBreakStore.persist?.clearStorage?.();
+    } catch {}
+    try {
+      await useBreakStore.getState().resetStore?.();
+    } catch {}
+  } catch {
+    // ignore
+  }
+}
 
 const useAuthStore = create((set, get) => ({
   user: null,
@@ -129,7 +154,9 @@ const useAuthStore = create((set, get) => ({
       
       if (error) throw error;
       
-      // Clear ALL state on logout
+      // Clear persisted + in-memory app state on logout
+      await clearUserScopedState();
+
       set({
         user: null,
         session: null,
@@ -214,13 +241,21 @@ const useAuthStore = create((set, get) => ({
         console.log('Auth state changed:', event);
 
         // If the authenticated user changes (logout/login, or switching accounts),
-        // clear persisted Today timing overrides so they don’t “stick” across accounts.
+        // clear persisted user-scoped state so it doesn't stick across accounts.
         try {
           const prevUserId = get().user?.id ?? null;
           const nextUserId = session?.user?.id ?? null;
 
-          if (event === 'SIGNED_OUT' || (prevUserId && nextUserId && prevUserId !== nextUserId) || (event === 'SIGNED_IN' && prevUserId !== nextUserId)) {
-            useRouteStore.getState().clearTodayTimingOverrides?.();
+          const userChanged = (prevUserId && nextUserId && prevUserId !== nextUserId) || (event === 'SIGNED_IN' && prevUserId !== nextUserId);
+          const signedOut = event === 'SIGNED_OUT';
+
+          if (signedOut || userChanged) {
+            // Clear per-day timing overrides too
+            try {
+              useRouteStore.getState().clearTodayTimingOverrides?.();
+            } catch {}
+
+            await clearUserScopedState();
           }
         } catch {
           // ignore

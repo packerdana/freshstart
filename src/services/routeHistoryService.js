@@ -54,6 +54,11 @@ function convertHistoryFieldNames(dbRecord) {
 }
 
 export async function saveRouteHistory(routeId, historyData, waypoints = null) {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.user) {
+    throw new Error('Not authenticated (cannot save route history). Please sign in again.');
+  }
+
   if (!routeId || routeId === 'temp-route-id') {
     console.warn('No valid route ID - route history not saved to database');
     return null;
