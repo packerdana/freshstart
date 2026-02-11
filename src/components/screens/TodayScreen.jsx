@@ -12,6 +12,7 @@ import EndOfDayReport from '../shared/EndOfDayReport';
 import ForgotRouteDialog from '../shared/ForgotRouteDialog';
 import Reason3996Modal from '../shared/Reason3996Modal';
 import { confidenceToMinutes } from '../../utils/predictionConfidence';
+import { applyExpectedTimeRolloverSanity } from '../../utils/liveExpected';
 import useRouteStore from '../../stores/routeStore';
 import { upsertTodayVolumes } from '../../services/todayVolumesService';
 import { getTodayRouteHistory } from '../../services/routeHistoryService';
@@ -33,6 +34,10 @@ export default function TodayScreen() {
   const waypointPausedSeconds = useBreakStore((state) => state.waypointPausedSeconds);
   const [date, setDate] = useState(new Date());
   const [showCompletionDialog, setShowCompletionDialog] = useState(false);
+
+  // Expected time sanity: if the predicted return time appears to be "yesterday" (common after midnight),
+  // roll it forward by +24h in the UI. Banner offers a one-tap reset to the raw route prediction.
+  const [expectedTimeSanityEnabled, setExpectedTimeSanityEnabled] = useState(true);
   const [showPmOfficePrompt, setShowPmOfficePrompt] = useState(false);
   const [pmOfficeManualMinutes, setPmOfficeManualMinutes] = useState('');
   const pmOfficeManualMinutesRef = useRef(null);
@@ -1098,14 +1103,25 @@ export default function TodayScreen() {
     { waypointEnhanced: !!prediction?.waypointEnhanced }
   );
 
+  const clockOutSanity = useMemo(() => {
+    if (!prediction?.clockOutTime) return { time: null, didAdjust: false, rolledDays: 0 };
+    const base = prediction.clockOutTime instanceof Date ? prediction.clockOutTime : new Date(prediction.clockOutTime);
+    if (!(base instanceof Date) || isNaN(base.getTime())) return { time: null, didAdjust: false, rolledDays: 0 };
+
+    if (!expectedTimeSanityEnabled) return { time: base, didAdjust: false, rolledDays: 0 };
+
+    const res = applyExpectedTimeRolloverSanity(base, new Date(), { maxPastMinutes: 60, maxDays: 2 });
+    return { time: res?.time || base, didAdjust: !!res?.didAdjust, rolledDays: res?.rolledDays || 0 };
+  }, [prediction?.clockOutTime, expectedTimeSanityEnabled]);
+
   const rangeText = useMemo(() => {
-    if (!prediction?.clockOutTime) return null;
-    const base = new Date(prediction.clockOutTime);
+    if (!clockOutSanity?.time) return null;
+    const base = new Date(clockOutSanity.time);
     const early = new Date(base.getTime() - confidenceMinutes * 60000);
     const late = new Date(base.getTime() + confidenceMinutes * 60000);
     const fmt = (d) => d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
     return `${fmt(early)}–${fmt(late)}`;
-  }, [prediction?.clockOutTime, confidenceMinutes]);
+  }, [clockOutSanity?.time, confidenceMinutes]);
 
   return (
     <div className="p-4 pb-20 max-w-4xl mx-auto">
@@ -1150,6 +1166,24 @@ export default function TodayScreen() {
             </div>
           </div>
 
+          {clockOutSanity?.didAdjust && (
+            <div className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+              <p className="text-xs text-amber-900 font-medium">Return time looked like it was from yesterday.</p>
+              <p className="text-[11px] text-amber-800 mt-1">
+                RouteWise auto-rolled it forward by +24h so it makes sense after midnight.
+              </p>
+              <div className="mt-2">
+                <Button
+                  variant="secondary"
+                  className="w-full bg-white/60 border-amber-300 text-amber-900 hover:bg-white"
+                  onClick={() => setExpectedTimeSanityEnabled(false)}
+                >
+                  Reset to route default
+                </Button>
+              </div>
+            </div>
+          )}
+
           {/* Confidence meter + expectation setting */}
           <div className="bg-white/70 rounded-lg p-4 mb-3 border border-emerald-100">
             <div className="flex items-center justify-between gap-3 mb-2">
@@ -1183,7 +1217,7 @@ export default function TodayScreen() {
             <div className="bg-white/70 rounded-lg p-4">
               <p className="text-xs text-gray-600">Projected return</p>
               <p className="text-3xl font-extrabold text-gray-900 tracking-tight">
-                {prediction.clockOutTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                {clockOutSanity?.time ? clockOutSanity.time.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '—'}
               </p>
               {rangeText && (
                 <p className="text-xs text-gray-700 mt-1">Range: {rangeText} (±{confidenceMinutes}m)</p>
@@ -1416,7 +1450,7 @@ export default function TodayScreen() {
             <div className="flex-1">
               <h3 className="font-bold text-yellow-900">Past Predicted End Time</h3>
               <p className="text-sm text-yellow-800">
-                You're {Math.round((Date.now() - prediction.clockOutTime) / 1000 / 60)} minutes past predicted clock out. 
+                You're {Math.round((Date.now() - (clockOutSanity?.time || prediction.clockOutTime)) / 1000 / 60)} minutes past predicted clock out. 
                 Did you forget to end your route?
               </p>
             </div>

@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { supabase, supabaseEnvOk } from '../lib/supabase';
+import useRouteStore from './routeStore';
 
 const missingEnvMessage =
   'RouteWise is missing Supabase config. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your Vercel Environment Variables, then redeploy.';
@@ -109,6 +110,13 @@ const useAuthStore = create((set, get) => ({
   signOut: async () => {
     set({ loading: true, error: null });
 
+    // Ensure persisted per-day timing overrides never carry across accounts.
+    try {
+      useRouteStore.getState().clearTodayTimingOverrides?.();
+    } catch {
+      // ignore
+    }
+
     if (!supabaseEnvOk || !supabase) {
       // If we're not configured, just clear local state.
       set({ user: null, session: null, loading: false, error: null });
@@ -128,6 +136,13 @@ const useAuthStore = create((set, get) => ({
         loading: false,
         error: null,
       });
+
+      // Also clear persisted Today timing overrides.
+      try {
+        useRouteStore.getState().clearTodayTimingOverrides?.();
+      } catch {
+        // ignore
+      }
       
       // Force a full page reload to clear all app state
       window.location.href = '/';
@@ -197,6 +212,19 @@ const useAuthStore = create((set, get) => ({
     const { data: authListener } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         console.log('Auth state changed:', event);
+
+        // If the authenticated user changes (logout/login, or switching accounts),
+        // clear persisted Today timing overrides so they don’t “stick” across accounts.
+        try {
+          const prevUserId = get().user?.id ?? null;
+          const nextUserId = session?.user?.id ?? null;
+
+          if (event === 'SIGNED_OUT' || (prevUserId && nextUserId && prevUserId !== nextUserId) || (event === 'SIGNED_IN' && prevUserId !== nextUserId)) {
+            useRouteStore.getState().clearTodayTimingOverrides?.();
+          }
+        } catch {
+          // ignore
+        }
         
         // FIXED: Don't auto-clear on token refresh failures
         // Let the retry logic in signIn handle it

@@ -3,6 +3,7 @@ import {
   isValidPredictedMinutes,
   shouldApplyLiveOffset,
   applyLiveOffsetToPredictedTime,
+  applyExpectedTimeRolloverSanity,
 } from '../src/utils/liveExpected.js';
 
 // predictedMinutes should treat 0 as valid
@@ -26,5 +27,23 @@ assert.equal(shifted.getTime(), base.getTime() + 7 * 60_000);
 
 const unchanged = applyLiveOffsetToPredictedTime(base, 1, offset);
 assert.equal(unchanged.getTime(), base.getTime());
+
+// rollover sanity
+{
+  const now = new Date('2026-02-05T23:30:00.000Z');
+  const expected = new Date('2026-02-05T01:00:00.000Z'); // clearly "in the past" relative to now
+  const res = applyExpectedTimeRolloverSanity(expected, now, { maxPastMinutes: 60 });
+  assert.equal(res.didAdjust, true);
+  assert.equal(res.rolledDays, 1);
+  assert.equal(res.time.getTime(), expected.getTime() + 24 * 60 * 60_000);
+}
+
+{
+  const now = new Date('2026-02-05T10:00:00.000Z');
+  const expected = new Date('2026-02-05T09:30:00.000Z'); // 30m in past => ok
+  const res = applyExpectedTimeRolloverSanity(expected, now, { maxPastMinutes: 60 });
+  assert.equal(res.didAdjust, false);
+  assert.equal(res.time.getTime(), expected.getTime());
+}
 
 console.log('guard-live-expected: ok');

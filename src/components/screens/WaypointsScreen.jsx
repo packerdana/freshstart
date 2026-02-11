@@ -4,7 +4,7 @@ import Card from '../shared/Card';
 import Button from '../shared/Button';
 import useRouteStore from '../../stores/routeStore';
 import { parseLocalDate, formatMinutesAsTime, getLocalDateString } from '../../utils/time';
-import { isValidPredictedMinutes, applyLiveOffsetToPredictedTime, shouldApplyLiveOffset } from '../../utils/liveExpected';
+import { isValidPredictedMinutes, applyLiveOffsetToPredictedTime, shouldApplyLiveOffset, applyExpectedTimeRolloverSanity } from '../../utils/liveExpected';
 
 function hhmmFromDate(date) {
   const h = String(date.getHours()).padStart(2, '0');
@@ -44,6 +44,10 @@ export default function WaypointsScreen() {
   const [waypointPredictions, setWaypointPredictions] = useState([]);
   const [paceBaseline, setPaceBaseline] = useState(null);
   const [paceComparison, setPaceComparison] = useState(null);
+
+  // Expected time sanity: if computed expected times look like "yesterday" (e.g., after midnight),
+  // auto-roll them forward by +24h. Banner offers a one-tap reset to route default.
+  const [expectedTimeSanityEnabled, setExpectedTimeSanityEnabled] = useState(true);
 
   // Forgot waypoint UI (Spec v1)
   const [showForgotModal, setShowForgotModal] = useState(false);
@@ -661,6 +665,42 @@ export default function WaypointsScreen() {
     return true;
   });
 
+  const expectedRolloverSummary = useMemo(() => {
+    try {
+      if (viewMode !== 'today') return { didAdjust: false, count: 0, rolledDaysMax: 0 };
+      if (!expectedTimeSanityEnabled) return { didAdjust: false, count: 0, rolledDaysMax: 0 };
+      if (!displayWaypoints?.length || !waypointPredictions?.length) return { didAdjust: false, count: 0, rolledDaysMax: 0 };
+
+      const byId = new Map(waypointPredictions.map((p) => [p.id, p]));
+      const now = new Date();
+
+      let count = 0;
+      let rolledDaysMax = 0;
+
+      for (const w of displayWaypoints) {
+        if (!w || w.status === 'completed') continue;
+        const pred = byId.get(w.id);
+        if (!pred?.predictedTime) continue;
+
+        const base = new Date(pred.predictedTime);
+        if (isNaN(base.getTime())) continue;
+
+        const seqNum = Number(w.sequence_number || 0);
+        const live = applyLiveOffsetToPredictedTime(base, seqNum, scheduleOffset);
+
+        const res = applyExpectedTimeRolloverSanity(live, now, { maxPastMinutes: 60, maxDays: 2 });
+        if (res?.didAdjust) {
+          count += 1;
+          rolledDaysMax = Math.max(rolledDaysMax, res.rolledDays || 0);
+        }
+      }
+
+      return { didAdjust: count > 0, count, rolledDaysMax };
+    } catch {
+      return { didAdjust: false, count: 0, rolledDaysMax: 0 };
+    }
+  }, [viewMode, expectedTimeSanityEnabled, displayWaypoints, waypointPredictions, scheduleOffset]);
+
   return (
     <div className="p-4 max-w-2xl mx-auto pb-20">
       <div className="mb-6 flex justify-between items-start">
@@ -939,6 +979,29 @@ export default function WaypointsScreen() {
         </Card>
       )}
 
+      {viewMode === 'today' && expectedRolloverSummary.didAdjust && (
+        <Card className="mb-4 bg-amber-50 border-amber-200">
+          <div className="flex items-start gap-2">
+            <AlertCircle className="w-5 h-5 text-amber-700 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-amber-900">Expected times were auto-corrected</p>
+              <p className="text-xs text-amber-800 mt-1">
+                Some expected times looked like they were from yesterday, so RouteWise rolled them forward by +24h.
+              </p>
+              <div className="mt-3">
+                <Button
+                  variant="secondary"
+                  className="w-full bg-white/60 border-amber-300 text-amber-900 hover:bg-white"
+                  onClick={() => setExpectedTimeSanityEnabled(false)}
+                >
+                  Reset to route default
+                </Button>
+              </div>
+            </div>
+          </div>
+        </Card>
+      )}
+
       {isLoading ? (
         <Card>
           <div className="text-center py-8">
@@ -1034,12 +1097,18 @@ export default function WaypointsScreen() {
                               if (isNaN(predTime.getTime())) return null;
 
                               const seqNum = Number(waypoint.sequence_number || 0);
-                              const adjustedTime = applyLiveOffsetToPredictedTime(predTime, seqNum, scheduleOffset);
+                              const liveTime = applyLiveOffsetToPredictedTime(predTime, seqNum, scheduleOffset);
+
+                              const finalTime = (() => {
+                                if (!expectedTimeSanityEnabled) return liveTime;
+                                const res = applyExpectedTimeRolloverSanity(liveTime, new Date(), { maxPastMinutes: 60, maxDays: 2 });
+                                return res?.time instanceof Date ? res.time : liveTime;
+                              })();
 
                               return (
                                 <div className="flex items-center gap-1 text-xs text-gray-500 mt-1">
                                   <Clock className="w-3 h-3" />
-                                  Expected: {format(adjustedTime, 'h:mm a')}
+                                  Expected: {format(finalTime, 'h:mm a')}
                                   {shouldApplyLiveOffset(seqNum, scheduleOffset) && (
                                     <span className="text-[10px] text-gray-400 ml-1">(live)</span>
                                   )}

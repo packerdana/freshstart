@@ -214,8 +214,14 @@ const useRouteStore = create(
       },
 
       setCurrentRoute: (routeId) => {
+        const prevRouteId = get().currentRouteId;
         const route = get().routes[routeId];
         if (route) {
+          // If the user switches routes, don’t carry timing overrides from the previous route.
+          if (prevRouteId && routeId && prevRouteId !== routeId) {
+            get().clearTodayTimingOverrides();
+          }
+
           set({
             currentRouteId: routeId,
             currentRoute: route.routeNumber,
@@ -231,6 +237,15 @@ const useRouteStore = create(
 
       updateTodayInputs: (inputs) => set((state) => ({
         todayInputs: { ...state.todayInputs, ...inputs }
+      })),
+
+      // Clear one-off timing overrides that should never “stick” across user changes or route switches.
+      clearTodayTimingOverrides: () => set((state) => ({
+        todayInputs: {
+          ...state.todayInputs,
+          startTimeOverride: '',
+          leaveOfficeTime: '',
+        },
       })),
 
       clearTodayInputs: () => set({

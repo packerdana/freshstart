@@ -39,6 +39,7 @@ export default function StatsScreen() {
     parcels: '',
     sprs: '',
     safetyTalk: '',
+    pmOfficeTime: '',
     hasBoxholder: false,
     excludeFromAverages: false,
     assistance: false,
@@ -1170,6 +1171,7 @@ export default function StatsScreen() {
                               parcels: record.parcels ?? '',
                               sprs: record.sprs ?? '',
                               safetyTalk: record.safetyTalk ?? '',
+                              pmOfficeTime: record.pmOfficeTime ?? record.pm_office_time ?? '',
                               hasBoxholder: !!record.hasBoxholder,
                               excludeFromAverages: !!record.excludeFromAverages,
                               assistance: !!record.auxiliaryAssistance,
@@ -1576,6 +1578,7 @@ export default function StatsScreen() {
                   <Input label="SPRs" type="number" value={fixDayForm.sprs} onChange={(e) => setFixDayForm((s) => ({ ...s, sprs: e.target.value }))} />
                   <Input label="Letters (ft)" type="number" step="0.1" value={fixDayForm.letters} onChange={(e) => setFixDayForm((s) => ({ ...s, letters: e.target.value }))} />
                   <Input label="Safety/Training (min)" type="number" value={fixDayForm.safetyTalk} onChange={(e) => setFixDayForm((s) => ({ ...s, safetyTalk: e.target.value }))} />
+                  <Input label="PM Office 744 (min)" type="number" value={fixDayForm.pmOfficeTime} onChange={(e) => setFixDayForm((s) => ({ ...s, pmOfficeTime: e.target.value }))} />
                 </div>
 
                 <label className="flex items-center gap-2 text-sm text-gray-700">
@@ -1646,6 +1649,7 @@ export default function StatsScreen() {
                         parcels: Number(fixDayForm.parcels || 0) || 0,
                         spurs: Number(fixDayForm.sprs || 0) || 0,
                         safety_talk: Number(fixDayForm.safetyTalk || 0) || 0,
+                        pm_office_time: Number(fixDayForm.pmOfficeTime || 0) || 0,
                         has_boxholder: !!fixDayForm.hasBoxholder,
                         exclude_from_averages: !!fixDayForm.excludeFromAverages,
                         auxiliary_assistance: !!fixDayForm.assistance,
