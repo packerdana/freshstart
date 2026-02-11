@@ -194,7 +194,26 @@ const useAuthStore = create((set, get) => ({
         new Promise((_, reject) => setTimeout(() => reject(new Error('Supabase session check timed out')), ms)),
       ]);
 
-    withTimeout(supabase.auth.getSession(), 8000)
+    // Mobile networks can be slow; retry once before giving up.
+    const getSessionWithRetries = async () => {
+      const attempts = [20000, 20000]; // ms
+      let lastErr = null;
+
+      for (let i = 0; i < attempts.length; i++) {
+        try {
+          // eslint-disable-next-line no-await-in-loop
+          return await withTimeout(supabase.auth.getSession(), attempts[i]);
+        } catch (e) {
+          lastErr = e;
+          // eslint-disable-next-line no-await-in-loop
+          await new Promise((r) => setTimeout(r, 600 + i * 900));
+        }
+      }
+
+      throw lastErr || new Error('Supabase session check timed out');
+    };
+
+    getSessionWithRetries()
       .then(({ data: { session }, error }) => {
         // FIXED: Only clear on specific token errors, not all errors
         if (error) {
@@ -223,15 +242,15 @@ const useAuthStore = create((set, get) => ({
       });
     })
     .catch((err) => {
+      // IMPORTANT: Don't brick the whole app UI on transient mobile network issues.
+      // If Supabase is temporarily slow/unreachable, fall back to signed-out state
+      // (Login screen) instead of a full-page "Setup needed" error.
       console.error('Auth init timed out or failed:', err);
       set({
         session: null,
         user: null,
         loading: false,
-        error:
-          err?.message === 'Supabase session check timed out'
-            ? 'RouteWise could not reach Supabase. Check your internet connection (or if Supabase is down), then refresh.'
-            : (err?.message || 'Auth initialization failed'),
+        error: null,
       });
     });
     
