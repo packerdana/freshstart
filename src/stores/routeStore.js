@@ -4,7 +4,7 @@ import { getUserRoutes, getRouteHistory } from '../services/routeHistoryService'
 import { backfillDayTypesForRoute } from '../services/dayTypeBackfillService';
 import { calculateRouteAverages } from '../services/routeAveragesService';
 import { getWaypointsForRoute, createWaypoint, updateWaypoint, deleteWaypoint, deleteAllWaypoints } from '../services/waypointsService';
-import { createRoute as createRouteService, updateRoute as updateRouteService, deleteRoute as deleteRouteService } from '../services/routeManagementService';
+import { createRoute as createRouteService, updateRoute as updateRouteService, deleteRoute as deleteRouteService, setActiveRoute as setActiveRouteService } from '../services/routeManagementService';
 import { getTemplatesForRoute, saveCurrentWaypointsAsTemplate, instantiateTemplates } from '../services/waypointTemplateService';
 import { getLocalDateString } from '../utils/time';
 
@@ -152,21 +152,33 @@ const useRouteStore = create(
                 evaluatedStreetTime: route.evaluated_street_time,
                 evaluatedOfficeTime: route.evaluated_office_time,
                 evaluationDate: route.evaluation_date,
+                isActive: !!route.is_active,
                 history: [],
                 averages: {},
               };
             });
 
-            console.log('loadUserRoutes - setting currentRouteId to:', routes[0].id);
+            // Choose a stable current route:
+            // 1) Prefer whatever the user already had selected (persisted currentRouteId)
+            // 2) Else prefer the DB "active" route
+            // 3) Else fall back to first route
+            const preferredId = get().currentRouteId;
+            const preferredExists = preferredId && routesMap[preferredId];
+            const dbActive = routes.find((r) => r?.is_active);
+            const chosen = preferredExists ? routes.find((r) => r.id === preferredId) : (dbActive || routes[0]);
+
+            console.log('loadUserRoutes - choosing currentRouteId:', chosen?.id);
 
             set({
               routes: routesMap,
-              currentRouteId: routes[0].id,
-              currentRoute: routes[0].route_number,
+              currentRouteId: chosen?.id || null,
+              currentRoute: chosen?.route_number || null,
               loading: false
             });
 
-            await get().loadRouteHistory(routes[0].id);
+            if (chosen?.id) {
+              await get().loadRouteHistory(chosen.id);
+            }
           } else {
             console.warn('loadUserRoutes - no routes found');
             set({ loading: false });
@@ -654,6 +666,24 @@ const useRouteStore = create(
         });
       },
 
+
+      activateRoute: async (routeId) => {
+        if (!routeId) return;
+
+        // Optimistic switch immediately (feels instant), then persist to DB.
+        get().setCurrentRoute(routeId);
+
+        try {
+          await setActiveRouteService(routeId);
+        } catch (e) {
+          console.warn('Failed to persist active route; keeping local selection:', e?.message || e);
+        }
+
+        // Reload routes so ordering / is_active flags stay consistent across refreshes.
+        try {
+          await get().loadUserRoutes();
+        } catch {}
+      },
 
       switchToRoute: (routeId) => {
         get().setCurrentRoute(routeId);

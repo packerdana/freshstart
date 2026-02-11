@@ -13,7 +13,7 @@ import { createRoute, updateRoute, deleteRoute } from '../../services/routeHisto
 
 export default function SettingsScreen() {
   const { user, signOut, loading } = useAuthStore();
-  const { history, currentRoute, currentRouteId, routes, loadUserRoutes, setCurrentRoute } = useRouteStore();
+  const { history, currentRoute, currentRouteId, routes, loadUserRoutes, activateRoute } = useRouteStore();
   const [currentTime, setCurrentTime] = useState(new Date());
   const [showRouteModal, setShowRouteModal] = useState(false);
   const [showEvaluationModal, setShowEvaluationModal] = useState(false);
@@ -209,7 +209,7 @@ export default function SettingsScreen() {
                   <div className="flex flex-col gap-2">
                     {route.id !== currentRouteId && (
                       <button
-                        onClick={() => setCurrentRoute(route.id)}
+                        onClick={() => activateRoute(route.id)}
                         className="text-xs text-blue-600 font-medium hover:text-blue-700"
                       >
                         Set Active
