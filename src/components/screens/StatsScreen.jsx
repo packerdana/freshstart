@@ -974,6 +974,37 @@ export default function StatsScreen() {
 
                   {isOpen ? (
                     <div className="border-t border-slate-200 p-3">
+                      <div className="flex items-center justify-end mb-2">
+                        <button
+                          className="text-xs font-semibold text-blue-700 underline"
+                          onClick={() => {
+                            const record = (history || []).find((h) => h?.date === d.date) || null;
+                            if (!record) {
+                              alert('No saved day record found yet for that date.');
+                              return;
+                            }
+
+                            setFixDayRecord(record);
+                            setFixDayForm({
+                              dps: record.dps ?? '',
+                              flats: record.flats ?? '',
+                              letters: record.letters ?? '',
+                              parcels: record.parcels ?? '',
+                              sprs: record.sprs ?? '',
+                              safetyTalk: record.safetyTalk ?? '',
+                              pmOfficeTime: record.pmOfficeTime ?? record.pm_office_time ?? '',
+                              hasBoxholder: !!record.hasBoxholder,
+                              excludeFromAverages: !!record.excludeFromAverages,
+                              assistance: !!record.auxiliaryAssistance,
+                              assistanceMinutes: record.assistanceMinutes ?? '',
+                              notes: record.notes ?? '',
+                            });
+                            setFixDayOpen(true);
+                          }}
+                        >
+                          Fix this day
+                        </button>
+                      </div>
                       {displayRows.length === 0 ? (
                         <p className="text-sm text-gray-700">No detailed codes saved for this day.</p>
                       ) : (
