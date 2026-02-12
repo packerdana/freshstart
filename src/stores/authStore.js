@@ -38,6 +38,7 @@ const useAuthStore = create((set, get) => ({
   // loading: user-initiated auth actions (sign in/out/up)
   loading: false,
 
+  // Only for fatal/setup-level errors (ex: missing env). Do NOT use for normal sign-in failures.
   error: null,
 
   setUser: (user) => set({ user }),
@@ -50,7 +51,7 @@ const useAuthStore = create((set, get) => ({
   hardResetAuth: async () => {
     // IMPORTANT: This must never hang.
     try {
-      set({ loading: true, error: null });
+      set({ loading: true });
 
       // Clear browser storage keys that commonly wedge mobile auth (sync, best-effort)
       try {
@@ -102,7 +103,7 @@ const useAuthStore = create((set, get) => ({
   },
 
   signUp: async (email, password) => {
-    set({ loading: true, error: null });
+    set({ loading: true });
 
     if (!supabaseEnvOk || !supabase) {
       set({ error: missingEnvMessage, loading: false });
@@ -129,13 +130,14 @@ const useAuthStore = create((set, get) => ({
 
       return { data, error: null };
     } catch (error) {
-      set({ error: error.message, loading: false });
+      // Let SignupScreen show the message; don't trigger App.tsx global error screen.
+      set({ loading: false });
       return { data: null, error };
     }
   },
 
   signIn: async (email, password) => {
-    set({ loading: true, error: null });
+    set({ loading: true });
 
     if (!supabaseEnvOk || !supabase) {
       set({ error: missingEnvMessage, loading: false });
@@ -193,13 +195,14 @@ const useAuthStore = create((set, get) => ({
 
       return { data, error: null };
     } catch (error) {
-      set({ error: error.message, loading: false });
+      // Let LoginScreen show the message; don't trigger App.tsx global error screen.
+      set({ loading: false });
       return { data: null, error };
     }
   },
 
   signOut: async () => {
-    set({ loading: true, error: null });
+    set({ loading: true });
 
     try {
       useRouteStore.getState().clearTodayTimingOverrides?.();
@@ -221,7 +224,8 @@ const useAuthStore = create((set, get) => ({
       window.location.href = '/';
       return { error: null };
     } catch (error) {
-      set({ error: error.message, loading: false });
+      // Let the UI surface this as needed; don't show the global "Setup needed" screen.
+      set({ loading: false });
       return { error };
     }
   },
