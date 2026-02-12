@@ -70,7 +70,13 @@ export default function RoutesScreen() {
             <Button
               variant="secondary"
               className="w-full mt-2"
-              onClick={() => loadUserRoutes(authUserId)}
+              onClick={async () => {
+                try {
+                  await loadUserRoutes(authUserId);
+                } catch (e) {
+                  alert(e?.message || String(e));
+                }
+              }}
             >
               Reload routes
             </Button>

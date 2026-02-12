@@ -357,12 +357,14 @@ export async function getUserRoutes(explicitUserId = null) {
   }
 
   console.log('[getUserRoutes] Loading routes for userId:', userId);
-  const { data, error } = await supabase
+  const { data, error, status } = await supabase
     .from('routes')
     .select('*')
     .eq('user_id', userId)
     .order('is_active', { ascending: false })
     .order('created_at', { ascending: false });
+
+  console.log('[getUserRoutes] routes response:', { status: status || error?.status || null, count: Array.isArray(data) ? data.length : null, error: error?.message || null });
 
   if (error) {
     console.error('Error fetching user routes:', error);
