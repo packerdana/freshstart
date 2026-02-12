@@ -1,6 +1,12 @@
 import { supabase } from '../lib/supabase';
 import { getLocalDateString } from '../utils/time';
 
+const withTimeout = (p, ms, label = 'Operation') =>
+  Promise.race([
+    p,
+    new Promise((_, reject) => setTimeout(() => reject(new Error(`${label} timed out`)), ms)),
+  ]);
+
 export async function runDiagnostics() {
   const results = {
     timestamp: new Date().toISOString(),
@@ -14,7 +20,7 @@ export async function runDiagnostics() {
   console.log('🔍 Starting RouteWise Diagnostics...\n');
 
   try {
-    results.tests.push(await testSupabaseConnection());
+    results.tests.push(await withTimeout(testSupabaseConnection(), 12000, 'Supabase connection test'));
   } catch (error) {
     results.tests.push({
       name: 'Supabase Connection',
@@ -24,7 +30,7 @@ export async function runDiagnostics() {
   }
 
   try {
-    results.tests.push(await testAuthentication());
+    results.tests.push(await withTimeout(testAuthentication(), 12000, 'Authentication test'));
   } catch (error) {
     results.tests.push({
       name: 'Authentication',
@@ -34,7 +40,7 @@ export async function runDiagnostics() {
   }
 
   try {
-    results.tests.push(await testUserRoutes());
+    results.tests.push(await withTimeout(testUserRoutes(), 12000, 'User routes test'));
   } catch (error) {
     results.tests.push({
       name: 'User Routes',
@@ -44,7 +50,7 @@ export async function runDiagnostics() {
   }
 
   try {
-    results.tests.push(await testWaypointsAccess());
+    results.tests.push(await withTimeout(testWaypointsAccess(), 15000, 'Waypoints access test'));
   } catch (error) {
     results.tests.push({
       name: 'Waypoints Access',
@@ -54,7 +60,7 @@ export async function runDiagnostics() {
   }
 
   try {
-    results.tests.push(await testRLSPolicies());
+    results.tests.push(await withTimeout(testRLSPolicies(), 15000, 'RLS policies test'));
   } catch (error) {
     results.tests.push({
       name: 'RLS Policies',
@@ -119,7 +125,11 @@ async function testSupabaseConnection() {
   }
 
   try {
-    const { data, error } = await supabase.from('routes').select('count').limit(1);
+    const { data, error } = await withTimeout(
+      supabase.from('routes').select('count').limit(1),
+      8000,
+      'routes probe'
+    );
 
     if (error) {
       return {
@@ -151,7 +161,15 @@ async function testAuthentication() {
   console.log('Testing authentication...');
 
   try {
-    const { data: { session }, error } = await supabase.auth.getSession();
+    // getSession can hang on some browsers; use getUser (local) + session best-effort.
+    const userRes = await withTimeout(supabase.auth.getUser(), 8000, 'auth.getUser');
+    const authUser = userRes?.data?.user || null;
+
+    const { data: { session }, error } = await withTimeout(
+      supabase.auth.getSession(),
+      8000,
+      'auth.getSession'
+    );
 
     if (error) {
       return {
