@@ -21,6 +21,41 @@ export default function RoutesScreen() {
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
   const supabaseHost = supabaseUrl ? (() => { try { return new URL(supabaseUrl).host; } catch { return supabaseUrl; } })() : 'MISSING';
 
+  const testSupabaseRest = async () => {
+    try {
+      if (!supabaseUrl) {
+        alert('VITE_SUPABASE_URL is missing in this build.');
+        return;
+      }
+
+      const url = new URL('/rest/v1/routes?select=id,user_id,route_number&limit=5', supabaseUrl);
+
+      // If auth is working, supabase-js should have stored an access token.
+      // Grab it directly so we can test REST with the same token.
+      let token = null;
+      try {
+        const raw = localStorage.getItem('routewise-auth');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          token = parsed?.access_token || parsed?.currentSession?.access_token || parsed?.session?.access_token || null;
+        }
+      } catch {}
+
+      const res = await fetch(url.toString(), {
+        method: 'GET',
+        headers: {
+          apikey: import.meta.env.VITE_SUPABASE_ANON_KEY || '',
+          Authorization: token ? `Bearer ${token}` : '',
+        },
+      });
+
+      const text = await res.text();
+      alert(`REST status: ${res.status}\n\n${text.slice(0, 800)}`);
+    } catch (e) {
+      alert(`REST test failed: ${e?.message || String(e)}`);
+    }
+  };
+
   const handleCreateRoute = async (routeData) => {
     await createRoute(routeData);
   };
@@ -79,6 +114,14 @@ export default function RoutesScreen() {
               }}
             >
               Reload routes
+            </Button>
+
+            <Button
+              variant="secondary"
+              className="w-full mt-2"
+              onClick={testSupabaseRest}
+            >
+              Test Supabase REST
             </Button>
           </div>
           <div className="text-gray-400 mb-4">
