@@ -57,6 +57,17 @@ function App() {
   const [expectedLoadSeconds, setExpectedLoadSeconds] = useState<number | null>(null);
 
 
+  // URL escape hatch: /?reset=1
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search || '');
+      if (params.get('reset') === '1') {
+        hardResetAuth?.();
+      }
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     const authListener = initializeAuth();
     return () => {
@@ -175,14 +186,20 @@ function App() {
               </p>
               <Button
                 className="w-full"
-                onClick={() => {
+                onClick={async () => {
                   try {
-                    hardResetAuth?.();
+                    await hardResetAuth?.();
                   } catch {}
                 }}
               >
                 Reset login
               </Button>
+              <a
+                className="block mt-2 text-xs text-blue-700 underline"
+                href="/?reset=1"
+              >
+                If the button fails, tap here: reset=1
+              </a>
               <p className="text-xs text-gray-600 mt-2">
                 If this keeps happening, it usually means Firefox cached a broken session.
               </p>

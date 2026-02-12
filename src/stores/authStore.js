@@ -45,15 +45,54 @@ const useAuthStore = create((set, get) => ({
   hardResetAuth: async () => {
     try {
       set({ loading: true, error: null });
+
+      // Clear Supabase session (best-effort)
       try {
         await supabase.auth.signOut({ scope: 'local' });
       } catch {}
-      await clearUserScopedState();
+
+      // Clear app state
+      try {
+        await clearUserScopedState();
+      } catch {}
+
+      // Clear browser storage keys that commonly wedge mobile auth
+      try {
+        const keys = Object.keys(localStorage || {});
+        for (const k of keys) {
+          if (k === 'routewise-storage' || k.startsWith('sb-') || k.includes('supabase')) {
+            try { localStorage.removeItem(k); } catch {}
+          }
+        }
+      } catch {}
+
+      try {
+        sessionStorage?.clear?.();
+      } catch {}
+
+      // IndexedDB can also get corrupted; delete anything Supabase-related.
+      try {
+        if (indexedDB?.databases) {
+          const dbs = await indexedDB.databases();
+          for (const db of dbs || []) {
+            const name = db?.name || '';
+            if (name.includes('supabase') || name.includes('sb-')) {
+              try { indexedDB.deleteDatabase(name); } catch {}
+            }
+          }
+        }
+      } catch {}
+
       set({ user: null, session: null, loading: false, error: null });
-      window.location.href = '/';
+
+      // Cache-bust reload (some browsers keep serving stale bundles)
+      window.location.replace(`/?reset=0&v=${Date.now()}`);
       return { error: null };
     } catch (e) {
       set({ user: null, session: null, loading: false, error: null });
+      try {
+        window.location.replace(`/?v=${Date.now()}`);
+      } catch {}
       return { error: e };
     }
   },
