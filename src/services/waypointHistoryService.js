@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { fetchRestJSON, getAccessTokenFromStorage, withTimeout } from './supabaseRestFallback';
 import { toLocalDateKey } from '../utils/dateKey';
 import { getDayType, getDayTypeLabel } from '../utils/holidays';
 
@@ -27,13 +28,73 @@ export async function fetchWaypointHistory(routeId, daysBack = 30, dateFilter = 
       query = query.gte('date', cutoffDateStr);
     }
 
-    const { data: deliveries, error } = await query
-      .order('date', { ascending: false })
-      .order('sequence_number', { ascending: true });
+    try {
+      const { data: deliveries, error } = await withTimeout(
+        query
+          .order('date', { ascending: false })
+          .order('sequence_number', { ascending: true }),
+        8000,
+        'waypoint history query'
+      );
 
-    if (error) {
-      console.error('[WAYPOINT HISTORY] Error fetching deliveries:', error);
-      return [];
+      if (error) {
+        console.error('[WAYPOINT HISTORY] Error fetching deliveries:', error);
+        return [];
+      }
+
+      if (!deliveries || deliveries.length === 0) {
+        console.log('[WAYPOINT HISTORY] No historical delivery data found for this route');
+        return [];
+      }
+
+      console.log(`[WAYPOINT HISTORY] Found ${deliveries.length} delivery records across multiple dates`);
+
+      const historyByDate = groupDeliveriesByDate(deliveries);
+
+      // Sort newest → oldest
+      historyByDate.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+
+      console.log(`[WAYPOINT HISTORY] Processed ${historyByDate.length} days of data`);
+
+      return historyByDate;
+    } catch (e) {
+      console.warn('[WAYPOINT HISTORY] Falling back to REST:', e?.message || e);
+
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      const token = getAccessTokenFromStorage();
+      if (!supabaseUrl || !anonKey) return [];
+
+      const queryParams = {
+        select: 'date,address,delivery_time,sequence_number',
+        route_id: `eq.${routeId}`,
+        status: 'eq.completed',
+        order: 'date.desc,sequence_number.asc',
+      };
+
+      if (usingFilter) {
+        // Supabase REST supports in() via "in.(a,b,c)"
+        queryParams.date = `in.(${dateFilter.join(',')})`;
+      } else {
+        queryParams.date = `gte.${cutoffDateStr}`;
+      }
+
+      const deliveries = await fetchRestJSON({
+        supabaseUrl,
+        anonKey,
+        token,
+        path: '/rest/v1/waypoints',
+        query: queryParams,
+        timeoutMs: 12000,
+        label: 'REST waypoint history',
+      });
+
+      const list = Array.isArray(deliveries) ? deliveries : [];
+      if (!list.length) return [];
+
+      const historyByDate = groupDeliveriesByDate(list);
+      historyByDate.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+      return historyByDate;
     }
 
     if (!deliveries || deliveries.length === 0) {
