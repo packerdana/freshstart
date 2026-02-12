@@ -35,8 +35,16 @@ export const saveBreakState = async (breakState) => {
       .eq('date', today)
       .maybeSingle();
 
-    if (fetchError && fetchError.code !== 'PGRST116') {
-      throw fetchError;
+    if (fetchError) {
+      const msg = String(fetchError.message || fetchError);
+      const tableMissing = fetchError.status === 404 || (msg.includes('day_state') && msg.includes('Not Found'));
+      if (tableMissing) {
+        console.warn('[breakService] day_state table missing; skipping break-state persistence');
+        return false;
+      }
+      if (fetchError.code !== 'PGRST116') {
+        throw fetchError;
+      }
     }
 
     const dayStateData = existing?.day_state || {};
@@ -119,8 +127,16 @@ export const loadBreakState = async () => {
       .eq('date', today)
       .maybeSingle();
 
-    if (error && error.code !== 'PGRST116') {
-      throw error;
+    if (error) {
+      const msg = String(error.message || error);
+      const tableMissing = error.status === 404 || (msg.includes('day_state') && msg.includes('Not Found'));
+      if (tableMissing) {
+        console.warn('[breakService] day_state table missing; skipping break-state restore');
+        return null;
+      }
+      if (error.code !== 'PGRST116') {
+        throw error;
+      }
     }
 
     if (!data || !data.day_state || !data.day_state.breakTimers) {
@@ -166,8 +182,16 @@ export const clearBreakState = async () => {
       .eq('date', today)
       .maybeSingle();
 
-    if (fetchError && fetchError.code !== 'PGRST116') {
-      throw fetchError;
+    if (fetchError) {
+      const msg = String(fetchError.message || fetchError);
+      const tableMissing = fetchError.status === 404 || (msg.includes('day_state') && msg.includes('Not Found'));
+      if (tableMissing) {
+        console.warn('[breakService] day_state table missing; nothing to clear');
+        return true;
+      }
+      if (fetchError.code !== 'PGRST116') {
+        throw fetchError;
+      }
     }
 
     if (!existing) return true;
