@@ -258,23 +258,43 @@ export async function saveRouteHistory(routeId, historyData, waypoints = null) {
 }
 
 export async function updateRouteHistory(id, updates) {
-  const { data, error } = await supabase
-    .from('route_history')
-    .update({
-      ...updates,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', id)
-    .select()
-    .maybeSingle();
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-  if (error) {
-    console.error('Error updating route history:', error);
-    throw error;
+  const payload = {
+    ...updates,
+    updated_at: new Date().toISOString(),
+  };
+
+  try {
+    const { data, error } = await withTimeout(
+      supabase.from('route_history').update(payload).eq('id', id).select().maybeSingle(),
+      10000,
+      'updateRouteHistory'
+    );
+
+    if (error) throw error;
+    return convertHistoryFieldNames(data);
+  } catch (e) {
+    console.warn('[updateRouteHistory] Falling back to REST:', e?.message || e);
+    if (!supabaseUrl || !supabaseAnonKey) throw e;
+
+    const token = getAccessTokenFromStorage();
+    const rows = await restWrite({
+      supabaseUrl,
+      anonKey: supabaseAnonKey,
+      token,
+      path: '/rest/v1/route_history',
+      method: 'PATCH',
+      body: payload,
+      query: { id: `eq.${id}` },
+      timeoutMs: 12000,
+      label: 'REST updateRouteHistory',
+    });
+
+    const row = Array.isArray(rows) ? rows[0] : rows;
+    return convertHistoryFieldNames(row);
   }
-
-  // Convert to camelCase before returning
-  return convertHistoryFieldNames(data);
 }
 
 export async function getRouteHistory(routeId, limit = 30) {
@@ -321,20 +341,41 @@ export async function getRouteHistory(routeId, limit = 30) {
 }
 
 export async function getTodayRouteHistory(routeId, date) {
-  const { data, error } = await supabase
-    .from('route_history')
-    .select('*')
-    .eq('route_id', routeId)
-    .eq('date', date)
-    .maybeSingle();
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-  if (error) {
-    console.error('Error fetching today route history:', error);
-    throw error;
+  try {
+    const { data, error } = await withTimeout(
+      supabase.from('route_history').select('*').eq('route_id', routeId).eq('date', date).maybeSingle(),
+      8000,
+      'getTodayRouteHistory'
+    );
+
+    if (error) throw error;
+    return convertHistoryFieldNames(data);
+  } catch (e) {
+    console.warn('[getTodayRouteHistory] Falling back to REST:', e?.message || e);
+    if (!supabaseUrl || !supabaseAnonKey) throw e;
+
+    const token = getAccessTokenFromStorage();
+    const rows = await fetchRestJSON({
+      supabaseUrl,
+      anonKey: supabaseAnonKey,
+      token,
+      path: '/rest/v1/route_history',
+      timeoutMs: 12000,
+      label: 'REST getTodayRouteHistory',
+      query: {
+        select: '*',
+        route_id: `eq.${routeId}`,
+        date: `eq.${date}`,
+        limit: '1',
+      },
+    });
+
+    const row = Array.isArray(rows) ? rows[0] : rows;
+    return convertHistoryFieldNames(row);
   }
-
-  // Convert to camelCase before returning
-  return convertHistoryFieldNames(data);
 }
 
 export async function ensureRouteHistoryDay(routeId, date) {
@@ -385,48 +426,85 @@ export async function ensureRouteHistoryDay(routeId, date) {
 }
 
 export async function deleteRouteHistory(id) {
-  const { error } = await supabase
-    .from('route_history')
-    .delete()
-    .eq('id', id);
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-  if (error) {
-    console.error('Error deleting route history:', error);
-    throw error;
+  try {
+    const { error } = await withTimeout(
+      supabase.from('route_history').delete().eq('id', id),
+      10000,
+      'deleteRouteHistory'
+    );
+
+    if (error) throw error;
+    return true;
+  } catch (e) {
+    console.warn('[deleteRouteHistory] Falling back to REST:', e?.message || e);
+    if (!supabaseUrl || !supabaseAnonKey) throw e;
+
+    const token = getAccessTokenFromStorage();
+    await restWrite({
+      supabaseUrl,
+      anonKey: supabaseAnonKey,
+      token,
+      path: '/rest/v1/route_history',
+      method: 'DELETE',
+      query: { id: `eq.${id}` },
+      timeoutMs: 12000,
+      label: 'REST deleteRouteHistory',
+      prefer: null,
+    });
+
+    return true;
   }
-
-  return true;
 }
 
 export async function createRoute(routeData) {
-  const { data: { session } } = await supabase.auth.getSession();
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-  if (!session?.user) {
+  const { session, user } = await safeGetSession(supabase, 5000);
+  if (!session?.access_token || !user?.id) {
     throw new Error('User must be authenticated to create a route');
   }
 
-  const user = session.user;
+  const payload = {
+    user_id: user.id,
+    route_number: routeData.routeNumber,
+    start_time: routeData.startTime || '07:30',
+    tour_length: parseFloat(routeData.tourLength) || 8.5,
+    lunch_duration: parseInt(routeData.lunchDuration) || 30,
+    comfort_stop_duration: parseInt(routeData.comfortStopDuration) || 10,
+    manual_street_time: routeData.manualStreetTime ? parseInt(routeData.manualStreetTime) : null,
+  };
 
-  const { data, error } = await supabase
-    .from('routes')
-    .insert({
-      user_id: user.id,
-      route_number: routeData.routeNumber,
-      start_time: routeData.startTime || '07:30',
-      tour_length: parseFloat(routeData.tourLength) || 8.5,
-      lunch_duration: parseInt(routeData.lunchDuration) || 30,
-      comfort_stop_duration: parseInt(routeData.comfortStopDuration) || 10,
-      manual_street_time: routeData.manualStreetTime ? parseInt(routeData.manualStreetTime) : null,
-    })
-    .select()
-    .maybeSingle();
+  try {
+    const { data, error } = await withTimeout(
+      supabase.from('routes').insert(payload).select().maybeSingle(),
+      10000,
+      'createRoute'
+    );
 
-  if (error) {
-    console.error('Error creating route:', error);
-    throw error;
+    if (error) throw error;
+    return data;
+  } catch (e) {
+    console.warn('[createRoute] Falling back to REST:', e?.message || e);
+    if (!supabaseUrl || !supabaseAnonKey) throw e;
+
+    const token = session.access_token;
+    const rows = await restWrite({
+      supabaseUrl,
+      anonKey: supabaseAnonKey,
+      token,
+      path: '/rest/v1/routes',
+      method: 'POST',
+      body: [payload],
+      timeoutMs: 12000,
+      label: 'REST createRoute',
+    });
+
+    return Array.isArray(rows) ? rows[0] : rows;
   }
-
-  return data;
 }
 
 export async function getUserRoutes(explicitUserId = null) {
@@ -505,6 +583,9 @@ export async function getUserRoutes(explicitUserId = null) {
 }
 
 export async function updateRoute(routeId, updates) {
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
   const updateData = {
     updated_at: new Date().toISOString(),
   };
@@ -516,33 +597,68 @@ export async function updateRoute(routeId, updates) {
   if (updates.comfortStopDuration !== undefined) updateData.comfort_stop_duration = parseInt(updates.comfortStopDuration);
   if (updates.manualStreetTime !== undefined) updateData.manual_street_time = updates.manualStreetTime ? parseInt(updates.manualStreetTime) : null;
 
-  const { data, error } = await supabase
-    .from('routes')
-    .update(updateData)
-    .eq('id', routeId)
-    .select()
-    .maybeSingle();
+  try {
+    const { data, error } = await withTimeout(
+      supabase.from('routes').update(updateData).eq('id', routeId).select().maybeSingle(),
+      10000,
+      'updateRoute'
+    );
 
-  if (error) {
-    console.error('Error updating route:', error);
-    throw error;
+    if (error) throw error;
+    return data;
+  } catch (e) {
+    console.warn('[updateRoute] Falling back to REST:', e?.message || e);
+    if (!supabaseUrl || !supabaseAnonKey) throw e;
+
+    const token = getAccessTokenFromStorage();
+    const rows = await restWrite({
+      supabaseUrl,
+      anonKey: supabaseAnonKey,
+      token,
+      path: '/rest/v1/routes',
+      method: 'PATCH',
+      body: updateData,
+      query: { id: `eq.${routeId}` },
+      timeoutMs: 12000,
+      label: 'REST updateRoute',
+    });
+
+    return Array.isArray(rows) ? rows[0] : rows;
   }
-
-  return data;
 }
 
 export async function deleteRoute(routeId) {
-  const { error } = await supabase
-    .from('routes')
-    .delete()
-    .eq('id', routeId);
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-  if (error) {
-    console.error('Error deleting route:', error);
-    throw error;
+  try {
+    const { error } = await withTimeout(
+      supabase.from('routes').delete().eq('id', routeId),
+      10000,
+      'deleteRoute'
+    );
+
+    if (error) throw error;
+    return true;
+  } catch (e) {
+    console.warn('[deleteRoute] Falling back to REST:', e?.message || e);
+    if (!supabaseUrl || !supabaseAnonKey) throw e;
+
+    const token = getAccessTokenFromStorage();
+    await restWrite({
+      supabaseUrl,
+      anonKey: supabaseAnonKey,
+      token,
+      path: '/rest/v1/routes',
+      method: 'DELETE',
+      query: { id: `eq.${routeId}` },
+      timeoutMs: 12000,
+      label: 'REST deleteRoute',
+      prefer: null,
+    });
+
+    return true;
   }
-
-  return true;
 }
 
 export async function getWeekTotalMinutes() {
