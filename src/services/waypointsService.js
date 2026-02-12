@@ -1,22 +1,47 @@
 import { supabase } from '../lib/supabase';
 import { getLocalDateString } from '../utils/time';
+import { fetchRestJSON, getAccessTokenFromStorage, withTimeout } from './supabaseRestFallback';
 
 export const getWaypointsForRoute = async (routeId, date = null) => {
-  try {
-    const targetDate = date || getLocalDateString();
+  const targetDate = date || getLocalDateString();
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-    const { data, error } = await supabase
-      .from('waypoints')
-      .select('*')
-      .eq('route_id', routeId)
-      .eq('date', targetDate)
-      .order('sequence_number', { ascending: true });
+  try {
+    const { data, error } = await withTimeout(
+      supabase
+        .from('waypoints')
+        .select('*')
+        .eq('route_id', routeId)
+        .eq('date', targetDate)
+        .order('sequence_number', { ascending: true }),
+      8000,
+      'waypoints query'
+    );
 
     if (error) throw error;
     return data || [];
   } catch (error) {
-    console.error('Error fetching waypoints:', error);
-    throw error;
+    console.warn('[getWaypointsForRoute] Falling back to REST:', error?.message || error);
+    if (!supabaseUrl || !supabaseAnonKey) throw error;
+
+    const token = getAccessTokenFromStorage();
+    const rows = await fetchRestJSON({
+      supabaseUrl,
+      anonKey: supabaseAnonKey,
+      path: '/rest/v1/waypoints',
+      token,
+      timeoutMs: 12000,
+      label: 'REST waypoints fetch',
+      query: {
+        select: '*',
+        route_id: `eq.${routeId}`,
+        date: `eq.${targetDate}`,
+        order: 'sequence_number.asc',
+      },
+    });
+
+    return Array.isArray(rows) ? rows : [];
   }
 };
 

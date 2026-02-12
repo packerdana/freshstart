@@ -1,49 +1,5 @@
 import { supabase } from '../lib/supabase';
-
-function getAccessTokenFromStorage() {
-  try {
-    const raw = localStorage.getItem('routewise-auth');
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    return (
-      parsed?.access_token ||
-      parsed?.currentSession?.access_token ||
-      parsed?.session?.access_token ||
-      null
-    );
-  } catch {
-    return null;
-  }
-}
-
-async function fetchRoutesViaRest({ supabaseUrl, anonKey, userId, token }) {
-  const url = new URL('/rest/v1/routes', supabaseUrl);
-  url.searchParams.set('select', '*');
-  url.searchParams.set('user_id', `eq.${userId}`);
-  url.searchParams.set('order', 'is_active.desc,created_at.desc');
-
-  const res = await fetch(url.toString(), {
-    method: 'GET',
-    headers: {
-      apikey: anonKey,
-      Authorization: token ? `Bearer ${token}` : '',
-    },
-  });
-
-  const text = await res.text();
-  if (!res.ok) {
-    const err = new Error(`REST routes fetch failed (${res.status}): ${text}`);
-    // @ts-ignore
-    err.status = res.status;
-    throw err;
-  }
-
-  try {
-    return JSON.parse(text);
-  } catch {
-    return [];
-  }
-}
+import { fetchRestJSON, getAccessTokenFromStorage, withTimeout } from './supabaseRestFallback';
 
 import { calculatePenaltyOT, getWorkweekStart, getWorkweekEnd } from '../utils/uspsConstants';
 import { toLocalDateKey } from '../utils/dateKey';
@@ -273,20 +229,46 @@ export async function updateRouteHistory(id, updates) {
 }
 
 export async function getRouteHistory(routeId, limit = 30) {
-  const { data, error } = await supabase
-    .from('route_history')
-    .select('*')
-    .eq('route_id', routeId)
-    .order('date', { ascending: false })
-    .limit(limit);
+  // supabase-js can hang in some browsers; use a timeout + REST fallback.
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-  if (error) {
-    console.error('Error fetching route history:', error);
-    throw error;
+  try {
+    const { data, error } = await withTimeout(
+      supabase
+        .from('route_history')
+        .select('*')
+        .eq('route_id', routeId)
+        .order('date', { ascending: false })
+        .limit(limit),
+      8000,
+      'route_history query'
+    );
+
+    if (error) throw error;
+    return (data || []).map(convertHistoryFieldNames);
+  } catch (e) {
+    console.warn('[getRouteHistory] Falling back to REST:', e?.message || e);
+    if (!supabaseUrl || !supabaseAnonKey) throw e;
+
+    const token = getAccessTokenFromStorage();
+    const rows = await fetchRestJSON({
+      supabaseUrl,
+      anonKey: supabaseAnonKey,
+      path: '/rest/v1/route_history',
+      token,
+      timeoutMs: 12000,
+      label: 'REST route_history fetch',
+      query: {
+        select: '*',
+        route_id: `eq.${routeId}`,
+        order: 'date.desc',
+        limit: String(limit),
+      },
+    });
+
+    return (Array.isArray(rows) ? rows : []).map(convertHistoryFieldNames);
   }
-
-  // FIXED: Convert snake_case to camelCase for prediction service
-  return (data || []).map(convertHistoryFieldNames);
 }
 
 export async function getTodayRouteHistory(routeId, date) {
@@ -380,17 +362,13 @@ export async function getUserRoutes(explicitUserId = null) {
   // On some devices/browsers, getSession can hang or time out.
   // Use getUser() (local) to get the user id, then query routes.
 
-  const withTimeout = (p, ms) =>
-    Promise.race([
-      p,
-      new Promise((_, reject) => setTimeout(() => reject(new Error('getUser timed out')), ms)),
-    ]);
+  const withTimeoutUser = (p, ms) => withTimeout(p, ms, 'getUser');
 
   let userId = explicitUserId || null;
 
   if (!userId) {
     try {
-      const res = await withTimeout(supabase.auth.getUser(), 6000);
+      const res = await withTimeoutUser(supabase.auth.getUser(), 6000);
       userId = res?.data?.user?.id || null;
     } catch {
       userId = null;
@@ -408,11 +386,7 @@ export async function getUserRoutes(explicitUserId = null) {
   const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
   // Prefer supabase-js, but it has been hanging for some users even while REST works.
-  const withTimeoutRoutes = (p, ms) =>
-    Promise.race([
-      p,
-      new Promise((_, reject) => setTimeout(() => reject(new Error('routes query timed out')), ms)),
-    ]);
+  const withTimeoutRoutes = (p, ms) => withTimeout(p, ms, 'routes query');
 
   try {
     const { data, error, status } = await withTimeoutRoutes(
@@ -440,7 +414,19 @@ export async function getUserRoutes(explicitUserId = null) {
     if (!supabaseUrl || !supabaseAnonKey) throw e;
 
     const token = getAccessTokenFromStorage();
-    const rows = await fetchRoutesViaRest({ supabaseUrl, anonKey: supabaseAnonKey, userId, token });
+    const rows = await fetchRestJSON({
+      supabaseUrl,
+      anonKey: supabaseAnonKey,
+      path: '/rest/v1/routes',
+      token,
+      timeoutMs: 12000,
+      label: 'REST routes fetch',
+      query: {
+        select: '*',
+        user_id: `eq.${userId}`,
+        order: 'is_active.desc,created_at.desc',
+      },
+    });
     console.log('[getUserRoutes] REST routes response:', { count: Array.isArray(rows) ? rows.length : null });
     return Array.isArray(rows) ? rows : [];
   }
