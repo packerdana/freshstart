@@ -149,7 +149,10 @@ export async function calculateFullDayPrediction(todayMail, routeConfig, history
   let streetPrediction = calculateSmartPrediction(todayMail, history, routeConfig);
   let totalStreetTime;
 
-  const useHistoricalPrediction = streetPrediction && streetPrediction.streetTime > 30;
+  // Dana requirement: keep a stable default street-time until we have at least 3 days of CLEAN history.
+  // "Clean" = passes filterValidHistory() (valid, non-excluded, sane values).
+  const cleanHistoryCount = (filterValidHistory(history) || []).length;
+  const useHistoricalPrediction = cleanHistoryCount >= 3 && streetPrediction && streetPrediction.streetTime > 30;
 
   if (!useHistoricalPrediction) {
     let estimatedStreetTime;
@@ -168,9 +171,10 @@ export async function calculateFullDayPrediction(todayMail, routeConfig, history
       badge = '✋';
       method = 'manual';
     } else {
-      // Default street-time estimate when we have no usable history and no route-specific defaults.
-      // 6.5 hours = 390 minutes
-      estimatedStreetTime = 390;
+      // Default street-time estimate when we have no usable history (or not enough clean history)
+      // and no route-specific defaults.
+      // 7.5 hours = 450 minutes
+      estimatedStreetTime = 450;
       confidence = 'estimate';
       badge = '📊';
       method = 'estimate';
