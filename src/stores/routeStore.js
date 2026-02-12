@@ -1,7 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { getUserRoutes, getRouteHistory } from '../services/routeHistoryService';
-import useAuthStore from './authStore';
 import { backfillDayTypesForRoute } from '../services/dayTypeBackfillService';
 import { calculateRouteAverages } from '../services/routeAveragesService';
 import { getWaypointsForRoute, createWaypoint, updateWaypoint, deleteWaypoint, deleteAllWaypoints } from '../services/waypointsService';
@@ -128,12 +127,11 @@ const useRouteStore = create(
         }
       },
 
-      loadUserRoutes: async () => {
+      loadUserRoutes: async (explicitUserId = null) => {
         set({ loading: true, error: null });
 
         try {
-          const authUserId = useAuthStore.getState()?.user?.id || null;
-          const routes = await getUserRoutes(authUserId);
+          const routes = await getUserRoutes(explicitUserId);
           console.log('loadUserRoutes - fetched routes:', routes);
 
           // If auth is slow/unready, routes query may return [] temporarily.

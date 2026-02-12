@@ -95,7 +95,7 @@ function App() {
       }
 
       checkAndResetDailyData();
-      loadUserRoutes().then(() => {
+      loadUserRoutes(user?.id || null).then(() => {
         autoPopulateWaypointsIfNeeded();
       });
     }
