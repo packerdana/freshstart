@@ -72,6 +72,24 @@ export default function RoutesScreen() {
   const handleDeleteClick = async (routeId) => {
     if (deleteConfirm === routeId) {
       try {
+        const route = routes?.[routeId] || routesList.find((r) => r?.id === routeId) || null;
+        const rn = route?.routeNumber || route?.route_number || '';
+        const expected = String(rn || '').trim();
+
+        const typed = window.prompt(
+          `SAFETY CHECK\n\nType the route number to delete${expected ? ` ("${expected}")` : ''}:`
+        );
+
+        if (typed == null) {
+          // user cancelled
+          return;
+        }
+
+        if (expected && String(typed).trim() !== expected) {
+          alert('Route number did not match. Delete cancelled.');
+          return;
+        }
+
         await deleteRoute(routeId);
       } catch (e) {
         alert(e?.message || String(e));
