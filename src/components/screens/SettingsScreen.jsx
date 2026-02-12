@@ -209,7 +209,12 @@ export default function SettingsScreen() {
                   <div className="flex flex-col gap-2">
                     {route.id !== currentRouteId && (
                       <button
-                        onClick={() => activateRoute(route.id)}
+                        onClick={() => {
+                          const rn = route?.routeNumber || route?.route_number || '—';
+                          if (window.confirm(`Are you sure you want to switch to Route ${rn}?`)) {
+                            activateRoute(route.id);
+                          }
+                        }}
                         className="text-xs text-blue-600 font-medium hover:text-blue-700"
                       >
                         Set Active

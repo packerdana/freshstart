@@ -103,7 +103,12 @@ export default function RoutesScreen() {
   };
 
   const handleRouteSelect = (routeId) => {
-    switchToRoute(routeId);
+    if (!routeId || routeId === currentRouteId) return;
+    const route = routes?.[routeId] || routesList.find((r) => r?.id === routeId) || null;
+    const rn = route?.routeNumber || route?.route_number || '—';
+    if (window.confirm(`Are you sure you want to switch to Route ${rn}?`)) {
+      switchToRoute(routeId);
+    }
   };
 
   return (

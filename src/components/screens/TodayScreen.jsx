@@ -1215,7 +1215,14 @@ export default function TodayScreen() {
             </label>
             <select
               value={currentRouteId || ''}
-              onChange={(e) => switchToRoute(e.target.value)}
+              onChange={(e) => {
+                const nextId = e.target.value;
+                if (!nextId || nextId === currentRouteId) return;
+                const nextLabel = routeOptions.find((o) => o.value === nextId)?.label || 'that route';
+                if (window.confirm(`Are you sure you want to switch to ${nextLabel}?`)) {
+                  switchToRoute(nextId);
+                }
+              }}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
               {routeOptions.map(option => (
