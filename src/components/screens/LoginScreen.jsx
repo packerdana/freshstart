@@ -8,7 +8,7 @@ export default function LoginScreen({ onSwitchToSignup }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-  const { signIn, loading } = useAuthStore();
+  const { signIn, loading, hardResetAuth } = useAuthStore();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -42,6 +42,20 @@ export default function LoginScreen({ onSwitchToSignup }) {
             {error && (
               <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
                 {error}
+                <div className="mt-3">
+                  <button
+                    type="button"
+                    className="text-red-700 underline text-sm font-semibold"
+                    onClick={() => {
+                      try {
+                        hardResetAuth?.();
+                      } catch {}
+                    }}
+                    disabled={loading}
+                  >
+                    Reset login
+                  </button>
+                </div>
               </div>
             )}
 
