@@ -69,10 +69,15 @@ export default function RoutesScreen() {
     setIsEditModalOpen(true);
   };
 
-  const handleDeleteClick = (routeId) => {
+  const handleDeleteClick = async (routeId) => {
     if (deleteConfirm === routeId) {
-      deleteRoute(routeId);
-      setDeleteConfirm(null);
+      try {
+        await deleteRoute(routeId);
+      } catch (e) {
+        alert(e?.message || String(e));
+      } finally {
+        setDeleteConfirm(null);
+      }
     } else {
       setDeleteConfirm(routeId);
       setTimeout(() => setDeleteConfirm(null), 3000);
