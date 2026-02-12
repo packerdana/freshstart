@@ -351,8 +351,12 @@ export async function getUserRoutes(explicitUserId = null) {
     }
   }
 
-  if (!userId) return [];
+  if (!userId) {
+    console.warn('[getUserRoutes] No userId available; returning empty routes');
+    return [];
+  }
 
+  console.log('[getUserRoutes] Loading routes for userId:', userId);
   const { data, error } = await supabase
     .from('routes')
     .select('*')

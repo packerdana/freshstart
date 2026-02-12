@@ -1,19 +1,25 @@
 import { useState } from 'react';
 import { Plus, Edit2, Trash2, Check } from 'lucide-react';
 import useRouteStore from '../../stores/routeStore';
+import useAuthStore from '../../stores/authStore';
 import Card from '../shared/Card';
 import Button from '../shared/Button';
 import CreateRouteModal from '../shared/CreateRouteModal';
 import EditRouteModal from '../shared/EditRouteModal';
 
 export default function RoutesScreen() {
-  const { routes, currentRouteId, createRoute, updateRoute, deleteRoute, switchToRoute } = useRouteStore();
+  const { routes, currentRouteId, createRoute, updateRoute, deleteRoute, switchToRoute, loadUserRoutes } = useRouteStore();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedRoute, setSelectedRoute] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
 
   const routesList = Object.values(routes);
+
+  const authEmail = useAuthStore((s) => s.user?.email || '—');
+  const authUserId = useAuthStore((s) => s.user?.id || null);
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
+  const supabaseHost = supabaseUrl ? (() => { try { return new URL(supabaseUrl).host; } catch { return supabaseUrl; } })() : 'MISSING';
 
   const handleCreateRoute = async (routeData) => {
     await createRoute(routeData);
@@ -57,6 +63,18 @@ export default function RoutesScreen() {
 
       {routesList.length === 0 ? (
         <Card className="text-center py-12">
+          <div className="mx-auto max-w-md text-left text-xs text-gray-500 mb-4 bg-gray-50 border border-gray-200 rounded-lg p-3">
+            <p><span className="font-semibold">Signed in:</span> {authEmail}</p>
+            <p className="break-all"><span className="font-semibold">User ID:</span> {authUserId || '—'}</p>
+            <p className="break-all"><span className="font-semibold">Supabase:</span> {supabaseHost}</p>
+            <Button
+              variant="secondary"
+              className="w-full mt-2"
+              onClick={() => loadUserRoutes(authUserId)}
+            >
+              Reload routes
+            </Button>
+          </div>
           <div className="text-gray-400 mb-4">
             <Plus size={48} className="mx-auto opacity-50" />
           </div>

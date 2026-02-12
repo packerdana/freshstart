@@ -131,6 +131,7 @@ const useRouteStore = create(
         set({ loading: true, error: null });
 
         try {
+          console.log('loadUserRoutes - starting. explicitUserId:', explicitUserId);
           const routes = await getUserRoutes(explicitUserId);
           console.log('loadUserRoutes - fetched routes:', routes);
 
@@ -182,8 +183,9 @@ const useRouteStore = create(
               await get().loadRouteHistory(chosen.id);
             }
           } else {
-            console.warn('loadUserRoutes - no routes found');
-            set({ loading: false });
+            console.warn('loadUserRoutes - no routes found (or not readable)');
+            // Explicitly set empty so UI + debug screens can show current state.
+            set({ routes: {}, currentRouteId: null, currentRoute: null, history: [], averages: {}, loading: false });
           }
         } catch (error) {
           console.error('Error loading routes:', error);
