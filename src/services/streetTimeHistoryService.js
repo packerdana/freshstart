@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { fetchRestJSON, getAccessTokenFromStorage, withTimeout } from './supabaseRestFallback';
 import { deriveOfficeTimeMinutes, findFirst721 } from '../utils/deriveOfficeTime';
 
 /**
@@ -28,14 +29,18 @@ export async function getStreetTimeSummaryByDate(currentRouteId) {
       return [];
     }
 
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    const token = getAccessTokenFromStorage();
+
     // Fetch the route's configured start time (used to derive 722 when it's not explicitly recorded)
     let routeStartTime = '07:30';
     try {
-      const { data: routeRow, error: routeErr } = await supabase
-        .from('routes')
-        .select('start_time')
-        .eq('id', currentRouteId)
-        .maybeSingle();
+      const { data: routeRow, error: routeErr } = await withTimeout(
+        supabase.from('routes').select('start_time').eq('id', currentRouteId).maybeSingle(),
+        6000,
+        'routes start_time query'
+      );
       if (!routeErr && routeRow?.start_time) routeStartTime = routeRow.start_time;
     } catch (e) {
       // Non-fatal; we'll just fall back to default.
@@ -43,14 +48,42 @@ export async function getStreetTimeSummaryByDate(currentRouteId) {
     }
 
     // Filter by CURRENT ROUTE only
-    const { data, error } = await supabase
-      .from('operation_codes')
-      .select('date, code, duration_minutes, start_time, route_id, session_id, end_time')
-      .eq('route_id', currentRouteId)
-      .not('end_time', 'is', null)
-      .order('date', { ascending: false });
-
-    if (error) throw error;
+    let data = [];
+    try {
+      const { data: rows, error } = await withTimeout(
+        supabase
+          .from('operation_codes')
+          .select('date, code, duration_minutes, start_time, route_id, session_id, end_time')
+          .eq('route_id', currentRouteId)
+          .not('end_time', 'is', null)
+          .order('date', { ascending: false }),
+        8000,
+        'operation_codes summary query'
+      );
+      if (error) throw error;
+      data = rows || [];
+    } catch (e) {
+      console.warn('[STREET TIME SERVICE] Falling back to REST operation_codes summary:', e?.message || e);
+      if (supabaseUrl && anonKey) {
+        const rows = await fetchRestJSON({
+          supabaseUrl,
+          anonKey,
+          token,
+          path: '/rest/v1/operation_codes',
+          timeoutMs: 12000,
+          label: 'REST operation_codes summary',
+          query: {
+            select: 'date,code,duration_minutes,start_time,route_id,session_id,end_time',
+            route_id: `eq.${currentRouteId}`,
+            end_time: 'is.not.null',
+            order: 'date.desc',
+          },
+        });
+        data = Array.isArray(rows) ? rows : [];
+      } else {
+        throw e;
+      }
+    }
 
     console.log('[STREET TIME SERVICE] Loaded', data.length, 'operation codes for route', currentRouteId);
 
@@ -97,11 +130,45 @@ export async function getStreetTimeSummaryByDate(currentRouteId) {
     try {
       const dates = result.map((r) => r.date).filter(Boolean);
       if (dates.length) {
-        const { data: rh, error: rhErr } = await supabase
-          .from('route_history')
-          .select('date, exclude_from_averages, actual_office_time, office_722_time, office_time')
-          .eq('route_id', currentRouteId)
-          .in('date', dates);
+        let rh = [];
+        let rhErr = null;
+        try {
+          const res = await withTimeout(
+            supabase
+              .from('route_history')
+              .select('date, exclude_from_averages, actual_office_time, office_722_time, office_time')
+              .eq('route_id', currentRouteId)
+              .in('date', dates),
+            8000,
+            'route_history enrich query'
+          );
+          rh = res?.data || [];
+          rhErr = res?.error || null;
+        } catch (e) {
+          // REST fallback for enrich (optional)
+          const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+          const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+          const token = getAccessTokenFromStorage();
+          if (supabaseUrl && anonKey) {
+            const rows = await fetchRestJSON({
+              supabaseUrl,
+              anonKey,
+              token,
+              path: '/rest/v1/route_history',
+              timeoutMs: 12000,
+              label: 'REST route_history enrich',
+              query: {
+                select: 'date,exclude_from_averages,actual_office_time,office_722_time,office_time',
+                route_id: `eq.${currentRouteId}`,
+                date: `in.(${dates.join(',')})`,
+              },
+            });
+            rh = Array.isArray(rows) ? rows : [];
+            rhErr = null;
+          } else {
+            throw e;
+          }
+        }
 
         // Some older DBs may not have newer columns yet; be tolerant.
         if (rhErr) {
@@ -184,27 +251,59 @@ export async function getOperationCodesForDate(currentRouteId, date) {
       return [];
     }
 
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    const token = getAccessTokenFromStorage();
+
     // Route start time (for derived 722 row)
     let routeStartTime = '07:30';
     try {
-      const { data: routeRow, error: routeErr } = await supabase
-        .from('routes')
-        .select('start_time')
-        .eq('id', currentRouteId)
-        .maybeSingle();
+      const { data: routeRow, error: routeErr } = await withTimeout(
+        supabase.from('routes').select('start_time').eq('id', currentRouteId).maybeSingle(),
+        6000,
+        'routes start_time query'
+      );
       if (!routeErr && routeRow?.start_time) routeStartTime = routeRow.start_time;
     } catch (e) {
       // ignore
     }
 
-    const { data, error } = await supabase
-      .from('operation_codes')
-      .select('*')
-      .eq('route_id', currentRouteId)
-      .eq('date', date)
-      .order('start_time', { ascending: true });
-
-    if (error) throw error;
+    let data = [];
+    try {
+      const { data: rows, error } = await withTimeout(
+        supabase
+          .from('operation_codes')
+          .select('*')
+          .eq('route_id', currentRouteId)
+          .eq('date', date)
+          .order('start_time', { ascending: true }),
+        8000,
+        'operation_codes day history query'
+      );
+      if (error) throw error;
+      data = rows || [];
+    } catch (e) {
+      console.warn('[STREET TIME SERVICE] Falling back to REST operation_codes day history:', e?.message || e);
+      if (supabaseUrl && anonKey) {
+        const rows = await fetchRestJSON({
+          supabaseUrl,
+          anonKey,
+          token,
+          path: '/rest/v1/operation_codes',
+          timeoutMs: 12000,
+          label: 'REST operation_codes day history',
+          query: {
+            select: '*',
+            route_id: `eq.${currentRouteId}`,
+            date: `eq.${date}`,
+            order: 'start_time.asc',
+          },
+        });
+        data = Array.isArray(rows) ? rows : [];
+      } else {
+        throw e;
+      }
+    }
 
     console.log('[STREET TIME SERVICE] Loaded', data.length, 'codes for route', currentRouteId, 'date', date);
 
