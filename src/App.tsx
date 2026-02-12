@@ -218,8 +218,10 @@ function App() {
   }
 
   const renderScreen = () => {
-    // Must set up at least one route first
+    // Must set up at least one route first.
+    // But we still allow Settings so the user can run Diagnostics / sign out / etc.
     if (!hasRoutes || !currentRouteId) {
+      if (activeTab === 'settings') return <SettingsScreen />;
       return <RoutesScreen />;
     }
 
