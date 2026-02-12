@@ -38,17 +38,26 @@ export async function fetchRestJSON({
     url.searchParams.set(k, String(v));
   }
 
-  const res = await withTimeout(
-    fetch(url.toString(), {
+  const headers = {
+    apikey: anonKey,
+    Accept: 'application/json',
+  };
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  // Actually abort fetch on timeout (mobile browsers have low concurrent connection limits).
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  let res;
+  try {
+    res = await fetch(url.toString(), {
       method: 'GET',
-      headers: {
-        apikey: anonKey,
-        Authorization: token ? `Bearer ${token}` : '',
-      },
-    }),
-    timeoutMs,
-    label
-  );
+      headers,
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeoutId);
+  }
 
   const text = await res.text();
   if (!res.ok) {
