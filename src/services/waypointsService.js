@@ -1,6 +1,6 @@
 import { supabase } from '../lib/supabase';
 import { getLocalDateString } from '../utils/time';
-import { fetchRestJSON, getAccessTokenFromStorage, withTimeout } from './supabaseRestFallback';
+import { fetchRestJSON, getAccessTokenFromStorage, restWrite, withTimeout } from './supabaseRestFallback';
 
 export const getWaypointsForRoute = async (routeId, date = null) => {
   const targetDate = date || getLocalDateString();
@@ -46,50 +46,106 @@ export const getWaypointsForRoute = async (routeId, date = null) => {
 };
 
 export const createWaypoint = async (waypointData) => {
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
   try {
-    const { data, error } = await supabase
-      .from('waypoints')
-      .insert([waypointData])
-      .select()
-      .single();
+    const { data, error } = await withTimeout(
+      supabase.from('waypoints').insert([waypointData]).select().single(),
+      10000,
+      'createWaypoint'
+    );
 
     if (error) throw error;
     return data;
   } catch (error) {
-    console.error('Error creating waypoint:', error);
-    throw error;
+    console.warn('[createWaypoint] Falling back to REST:', error?.message || error);
+    if (!supabaseUrl || !supabaseAnonKey) throw error;
+
+    const token = getAccessTokenFromStorage();
+    const rows = await restWrite({
+      supabaseUrl,
+      anonKey: supabaseAnonKey,
+      token,
+      path: '/rest/v1/waypoints',
+      method: 'POST',
+      body: [waypointData],
+      timeoutMs: 12000,
+      label: 'REST createWaypoint',
+    });
+
+    if (Array.isArray(rows)) return rows[0] || null;
+    return rows;
   }
 };
 
 export const updateWaypoint = async (waypointId, updates) => {
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+  const payload = { ...updates, updated_at: new Date().toISOString() };
+
   try {
-    const { data, error } = await supabase
-      .from('waypoints')
-      .update({ ...updates, updated_at: new Date().toISOString() })
-      .eq('id', waypointId)
-      .select()
-      .single();
+    const { data, error } = await withTimeout(
+      supabase.from('waypoints').update(payload).eq('id', waypointId).select().single(),
+      10000,
+      'updateWaypoint'
+    );
 
     if (error) throw error;
     return data;
   } catch (error) {
-    console.error('Error updating waypoint:', error);
-    throw error;
+    console.warn('[updateWaypoint] Falling back to REST:', error?.message || error);
+    if (!supabaseUrl || !supabaseAnonKey) throw error;
+
+    const token = getAccessTokenFromStorage();
+    const rows = await restWrite({
+      supabaseUrl,
+      anonKey: supabaseAnonKey,
+      token,
+      path: '/rest/v1/waypoints',
+      method: 'PATCH',
+      body: payload,
+      query: { id: `eq.${waypointId}` },
+      timeoutMs: 12000,
+      label: 'REST updateWaypoint',
+    });
+
+    if (Array.isArray(rows)) return rows[0] || null;
+    return rows;
   }
 };
 
 export const deleteWaypoint = async (waypointId) => {
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
   try {
-    const { error } = await supabase
-      .from('waypoints')
-      .delete()
-      .eq('id', waypointId);
+    const { error } = await withTimeout(
+      supabase.from('waypoints').delete().eq('id', waypointId),
+      10000,
+      'deleteWaypoint'
+    );
 
     if (error) throw error;
     return true;
   } catch (error) {
-    console.error('Error deleting waypoint:', error);
-    throw error;
+    console.warn('[deleteWaypoint] Falling back to REST:', error?.message || error);
+    if (!supabaseUrl || !supabaseAnonKey) throw error;
+
+    const token = getAccessTokenFromStorage();
+    await restWrite({
+      supabaseUrl,
+      anonKey: supabaseAnonKey,
+      token,
+      path: '/rest/v1/waypoints',
+      method: 'DELETE',
+      query: { id: `eq.${waypointId}` },
+      timeoutMs: 12000,
+      label: 'REST deleteWaypoint',
+      prefer: null,
+    });
+
+    return true;
   }
 };
 
@@ -153,17 +209,35 @@ export const removeDuplicateWaypoints = async (routeId, date = null) => {
 };
 
 export const bulkCreateWaypoints = async (waypoints) => {
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
   try {
-    const { data, error } = await supabase
-      .from('waypoints')
-      .insert(waypoints)
-      .select();
+    const { data, error } = await withTimeout(
+      supabase.from('waypoints').insert(waypoints).select(),
+      10000,
+      'bulkCreateWaypoints'
+    );
 
     if (error) throw error;
     return data;
   } catch (error) {
-    console.error('Error bulk creating waypoints:', error);
-    throw error;
+    console.warn('[bulkCreateWaypoints] Falling back to REST:', error?.message || error);
+    if (!supabaseUrl || !supabaseAnonKey) throw error;
+
+    const token = getAccessTokenFromStorage();
+    const rows = await restWrite({
+      supabaseUrl,
+      anonKey: supabaseAnonKey,
+      token,
+      path: '/rest/v1/waypoints',
+      method: 'POST',
+      body: waypoints,
+      timeoutMs: 12000,
+      label: 'REST bulkCreateWaypoints',
+    });
+
+    return Array.isArray(rows) ? rows : [];
   }
 };
 
@@ -223,44 +297,82 @@ export const createQuickSetupWaypoints = async (routeId, date = null, existingWa
 };
 
 export const markWaypointCompleted = async (waypointId, deliveryTime = new Date().toISOString()) => {
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+  const payload = {
+    status: 'completed',
+    delivery_time: deliveryTime,
+    updated_at: new Date().toISOString(),
+  };
+
   try {
-    const { data, error } = await supabase
-      .from('waypoints')
-      .update({
-        status: 'completed',
-        delivery_time: deliveryTime,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', waypointId)
-      .select()
-      .single();
+    const { data, error } = await withTimeout(
+      supabase.from('waypoints').update(payload).eq('id', waypointId).select().single(),
+      10000,
+      'markWaypointCompleted'
+    );
 
     if (error) throw error;
     return data;
   } catch (error) {
-    console.error('Error marking waypoint completed:', error);
-    throw error;
+    console.warn('[markWaypointCompleted] Falling back to REST:', error?.message || error);
+    if (!supabaseUrl || !supabaseAnonKey) throw error;
+
+    const token = getAccessTokenFromStorage();
+    const rows = await restWrite({
+      supabaseUrl,
+      anonKey: supabaseAnonKey,
+      token,
+      path: '/rest/v1/waypoints',
+      method: 'PATCH',
+      body: payload,
+      query: { id: `eq.${waypointId}` },
+      timeoutMs: 12000,
+      label: 'REST markWaypointCompleted',
+    });
+
+    if (Array.isArray(rows)) return rows[0] || null;
+    return rows;
   }
 };
 
 export const markWaypointPending = async (waypointId) => {
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+  const payload = {
+    status: 'pending',
+    delivery_time: null,
+    updated_at: new Date().toISOString(),
+  };
+
   try {
-    const { data, error } = await supabase
-      .from('waypoints')
-      .update({
-        status: 'pending',
-        delivery_time: null,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', waypointId)
-      .select()
-      .single();
+    const { data, error } = await withTimeout(
+      supabase.from('waypoints').update(payload).eq('id', waypointId).select().single(),
+      10000,
+      'markWaypointPending'
+    );
 
     if (error) throw error;
     return data;
   } catch (error) {
-    console.error('Error marking waypoint pending:', error);
-    throw error;
+    console.warn('[markWaypointPending] Falling back to REST:', error?.message || error);
+    if (!supabaseUrl || !supabaseAnonKey) throw error;
+
+    const token = getAccessTokenFromStorage();
+    const rows = await restWrite({
+      supabaseUrl,
+      anonKey: supabaseAnonKey,
+      token,
+      path: '/rest/v1/waypoints',
+      method: 'PATCH',
+      body: payload,
+      query: { id: `eq.${waypointId}` },
+      timeoutMs: 12000,
+      label: 'REST markWaypointPending',
+    });
+
+    if (Array.isArray(rows)) return rows[0] || null;
+    return rows;
   }
 };
 

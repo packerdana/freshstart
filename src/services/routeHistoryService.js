@@ -1,5 +1,5 @@
 import { supabase } from '../lib/supabase';
-import { fetchRestJSON, getAccessTokenFromStorage, withTimeout } from './supabaseRestFallback';
+import { fetchRestJSON, getAccessTokenFromStorage, restUpsert, restWrite, safeGetSession, withTimeout } from './supabaseRestFallback';
 
 import { calculatePenaltyOT, getWorkweekStart, getWorkweekEnd } from '../utils/uspsConstants';
 import { toLocalDateKey } from '../utils/dateKey';
@@ -56,8 +56,8 @@ function convertHistoryFieldNames(dbRecord) {
 }
 
 export async function saveRouteHistory(routeId, historyData, waypoints = null) {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session?.user) {
+  const { session } = await safeGetSession(supabase, 5000);
+  if (!session?.access_token) {
     throw new Error('Not authenticated (cannot save route history). Please sign in again.');
   }
 
@@ -186,7 +186,13 @@ export async function saveRouteHistory(routeId, historyData, waypoints = null) {
   let error;
 
   // First try with extended columns.
-  ({ data, error } = await tryUpsert(extendedPayload));
+  try {
+    ({ data, error } = await withTimeout(tryUpsert(extendedPayload), 10000, 'saveRouteHistory upsert'));
+  } catch (e) {
+    // if supabase-js hangs, error will be thrown and handled below via REST fallback
+    data = null;
+    error = e;
+  }
 
   // If the DB schema hasn't been migrated yet (common in early testing), retry without new columns.
   if (error) {
@@ -196,13 +202,56 @@ export async function saveRouteHistory(routeId, historyData, waypoints = null) {
 
     if (missingCasingCol || missingDailyLogCol) {
       console.warn('Route history save: DB missing new column(s); retrying without them. Error:', msg);
-      ({ data, error } = await tryUpsert(basePayload));
+      try {
+        ({ data, error } = await withTimeout(tryUpsert(basePayload), 10000, 'saveRouteHistory upsert (base)'));
+      } catch (e) {
+        data = null;
+        error = e;
+      }
     }
   }
 
   if (error) {
-    console.error('Error saving route history:', error);
-    throw error;
+    console.warn('[saveRouteHistory] Falling back to REST:', error?.message || error);
+
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    if (!supabaseUrl || !supabaseAnonKey) {
+      console.error('Error saving route history:', error);
+      throw error;
+    }
+
+    const token = session?.access_token || getAccessTokenFromStorage();
+
+    // Try extended payload first, then base payload if columns missing.
+    const tryRest = async (payload, label) => {
+      const rows = await restUpsert({
+        supabaseUrl,
+        anonKey: supabaseAnonKey,
+        token,
+        path: '/rest/v1/route_history',
+        onConflict: 'route_id,date',
+        body: [payload],
+        timeoutMs: 12000,
+        label,
+      });
+      if (Array.isArray(rows)) return rows[0] || null;
+      return rows;
+    };
+
+    try {
+      const row = await tryRest(extendedPayload, 'REST saveRouteHistory (extended)');
+      return convertHistoryFieldNames(row);
+    } catch (e) {
+      const msg = String(e?.message || e);
+      const missingCasingCol = msg.includes('casing_withdrawal_minutes') && msg.includes('schema cache');
+      const missingDailyLogCol = msg.includes('daily_log') && msg.includes('schema cache');
+      if (missingCasingCol || missingDailyLogCol) {
+        const row = await tryRest(basePayload, 'REST saveRouteHistory (base)');
+        return convertHistoryFieldNames(row);
+      }
+      throw e;
+    }
   }
 
   return convertHistoryFieldNames(data);
@@ -291,25 +340,48 @@ export async function getTodayRouteHistory(routeId, date) {
 export async function ensureRouteHistoryDay(routeId, date) {
   if (!routeId || !date) throw new Error('Missing routeId/date');
 
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
   // Create a minimal record so Fix-a-Day works even if End Tour never ran.
-  const { data, error } = await supabase
-    .from('route_history')
-    .upsert(
-      {
-        route_id: routeId,
-        date,
-      },
-      { onConflict: 'route_id,date' }
-    )
-    .select()
-    .maybeSingle();
+  try {
+    const { data, error } = await withTimeout(
+      supabase
+        .from('route_history')
+        .upsert(
+          {
+            route_id: routeId,
+            date,
+          },
+          { onConflict: 'route_id,date' }
+        )
+        .select()
+        .maybeSingle(),
+      10000,
+      'ensureRouteHistoryDay'
+    );
 
-  if (error) {
-    console.error('Error ensuring route history day:', error);
-    throw error;
+    if (error) throw error;
+    return convertHistoryFieldNames(data);
+  } catch (e) {
+    console.warn('[ensureRouteHistoryDay] Falling back to REST:', e?.message || e);
+    if (!supabaseUrl || !supabaseAnonKey) throw e;
+
+    const token = getAccessTokenFromStorage();
+    const rows = await restUpsert({
+      supabaseUrl,
+      anonKey: supabaseAnonKey,
+      token,
+      path: '/rest/v1/route_history',
+      onConflict: 'route_id,date',
+      body: [{ route_id: routeId, date }],
+      timeoutMs: 12000,
+      label: 'REST ensureRouteHistoryDay',
+    });
+
+    const row = Array.isArray(rows) ? rows[0] : rows;
+    return convertHistoryFieldNames(row);
   }
-
-  return convertHistoryFieldNames(data);
 }
 
 export async function deleteRouteHistory(id) {
@@ -474,10 +546,9 @@ export async function deleteRoute(routeId) {
 }
 
 export async function getWeekTotalMinutes() {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session?.user) return 0;
-
-  const user = session.user;
+  // SECURITY/Correctness: must filter by the user's route(s).
+  const { user } = await safeGetSession(supabase, 5000);
+  if (!user?.id) return 0;
 
   const today = new Date();
   const weekStart = getWorkweekStart(today);
@@ -486,11 +557,31 @@ export async function getWeekTotalMinutes() {
   const startDateStr = toLocalDateKey(weekStart);
   const endDateStr = toLocalDateKey(weekEnd);
 
-  const { data, error } = await supabase
-    .from('route_history')
-    .select('office_time, street_time, pm_office_time')
-    .gte('date', startDateStr)
-    .lt('date', endDateStr);
+  // Get this user's routes
+  let routeIds = [];
+  try {
+    const { data: routes, error: routesErr } = await withTimeout(
+      supabase.from('routes').select('id').eq('user_id', user.id),
+      8000,
+      'getWeekTotalMinutes routes'
+    );
+    if (!routesErr && Array.isArray(routes)) routeIds = routes.map((r) => r.id).filter(Boolean);
+  } catch (e) {
+    console.warn('[getWeekTotalMinutes] Could not load routes:', e?.message || e);
+  }
+
+  if (!routeIds.length) return 0;
+
+  const { data, error } = await withTimeout(
+    supabase
+      .from('route_history')
+      .select('office_time, street_time, pm_office_time, route_id')
+      .in('route_id', routeIds)
+      .gte('date', startDateStr)
+      .lt('date', endDateStr),
+    8000,
+    'getWeekTotalMinutes route_history'
+  );
 
   if (error) {
     console.error('Error fetching week total:', error);
