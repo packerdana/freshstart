@@ -187,24 +187,36 @@ export default function WaypointsScreen() {
   }, [waypoints, currentRouteId, departureTimeStr, routeConfig, waypointPausedSeconds]);
 
   // Pace baseline (compare to your own last 10 similar days)
+  // Load this AFTER today's waypoints render so the screen feels instant.
   useEffect(() => {
+    let cancelled = false;
+
     async function loadPaceBaseline() {
       if (!currentRouteId || viewMode !== 'today') {
         setPaceBaseline(null);
         return;
       }
 
+      // Don't even start until today's waypoints are loaded.
+      if (waypointsLoading) return;
+
       try {
+        // Let the UI paint first.
+        await new Promise((r) => setTimeout(r, 0));
+
         const baseline = await fetchPaceBaselineForDate(currentRouteId, selectedDate, 10, 240);
-        setPaceBaseline(baseline);
+        if (!cancelled) setPaceBaseline(baseline);
       } catch (e) {
         console.error('[UI] Error loading pace baseline:', e);
-        setPaceBaseline(null);
+        if (!cancelled) setPaceBaseline(null);
       }
     }
 
     loadPaceBaseline();
-  }, [currentRouteId, selectedDate, viewMode]);
+    return () => {
+      cancelled = true;
+    };
+  }, [currentRouteId, selectedDate, viewMode, waypointsLoading]);
 
   // Compute current pace comparison (only updates when a waypoint is completed)
   useEffect(() => {
