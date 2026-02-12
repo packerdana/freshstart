@@ -182,10 +182,25 @@ const useAuthStore = create((set, get) => ({
   },
   
   initializeAuth: () => {
-    if (!supabaseEnvOk || !supabase) {
-      set({ session: null, user: null, loading: false, error: missingEnvMessage });
-      return () => {};
-    }
+    try {
+      if (!supabaseEnvOk || !supabase) {
+        set({ session: null, user: null, loading: false, error: missingEnvMessage });
+        return () => {};
+      }
+
+      // Absolute watchdog: never allow an infinite "Loading..." screen.
+      // If auth init gets wedged (storage corruption, browser bug, etc.), fall back to signed-out.
+      const watchdog = setTimeout(async () => {
+        try {
+          if (!get().loading) return;
+          console.warn('[authStore] Auth init watchdog fired; forcing signed-out state');
+          try {
+            await supabase.auth.signOut({ scope: 'local' });
+          } catch {}
+          set({ session: null, user: null, loading: false, error: null });
+        } catch {}
+      }, 25000);
+
 
     // Get initial session (with a timeout so the app doesn't spin forever if Supabase/network hangs)
     const withTimeout = (p, ms) =>
@@ -215,6 +230,7 @@ const useAuthStore = create((set, get) => ({
 
     getSessionWithRetries()
       .then(({ data: { session }, error }) => {
+        clearTimeout(watchdog);
         // FIXED: Only clear on specific token errors, not all errors
         if (error) {
         console.error('Error getting session:', error);
@@ -242,6 +258,7 @@ const useAuthStore = create((set, get) => ({
       });
     })
     .catch((err) => {
+      clearTimeout(watchdog);
       // IMPORTANT: Don't brick the whole app UI on transient mobile network issues.
       // If Supabase is temporarily slow/unreachable, fall back to signed-out state
       // (Login screen) instead of a full-page "Setup needed" error.
@@ -312,8 +329,16 @@ const useAuthStore = create((set, get) => ({
     
     // Return unsubscribe function for cleanup
     return () => {
+      try {
+        clearTimeout(watchdog);
+      } catch {}
       authListener?.subscription?.unsubscribe();
     };
+  } catch (e) {
+    console.error('[authStore] initializeAuth crashed:', e);
+    set({ session: null, user: null, loading: false, error: null });
+    return () => {};
+  }
   },
 }));
 
