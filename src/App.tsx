@@ -56,6 +56,18 @@ function App() {
   const [loadTruckNudgeVisible, setLoadTruckNudgeVisible] = useState(false);
   const [expectedLoadSeconds, setExpectedLoadSeconds] = useState<number | null>(null);
 
+  // If auth initializing persists too long, show a self-heal button (must be declared before any early returns).
+  const [loadingStuck, setLoadingStuck] = useState(false);
+
+  useEffect(() => {
+    if (!initializing) {
+      setLoadingStuck(false);
+      return;
+    }
+
+    const t = setTimeout(() => setLoadingStuck(true), 18000);
+    return () => clearTimeout(t);
+  }, [initializing]);
 
   // URL escape hatch: /?reset=1
   useEffect(() => {
@@ -158,19 +170,6 @@ function App() {
     );
   }
 
-  const [loadingStuck, setLoadingStuck] = useState(false);
-
-  // If loading persists too long on mobile (common when auth/session storage is corrupted),
-  // show a self-heal button so testers don't have to clear cookies.
-  useEffect(() => {
-    if (!initializing) {
-      setLoadingStuck(false);
-      return;
-    }
-
-    const t = setTimeout(() => setLoadingStuck(true), 18000);
-    return () => clearTimeout(t);
-  }, [initializing]);
 
   if (initializing) {
     return (
