@@ -1,4 +1,50 @@
 import { supabase } from '../lib/supabase';
+
+function getAccessTokenFromStorage() {
+  try {
+    const raw = localStorage.getItem('routewise-auth');
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return (
+      parsed?.access_token ||
+      parsed?.currentSession?.access_token ||
+      parsed?.session?.access_token ||
+      null
+    );
+  } catch {
+    return null;
+  }
+}
+
+async function fetchRoutesViaRest({ supabaseUrl, anonKey, userId, token }) {
+  const url = new URL('/rest/v1/routes', supabaseUrl);
+  url.searchParams.set('select', '*');
+  url.searchParams.set('user_id', `eq.${userId}`);
+  url.searchParams.set('order', 'is_active.desc,created_at.desc');
+
+  const res = await fetch(url.toString(), {
+    method: 'GET',
+    headers: {
+      apikey: anonKey,
+      Authorization: token ? `Bearer ${token}` : '',
+    },
+  });
+
+  const text = await res.text();
+  if (!res.ok) {
+    const err = new Error(`REST routes fetch failed (${res.status}): ${text}`);
+    // @ts-ignore
+    err.status = res.status;
+    throw err;
+  }
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    return [];
+  }
+}
+
 import { calculatePenaltyOT, getWorkweekStart, getWorkweekEnd } from '../utils/uspsConstants';
 import { toLocalDateKey } from '../utils/dateKey';
 
@@ -357,21 +403,47 @@ export async function getUserRoutes(explicitUserId = null) {
   }
 
   console.log('[getUserRoutes] Loading routes for userId:', userId);
-  const { data, error, status } = await supabase
-    .from('routes')
-    .select('*')
-    .eq('user_id', userId)
-    .order('is_active', { ascending: false })
-    .order('created_at', { ascending: false });
 
-  console.log('[getUserRoutes] routes response:', { status: status || error?.status || null, count: Array.isArray(data) ? data.length : null, error: error?.message || null });
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-  if (error) {
-    console.error('Error fetching user routes:', error);
-    throw error;
+  // Prefer supabase-js, but it has been hanging for some users even while REST works.
+  const withTimeoutRoutes = (p, ms) =>
+    Promise.race([
+      p,
+      new Promise((_, reject) => setTimeout(() => reject(new Error('routes query timed out')), ms)),
+    ]);
+
+  try {
+    const { data, error, status } = await withTimeoutRoutes(
+      supabase
+        .from('routes')
+        .select('*')
+        .eq('user_id', userId)
+        .order('is_active', { ascending: false })
+        .order('created_at', { ascending: false }),
+      8000
+    );
+
+    console.log('[getUserRoutes] supabase-js routes response:', {
+      status: status || error?.status || null,
+      count: Array.isArray(data) ? data.length : null,
+      error: error?.message || null,
+    });
+
+    if (error) throw error;
+    return data || [];
+  } catch (e) {
+    // Fallback to direct REST fetch using the stored access token.
+    console.warn('[getUserRoutes] Falling back to REST:', e?.message || e);
+
+    if (!supabaseUrl || !supabaseAnonKey) throw e;
+
+    const token = getAccessTokenFromStorage();
+    const rows = await fetchRoutesViaRest({ supabaseUrl, anonKey: supabaseAnonKey, userId, token });
+    console.log('[getUserRoutes] REST routes response:', { count: Array.isArray(rows) ? rows.length : null });
+    return Array.isArray(rows) ? rows : [];
   }
-
-  return data || [];
 }
 
 export async function updateRoute(routeId, updates) {
