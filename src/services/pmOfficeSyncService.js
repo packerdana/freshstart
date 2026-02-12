@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { getAccessTokenFromStorage, restUpsert, withTimeout } from './supabaseRestFallback';
 
 /**
  * Persist 744 PM Office time to route_history immediately (so refreshes can't lose it).
@@ -15,23 +16,55 @@ export async function syncPmOfficeToHistory({
   if (!date) throw new Error('Missing date');
   const safeMinutes = Math.max(0, Math.round(Number(minutes) || 0));
 
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
   // 1) Upsert route_history.pm_office_time
   // (creates a minimal row if End Tour hasn't run yet)
-  const rhRes = await supabase
-    .from('route_history')
-    .upsert(
-      {
-        route_id: routeId,
-        date,
-        pm_office_time: safeMinutes,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: 'route_id,date' }
-    )
-    .select('id')
-    .maybeSingle();
+  let rhRes;
+  try {
+    rhRes = await withTimeout(
+      supabase
+        .from('route_history')
+        .upsert(
+          {
+            route_id: routeId,
+            date,
+            pm_office_time: safeMinutes,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'route_id,date' }
+        )
+        .select('id')
+        .maybeSingle(),
+      10000,
+      'syncPmOfficeToHistory route_history upsert'
+    );
+  } catch (e) {
+    console.warn('[syncPmOfficeToHistory] Falling back to REST route_history upsert:', e?.message || e);
+    if (!supabaseUrl || !supabaseAnonKey) throw e;
+    const token = getAccessTokenFromStorage();
+    const rows = await restUpsert({
+      supabaseUrl,
+      anonKey: supabaseAnonKey,
+      token,
+      path: '/rest/v1/route_history',
+      onConflict: 'route_id,date',
+      body: [
+        {
+          route_id: routeId,
+          date,
+          pm_office_time: safeMinutes,
+          updated_at: new Date().toISOString(),
+        },
+      ],
+      timeoutMs: 12000,
+      label: 'REST syncPmOfficeToHistory route_history',
+    });
+    rhRes = { data: Array.isArray(rows) ? rows[0] : rows, error: null };
+  }
 
-  if (rhRes.error) {
+  if (rhRes?.error) {
     throw rhRes.error;
   }
 
@@ -52,16 +85,44 @@ export async function syncPmOfficeToHistory({
 
   // If timestamps are missing, still save duration.
   // Some DBs may require start_time; keep null-friendly and tolerate schema variance.
-  const opRes = await supabase
-    .from('operation_codes')
-    .upsert(opPayload, { onConflict: 'session_id' })
-    .select('id')
-    .maybeSingle();
+  let opRes;
+  try {
+    opRes = await withTimeout(
+      supabase.from('operation_codes').upsert(opPayload, { onConflict: 'session_id' }).select('id').maybeSingle(),
+      10000,
+      'syncPmOfficeToHistory operation_codes upsert'
+    );
+  } catch (e) {
+    console.warn('[syncPmOfficeToHistory] Falling back to REST operation_codes upsert:', e?.message || e);
+    if (supabaseUrl && supabaseAnonKey) {
+      const token = getAccessTokenFromStorage();
+      try {
+        const rows = await restUpsert({
+          supabaseUrl,
+          anonKey: supabaseAnonKey,
+          token,
+          path: '/rest/v1/operation_codes',
+          onConflict: 'session_id',
+          body: [opPayload],
+          timeoutMs: 12000,
+          label: 'REST syncPmOfficeToHistory operation_codes',
+        });
+        opRes = { data: Array.isArray(rows) ? rows[0] : rows, error: null };
+      } catch (e2) {
+        opRes = { data: null, error: e2 };
+      }
+    } else {
+      opRes = { data: null, error: e };
+    }
+  }
 
-  if (opRes.error) {
+  if (opRes?.error) {
     // Non-fatal: route_history is the bigger win for totals; log and continue.
     console.warn('[syncPmOfficeToHistory] operation_codes upsert failed:', opRes.error?.message || opRes.error);
   }
 
-  return { routeHistoryId: rhRes.data?.id || null, operationCodeId: opRes.data?.id || null };
+  return {
+    routeHistoryId: rhRes?.data?.id || null,
+    operationCodeId: opRes?.data?.id || null,
+  };
 }
