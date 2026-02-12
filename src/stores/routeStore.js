@@ -184,8 +184,9 @@ const useRouteStore = create(
             }
           } else {
             console.warn('loadUserRoutes - no routes found (or not readable)');
-            // Explicitly set empty so UI + debug screens can show current state.
-            set({ routes: {}, currentRouteId: null, currentRoute: null, history: [], averages: {}, loading: false });
+            // IMPORTANT: Do NOT clobber existing routes/selection if auth is slow or a transient read returns [].
+            // Just stop loading and keep whatever we had.
+            set({ loading: false });
           }
         } catch (error) {
           console.error('Error loading routes:', error);
@@ -695,7 +696,7 @@ const useRouteStore = create(
     }),
     {
       name: 'routewise-storage',
-      version: 6,
+      version: 7,
       // Preserve persisted data across version bumps (prevents "today" inputs from disappearing after deploy).
       migrate: (persistedState, fromVersion) => {
         try {
@@ -743,6 +744,8 @@ const useRouteStore = create(
             routeStarted: !!s.routeStarted,
             lastResetDate: s.lastResetDate || null,
             preRouteLoadingMinutes: Number(s.preRouteLoadingMinutes || 0) || 0,
+            currentRouteId: s.currentRouteId || null,
+            currentRoute: s.currentRoute || null,
           };
         } catch {
           return persistedState;
@@ -753,6 +756,9 @@ const useRouteStore = create(
         routeStarted: state.routeStarted,
         lastResetDate: state.lastResetDate,
         preRouteLoadingMinutes: state.preRouteLoadingMinutes, // ADDED: Persist loading time
+        // Persist selected route so refreshes don't jump to a different "active" route.
+        currentRouteId: state.currentRouteId,
+        currentRoute: state.currentRoute,
       }),
     }
   )
