@@ -330,11 +330,24 @@ export async function createRoute(routeData) {
 }
 
 export async function getUserRoutes() {
-  const { data: { session } } = await supabase.auth.getSession();
+  // On some mobile/slow networks right after SIGNED_IN, getSession can briefly return null.
+  // Retry a few times so we don't incorrectly show "No routes".
+  const getSessionWithRetries = async () => {
+    const attempts = [0, 350, 700, 1200];
+    for (let i = 0; i < attempts.length; i++) {
+      if (attempts[i]) {
+        // eslint-disable-next-line no-await-in-loop
+        await new Promise((r) => setTimeout(r, attempts[i]));
+      }
+      // eslint-disable-next-line no-await-in-loop
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) return session;
+    }
+    return null;
+  };
 
-  if (!session?.user) {
-    return [];
-  }
+  const session = await getSessionWithRetries();
+  if (!session?.user) return [];
 
   const user = session.user;
 
