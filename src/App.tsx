@@ -247,6 +247,14 @@ function App() {
 
   const requireRouteSetup = !hasRoutes || !currentRouteId;
 
+  const handleTabChange = (tabId) => {
+    if (requireRouteSetup && !['routes', 'settings'].includes(tabId)) {
+      setActiveTab('routes');
+      return;
+    }
+    setActiveTab(tabId);
+  };
+
   return (
     <div className="min-h-screen flex flex-col">
       <header className="bg-blue-600 text-white py-4 px-6 shadow-md">
@@ -365,9 +373,7 @@ function App() {
 
         {renderScreen()}
       </main>
-      {!requireRouteSetup && (
-        <BottomNav activeTab={activeTab} onTabChange={setActiveTab} />
-      )}
+      <BottomNav activeTab={activeTab} onTabChange={handleTabChange} />
     </div>
   );
 }
