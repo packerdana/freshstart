@@ -8,6 +8,36 @@
   </head>
   <body>
     <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
+
+    <script>
+      // If a cached HTML page points at missing JS/CSS after a deploy,
+      // some mobile browsers get stuck on a blank/error screen.
+      // Auto-reload once with a cache-busting query param.
+      (function () {
+        try {
+          var flag = 'rw_autoreload_once';
+          function bust() {
+            try {
+              if (sessionStorage.getItem(flag)) return;
+              sessionStorage.setItem(flag, '1');
+              var url = new URL(window.location.href);
+              url.searchParams.set('v', String(Date.now()));
+              window.location.replace(url.toString());
+            } catch (e) {}
+          }
+
+          window.addEventListener('error', function (e) {
+            var t = e && e.target;
+            if (!t) return;
+            var tag = (t.tagName || '').toUpperCase();
+            if (tag === 'SCRIPT' || tag === 'LINK') {
+              bust();
+            }
+          }, true);
+        } catch (e) {}
+      })();
+    </script>
+
+    <script type="module" src="/src/main.tsx" onerror="(function(){try{var url=new URL(window.location.href);url.searchParams.set('v',String(Date.now()));window.location.replace(url.toString());}catch(e){}})()"></script>
   </body>
 </html>
