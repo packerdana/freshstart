@@ -331,27 +331,31 @@ export async function createRoute(routeData) {
 
 export async function getUserRoutes() {
   // IMPORTANT: Do not block route loading on supabase.auth.getSession().
-  // On some devices/browsers, getSession can hang or time out even while the client
-  // can still query tables with the in-memory auth token.
+  // On some devices/browsers, getSession can hang or time out.
+  // Use getUser() (local) to get the user id, then query routes.
+
+  const withTimeout = (p, ms) =>
+    Promise.race([
+      p,
+      new Promise((_, reject) => setTimeout(() => reject(new Error('getUser timed out')), ms)),
+    ]);
+
+  let userId = null;
+  try {
+    const res = await withTimeout(supabase.auth.getUser(), 6000);
+    userId = res?.data?.user?.id || null;
+  } catch {
+    userId = null;
+  }
+
+  if (!userId) return [];
 
   const { data, error } = await supabase
     .from('routes')
     .select('*')
+    .eq('user_id', userId)
     .order('is_active', { ascending: false })
     .order('created_at', { ascending: false });
-
-  // If the user isn't authenticated yet, Supabase will usually return 401/403.
-  // Treat that as "no routes" (caller will show login/setup accordingly).
-  if (error) {
-    const status = Number(error.status || 0) || 0;
-    if (status === 401 || status === 403) {
-      return [];
-    }
-    console.error('Error fetching user routes:', error);
-    throw error;
-  }
-
-  return data || [];
 
   if (error) {
     console.error('Error fetching user routes:', error);
