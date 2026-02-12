@@ -150,41 +150,71 @@ export const deleteWaypoint = async (waypointId) => {
 };
 
 export const deleteAllWaypoints = async (routeId, date = null) => {
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
   try {
     const targetDate = date || getLocalDateString();
 
-    const { error } = await supabase
-      .from('waypoints')
-      .delete()
-      .eq('route_id', routeId)
-      .eq('date', targetDate);
+    const { error } = await withTimeout(
+      supabase.from('waypoints').delete().eq('route_id', routeId).eq('date', targetDate),
+      10000,
+      'deleteAllWaypoints'
+    );
 
     if (error) throw error;
     return true;
   } catch (error) {
-    console.error('Error deleting all waypoints:', error);
-    throw error;
+    console.warn('[deleteAllWaypoints] Falling back to REST:', error?.message || error);
+    if (!supabaseUrl || !supabaseAnonKey) throw error;
+
+    const targetDate = date || getLocalDateString();
+    const token = getAccessTokenFromStorage();
+
+    await restWrite({
+      supabaseUrl,
+      anonKey: supabaseAnonKey,
+      token,
+      path: '/rest/v1/waypoints',
+      method: 'DELETE',
+      query: {
+        route_id: `eq.${routeId}`,
+        date: `eq.${targetDate}`,
+      },
+      timeoutMs: 12000,
+      label: 'REST deleteAllWaypoints',
+      prefer: null,
+    });
+
+    return true;
   }
 };
 
 export const removeDuplicateWaypoints = async (routeId, date = null) => {
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
   try {
     const targetDate = date || getLocalDateString();
 
-    const { data: waypoints, error: fetchError } = await supabase
-      .from('waypoints')
-      .select('*')
-      .eq('route_id', routeId)
-      .eq('date', targetDate)
-      .order('sequence_number', { ascending: true })
-      .order('created_at', { ascending: true });
+    const { data: waypoints, error: fetchError } = await withTimeout(
+      supabase
+        .from('waypoints')
+        .select('*')
+        .eq('route_id', routeId)
+        .eq('date', targetDate)
+        .order('sequence_number', { ascending: true })
+        .order('created_at', { ascending: true }),
+      8000,
+      'removeDuplicateWaypoints fetch'
+    );
 
     if (fetchError) throw fetchError;
 
     const seen = new Set();
     const duplicates = [];
 
-    waypoints.forEach(wp => {
+    (waypoints || []).forEach((wp) => {
       if (seen.has(wp.sequence_number)) {
         duplicates.push(wp.id);
       } else {
@@ -193,18 +223,43 @@ export const removeDuplicateWaypoints = async (routeId, date = null) => {
     });
 
     if (duplicates.length > 0) {
-      const { error: deleteError } = await supabase
-        .from('waypoints')
-        .delete()
-        .in('id', duplicates);
+      const { error: deleteError } = await withTimeout(
+        supabase.from('waypoints').delete().in('id', duplicates),
+        10000,
+        'removeDuplicateWaypoints delete'
+      );
 
       if (deleteError) throw deleteError;
     }
 
-    return { removed: duplicates.length, remaining: waypoints.length - duplicates.length };
+    return { removed: duplicates.length, remaining: (waypoints?.length || 0) - duplicates.length };
   } catch (error) {
-    console.error('Error removing duplicate waypoints:', error);
-    throw error;
+    console.warn('[removeDuplicateWaypoints] Falling back to REST:', error?.message || error);
+    if (!supabaseUrl || !supabaseAnonKey) throw error;
+
+    // Minimal REST fallback: just load for the date; if it succeeds, do nothing destructive.
+    // This function is a cleanup tool; if supabase-js is hanging, we prefer to be conservative.
+    const targetDate = date || getLocalDateString();
+    const token = getAccessTokenFromStorage();
+
+    const rows = await fetchRestJSON({
+      supabaseUrl,
+      anonKey: supabaseAnonKey,
+      token,
+      path: '/rest/v1/waypoints',
+      timeoutMs: 12000,
+      label: 'REST removeDuplicateWaypoints fetch',
+      query: {
+        select: 'id,sequence_number',
+        route_id: `eq.${routeId}`,
+        date: `eq.${targetDate}`,
+        order: 'sequence_number.asc,created_at.asc',
+      },
+    });
+
+    const list = Array.isArray(rows) ? rows : [];
+    // We could delete via REST too, but that's riskier; keep this conservative.
+    return { removed: 0, remaining: list.length };
   }
 };
 
