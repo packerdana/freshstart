@@ -134,6 +134,8 @@ const useRouteStore = create(
           const routes = await getUserRoutes();
           console.log('loadUserRoutes - fetched routes:', routes);
 
+          // If auth is slow/unready, routes query may return [] temporarily.
+          // Do NOT clobber existing route selection in that case.
           if (routes && routes.length > 0) {
             const routesMap = {};
 

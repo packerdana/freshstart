@@ -330,33 +330,28 @@ export async function createRoute(routeData) {
 }
 
 export async function getUserRoutes() {
-  // On some mobile/slow networks right after SIGNED_IN, getSession can briefly return null.
-  // Retry a few times so we don't incorrectly show "No routes".
-  const getSessionWithRetries = async () => {
-    const attempts = [0, 350, 700, 1200];
-    for (let i = 0; i < attempts.length; i++) {
-      if (attempts[i]) {
-        // eslint-disable-next-line no-await-in-loop
-        await new Promise((r) => setTimeout(r, attempts[i]));
-      }
-      // eslint-disable-next-line no-await-in-loop
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) return session;
-    }
-    return null;
-  };
-
-  const session = await getSessionWithRetries();
-  if (!session?.user) return [];
-
-  const user = session.user;
+  // IMPORTANT: Do not block route loading on supabase.auth.getSession().
+  // On some devices/browsers, getSession can hang or time out even while the client
+  // can still query tables with the in-memory auth token.
 
   const { data, error } = await supabase
     .from('routes')
     .select('*')
-    .eq('user_id', user.id)
     .order('is_active', { ascending: false })
     .order('created_at', { ascending: false });
+
+  // If the user isn't authenticated yet, Supabase will usually return 401/403.
+  // Treat that as "no routes" (caller will show login/setup accordingly).
+  if (error) {
+    const status = Number(error.status || 0) || 0;
+    if (status === 401 || status === 403) {
+      return [];
+    }
+    console.error('Error fetching user routes:', error);
+    throw error;
+  }
+
+  return data || [];
 
   if (error) {
     console.error('Error fetching user routes:', error);
