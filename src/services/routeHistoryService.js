@@ -329,7 +329,7 @@ export async function createRoute(routeData) {
   return data;
 }
 
-export async function getUserRoutes() {
+export async function getUserRoutes(explicitUserId = null) {
   // IMPORTANT: Do not block route loading on supabase.auth.getSession().
   // On some devices/browsers, getSession can hang or time out.
   // Use getUser() (local) to get the user id, then query routes.
@@ -340,12 +340,15 @@ export async function getUserRoutes() {
       new Promise((_, reject) => setTimeout(() => reject(new Error('getUser timed out')), ms)),
     ]);
 
-  let userId = null;
-  try {
-    const res = await withTimeout(supabase.auth.getUser(), 6000);
-    userId = res?.data?.user?.id || null;
-  } catch {
-    userId = null;
+  let userId = explicitUserId || null;
+
+  if (!userId) {
+    try {
+      const res = await withTimeout(supabase.auth.getUser(), 6000);
+      userId = res?.data?.user?.id || null;
+    } catch {
+      userId = null;
+    }
   }
 
   if (!userId) return [];
