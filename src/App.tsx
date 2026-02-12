@@ -23,7 +23,7 @@ function App() {
   const loadUserRoutes = useRouteStore((state: any) => state.loadUserRoutes);
   const checkAndResetDailyData = useRouteStore((state: any) => state.checkAndResetDailyData);
   const autoPopulateWaypointsIfNeeded = useRouteStore((state: any) => state.autoPopulateWaypointsIfNeeded);
-  const { user, loading, error, initializeAuth } = useAuthStore();
+  const { user, loading, error, initializeAuth, hardResetAuth } = useAuthStore();
   const currentRoute = useRouteStore((state: any) => state.currentRoute);
   const currentRouteId = useRouteStore((state: any) => state.currentRouteId);
   const routes = useRouteStore((state: any) => state.routes);
@@ -147,12 +147,47 @@ function App() {
     );
   }
 
+  const [loadingStuck, setLoadingStuck] = useState(false);
+
+  // If loading persists too long on mobile (common when auth/session storage is corrupted),
+  // show a self-heal button so testers don't have to clear cookies.
+  useEffect(() => {
+    if (!loading) {
+      setLoadingStuck(false);
+      return;
+    }
+
+    const t = setTimeout(() => setLoadingStuck(true), 18000);
+    return () => clearTimeout(t);
+  }, [loading]);
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100 flex items-center justify-center">
-        <div className="text-center">
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100 flex items-center justify-center p-6">
+        <div className="text-center max-w-sm w-full">
           <div className="inline-block h-12 w-12 animate-spin rounded-full border-4 border-solid border-blue-600 border-r-transparent mb-4"></div>
           <p className="text-gray-600 text-lg">Loading...</p>
+
+          {loadingStuck ? (
+            <div className="mt-5 bg-white/70 rounded-xl p-4 border border-blue-200">
+              <p className="text-sm text-gray-700 mb-3">
+                Stuck loading? Tap below to reset the login session (no cookie clearing).
+              </p>
+              <Button
+                className="w-full"
+                onClick={() => {
+                  try {
+                    hardResetAuth?.();
+                  } catch {}
+                }}
+              >
+                Reset login
+              </Button>
+              <p className="text-xs text-gray-600 mt-2">
+                If this keeps happening, it usually means Firefox cached a broken session.
+              </p>
+            </div>
+          ) : null}
         </div>
       </div>
     );

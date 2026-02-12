@@ -40,6 +40,23 @@ const useAuthStore = create((set, get) => ({
   setSession: (session) => set({ session }),
   setLoading: (loading) => set({ loading }),
   setError: (error) => set({ error }),
+
+  // Escape hatch: if auth gets wedged on mobile, let the user reset without clearing browser cookies.
+  hardResetAuth: async () => {
+    try {
+      set({ loading: true, error: null });
+      try {
+        await supabase.auth.signOut({ scope: 'local' });
+      } catch {}
+      await clearUserScopedState();
+      set({ user: null, session: null, loading: false, error: null });
+      window.location.href = '/';
+      return { error: null };
+    } catch (e) {
+      set({ user: null, session: null, loading: false, error: null });
+      return { error: e };
+    }
+  },
   
   signUp: async (email, password) => {
     set({ loading: true, error: null });
