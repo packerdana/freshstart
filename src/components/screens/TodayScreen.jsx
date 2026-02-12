@@ -22,6 +22,7 @@ import { calculateFullDayPrediction } from '../../services/predictionService';
 import { saveRouteHistory, getWeekTotalMinutes } from '../../services/routeHistoryService';
 import { getDayType } from '../../utils/holidays';
 import { pmOfficeService } from '../../services/pmOfficeService';
+import { syncPmOfficeToHistory } from '../../services/pmOfficeSyncService';
 import { streetTimeService } from '../../services/streetTimeService';
 import { offRouteService } from '../../services/offRouteService';
 import { DEFAULT_ROUTE_CONFIG } from '../../utils/constants';
@@ -782,7 +783,22 @@ export default function TodayScreen() {
       if (pmOfficeSession && !pmOfficeSession.ended_at) {
         try {
           const endedSession = await pmOfficeService.endSession(pmOfficeSession.id, notes);
-          pmOfficeTimeMinutes = Math.round(endedSession.duration_seconds / 60);
+          pmOfficeTimeMinutes = Math.round((endedSession.duration_seconds || 0) / 60);
+
+          // Persist 744 immediately so a refresh can't lose it, and so Stats -> Day History can display 744.
+          try {
+            const todayKey = getLocalDateString();
+            await syncPmOfficeToHistory({
+              routeId: currentRouteId,
+              date: todayKey,
+              minutes: pmOfficeTimeMinutes,
+              startedAt: endedSession.started_at || pmOfficeSession.started_at || null,
+              endedAt: endedSession.ended_at || new Date().toISOString(),
+            });
+          } catch (e) {
+            console.warn('[TodayScreen] Failed to sync 744 to history:', e?.message || e);
+          }
+
           setPmOfficeSession(null);
           setPmOfficeTime(0);
           setNotes('');
@@ -792,6 +808,20 @@ export default function TodayScreen() {
         }
       } else if (manualPm > 0) {
         pmOfficeTimeMinutes = manualPm;
+
+        // Also persist manual 744 immediately.
+        try {
+          const todayKey = getLocalDateString();
+          await syncPmOfficeToHistory({
+            routeId: currentRouteId,
+            date: todayKey,
+            minutes: pmOfficeTimeMinutes,
+            startedAt: null,
+            endedAt: new Date().toISOString(),
+          });
+        } catch (e) {
+          console.warn('[TodayScreen] Failed to sync manual 744 to history:', e?.message || e);
+        }
       }
 
       const today = getLocalDateString();
