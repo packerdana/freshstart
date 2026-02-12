@@ -100,12 +100,21 @@ const useAuthStore = create((set, get) => ({
     }
     
     try {
+      const withTimeout = (p, ms) =>
+        Promise.race([
+          p,
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Sign in timed out — tap Reset login')), ms)),
+        ]);
+
       // FIXED: Only clear if there's a specific invalid token error
       // Don't clear blindly - let Supabase handle existing sessions
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+      const { data, error } = await withTimeout(
+        supabase.auth.signInWithPassword({
+          email,
+          password,
+        }),
+        20000
+      );
       
       if (error) {
         // If error is about existing session being invalid, clear and retry
@@ -115,10 +124,13 @@ const useAuthStore = create((set, get) => ({
           await supabase.auth.signOut({ scope: 'local' });
           
           // Retry sign in after clearing
-          const retryResult = await supabase.auth.signInWithPassword({
-            email,
-            password,
-          });
+          const retryResult = await withTimeout(
+            supabase.auth.signInWithPassword({
+              email,
+              password,
+            }),
+            20000
+          );
           
           if (retryResult.error) throw retryResult.error;
           
