@@ -280,32 +280,33 @@ const useAuthStore = create((set, get) => ({
 
         console.log('Auth state changed:', event);
 
-        // Clear persisted user-scoped state when user changes.
+        // Update store FIRST so the UI can proceed even if cleanup hangs.
+        if (event === 'SIGNED_OUT') {
+          set({ session: null, user: null, initializing: false, loading: false });
+        } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') {
+          set({ session, user: session?.user ?? null, initializing: false, loading: false });
+        } else if (event === 'USER_UPDATED') {
+          set({ user: session?.user ?? null, initializing: false, loading: false });
+        } else {
+          set({ session, user: session?.user ?? null, initializing: false, loading: false });
+        }
+
+        // Clear persisted user-scoped state only when switching between two known users or signing out.
+        // Avoid clearing on the first successful sign-in (prevUserId is null).
         try {
           const prevUserId = get().user?.id ?? null;
           const nextUserId = session?.user?.id ?? null;
-          const userChanged =
-            (prevUserId && nextUserId && prevUserId !== nextUserId) ||
-            (event === 'SIGNED_IN' && prevUserId !== nextUserId);
           const signedOut = event === 'SIGNED_OUT';
+          const switchedUsers = prevUserId && nextUserId && prevUserId !== nextUserId;
 
-          if (signedOut || userChanged) {
-            try {
-              useRouteStore.getState().clearTodayTimingOverrides?.();
-            } catch {}
-            await clearUserScopedState();
+          if (signedOut || switchedUsers) {
+            try { useRouteStore.getState().clearTodayTimingOverrides?.(); } catch {}
+            // Fire-and-forget cleanup; do not await.
+            clearUserScopedState().catch(() => {});
           }
         } catch {}
 
-        if (event === 'SIGNED_OUT') {
-          set({ session: null, user: null, initializing: false, loading: false });
-          return;
-        }
-
-        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') {
-          set({ session, user: session?.user ?? null, initializing: false, loading: false });
-          return;
-        }
+        // Done
 
         if (event === 'USER_UPDATED') {
           set({ user: session?.user ?? null, initializing: false, loading: false });
