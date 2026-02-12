@@ -43,20 +43,11 @@ const useAuthStore = create((set, get) => ({
 
   // Escape hatch: if auth gets wedged on mobile, let the user reset without clearing browser cookies.
   hardResetAuth: async () => {
+    // IMPORTANT: This must never hang.
     try {
       set({ loading: true, error: null });
 
-      // Clear Supabase session (best-effort)
-      try {
-        await supabase.auth.signOut({ scope: 'local' });
-      } catch {}
-
-      // Clear app state
-      try {
-        await clearUserScopedState();
-      } catch {}
-
-      // Clear browser storage keys that commonly wedge mobile auth
+      // Clear browser storage keys that commonly wedge mobile auth (sync, best-effort)
       try {
         const keys = Object.keys(localStorage || {});
         for (const k of keys) {
@@ -66,33 +57,24 @@ const useAuthStore = create((set, get) => ({
         }
       } catch {}
 
-      try {
-        sessionStorage?.clear?.();
-      } catch {}
+      try { sessionStorage?.clear?.(); } catch {}
 
-      // IndexedDB can also get corrupted; delete anything Supabase-related.
-      try {
-        if (indexedDB?.databases) {
-          const dbs = await indexedDB.databases();
-          for (const db of dbs || []) {
-            const name = db?.name || '';
-            if (name.includes('supabase') || name.includes('sb-')) {
-              try { indexedDB.deleteDatabase(name); } catch {}
-            }
-          }
-        }
-      } catch {}
+      // Fire-and-forget sign out + state clears (do not await)
+      try { supabase?.auth?.signOut?.({ scope: 'local' })?.catch?.(() => {}); } catch {}
+      try { clearUserScopedState?.(); } catch {}
 
       set({ user: null, session: null, loading: false, error: null });
 
       // Cache-bust reload (some browsers keep serving stale bundles)
-      window.location.replace(`/?reset=0&v=${Date.now()}`);
+      try {
+        window.location.replace(`/?reset=0&v=${Date.now()}`);
+      } catch {
+        window.location.href = '/';
+      }
       return { error: null };
     } catch (e) {
       set({ user: null, session: null, loading: false, error: null });
-      try {
-        window.location.replace(`/?v=${Date.now()}`);
-      } catch {}
+      try { window.location.href = '/'; } catch {}
       return { error: e };
     }
   },
@@ -258,13 +240,16 @@ const useAuthStore = create((set, get) => ({
 
       // Absolute watchdog: never allow an infinite "Loading..." screen.
       // If auth init gets wedged (storage corruption, browser bug, etc.), fall back to signed-out.
-      const watchdog = setTimeout(async () => {
+      const watchdog = setTimeout(() => {
         try {
           if (!get().loading) return;
           console.warn('[authStore] Auth init watchdog fired; forcing signed-out state');
+
+          // Do NOT await anything here — if the browser/network is wedged, awaits can hang forever.
           try {
-            await supabase.auth.signOut({ scope: 'local' });
+            supabase.auth.signOut({ scope: 'local' }).catch(() => {});
           } catch {}
+
           set({ session: null, user: null, loading: false, error: null });
         } catch {}
       }, 25000);
