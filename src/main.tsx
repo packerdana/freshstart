@@ -28,8 +28,18 @@ if (SENTRY_DSN) {
   });
 }
 
-const ErrorFallback = ({ error, resetError }) => {
-  const msg = String(error?.message || error || 'Unknown error');
+const ErrorFallback = ({ error, resetError }: { error: unknown; resetError: () => void }) => {
+  const msg = (() => {
+    try {
+      if (error && typeof error === 'object' && 'message' in error) {
+        // @ts-ignore
+        return String(error.message || 'Unknown error');
+      }
+      return String(error || 'Unknown error');
+    } catch {
+      return 'Unknown error';
+    }
+  })();
   return (
     <div className="min-h-screen bg-gradient-to-br from-red-50 to-red-100 flex items-center justify-center p-6">
       <div className="max-w-md w-full bg-white rounded-xl shadow-lg p-6">

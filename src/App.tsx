@@ -23,7 +23,7 @@ function App() {
   const loadUserRoutes = useRouteStore((state: any) => state.loadUserRoutes);
   const checkAndResetDailyData = useRouteStore((state: any) => state.checkAndResetDailyData);
   const autoPopulateWaypointsIfNeeded = useRouteStore((state: any) => state.autoPopulateWaypointsIfNeeded);
-  const { user, loading, initializing, error, initializeAuth, hardResetAuth } = useAuthStore();
+  const { user, initializing, error, initializeAuth, hardResetAuth } = useAuthStore();
   const currentRoute = useRouteStore((state: any) => state.currentRoute);
   const currentRouteId = useRouteStore((state: any) => state.currentRouteId);
   const routes = useRouteStore((state: any) => state.routes);
@@ -249,7 +249,7 @@ function App() {
 
   const requireRouteSetup = !hasRoutes || !currentRouteId;
 
-  const handleTabChange = (tabId) => {
+  const handleTabChange = (tabId: string) => {
     if (requireRouteSetup && !['routes', 'settings'].includes(tabId)) {
       setActiveTab('routes');
       return;
