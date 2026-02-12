@@ -33,12 +33,16 @@ async function clearUserScopedState() {
 const useAuthStore = create((set, get) => ({
   user: null,
   session: null,
-  loading: true,
+  // initializing: app startup auth/session check
+  initializing: true,
+  // loading: user-initiated auth actions (sign in/out/up)
+  loading: false,
   error: null,
   
   setUser: (user) => set({ user }),
   setSession: (session) => set({ session }),
   setLoading: (loading) => set({ loading }),
+  setInitializing: (initializing) => set({ initializing }),
   setError: (error) => set({ error }),
 
   // Escape hatch: if auth gets wedged on mobile, let the user reset without clearing browser cookies.
@@ -233,8 +237,11 @@ const useAuthStore = create((set, get) => ({
   
   initializeAuth: () => {
     try {
+      // Mark startup auth check as running
+      set({ initializing: true });
+
       if (!supabaseEnvOk || !supabase) {
-        set({ session: null, user: null, loading: false, error: missingEnvMessage });
+        set({ session: null, user: null, initializing: false, loading: false, error: missingEnvMessage });
         return () => {};
       }
 
@@ -242,7 +249,7 @@ const useAuthStore = create((set, get) => ({
       // If auth init gets wedged (storage corruption, browser bug, etc.), fall back to signed-out.
       const watchdog = setTimeout(() => {
         try {
-          if (!get().loading) return;
+          if (!get().initializing) return;
           console.warn('[authStore] Auth init watchdog fired; forcing signed-out state');
 
           // Do NOT await anything here — if the browser/network is wedged, awaits can hang forever.
@@ -250,7 +257,7 @@ const useAuthStore = create((set, get) => ({
             supabase.auth.signOut({ scope: 'local' }).catch(() => {});
           } catch {}
 
-          set({ session: null, user: null, loading: false, error: null });
+          set({ session: null, user: null, initializing: false, loading: false, error: null });
         } catch {}
       }, 25000);
 
@@ -299,6 +306,7 @@ const useAuthStore = create((set, get) => ({
         set({ 
           session: null, 
           user: null, 
+          initializing: false,
           loading: false 
         });
         return;
@@ -307,6 +315,7 @@ const useAuthStore = create((set, get) => ({
       set({
         session,
         user: session?.user ?? null,
+        initializing: false,
         loading: false,
       });
     })
@@ -319,6 +328,7 @@ const useAuthStore = create((set, get) => ({
       set({
         session: null,
         user: null,
+        initializing: false,
         loading: false,
         error: null,
       });
@@ -356,17 +366,20 @@ const useAuthStore = create((set, get) => ({
           set({
             session: null,
             user: null,
+            initializing: false,
             loading: false,
           });
         } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
           set({
             session,
             user: session?.user ?? null,
+            initializing: false,
             loading: false,
           });
         } else if (event === 'USER_UPDATED') {
           set({
             user: session?.user ?? null,
+            initializing: false,
             loading: false,
           });
         } else {
@@ -374,6 +387,7 @@ const useAuthStore = create((set, get) => ({
           set({
             session,
             user: session?.user ?? null,
+            initializing: false,
             loading: false,
           });
         }

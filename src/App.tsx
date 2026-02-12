@@ -23,7 +23,7 @@ function App() {
   const loadUserRoutes = useRouteStore((state: any) => state.loadUserRoutes);
   const checkAndResetDailyData = useRouteStore((state: any) => state.checkAndResetDailyData);
   const autoPopulateWaypointsIfNeeded = useRouteStore((state: any) => state.autoPopulateWaypointsIfNeeded);
-  const { user, loading, error, initializeAuth, hardResetAuth } = useAuthStore();
+  const { user, loading, initializing, error, initializeAuth, hardResetAuth } = useAuthStore();
   const currentRoute = useRouteStore((state: any) => state.currentRoute);
   const currentRouteId = useRouteStore((state: any) => state.currentRouteId);
   const routes = useRouteStore((state: any) => state.routes);
@@ -163,16 +163,16 @@ function App() {
   // If loading persists too long on mobile (common when auth/session storage is corrupted),
   // show a self-heal button so testers don't have to clear cookies.
   useEffect(() => {
-    if (!loading) {
+    if (!initializing) {
       setLoadingStuck(false);
       return;
     }
 
     const t = setTimeout(() => setLoadingStuck(true), 18000);
     return () => clearTimeout(t);
-  }, [loading]);
+  }, [initializing]);
 
-  if (loading) {
+  if (initializing) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100 flex items-center justify-center p-6">
         <div className="text-center max-w-sm w-full">
