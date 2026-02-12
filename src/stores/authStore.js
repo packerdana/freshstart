@@ -195,6 +195,27 @@ const useAuthStore = create((set, get) => ({
 
       return { data, error: null };
     } catch (error) {
+      // If the sign-in call timed out, Supabase may STILL have completed sign-in
+      // (we've seen SIGNED_IN events despite the promise stalling). Verify with getSession.
+      try {
+        const msg = String(error?.message || error || '');
+        const isTimeout = msg.toLowerCase().includes('timed out');
+        if (isTimeout) {
+          const withTimeout2 = (p, ms) =>
+            Promise.race([
+              p,
+              new Promise((_, reject) => setTimeout(() => reject(new Error('getSession timed out')), ms)),
+            ]);
+
+          const res = await withTimeout2(supabase.auth.getSession(), 6000);
+          const session = res?.data?.session || null;
+          if (session?.user) {
+            set({ user: session.user, session, loading: false, error: null });
+            return { data: { session, user: session.user }, error: null };
+          }
+        }
+      } catch {}
+
       // Let LoginScreen show the message; don't trigger App.tsx global error screen.
       set({ loading: false });
       return { data: null, error };
