@@ -60,7 +60,7 @@ const useAuthStore = create((set, get) => ({
       try {
         const keys = Object.keys(localStorage || {});
         for (const k of keys) {
-          if (k === 'routewise-storage' || k.startsWith('sb-') || k.includes('supabase')) {
+          if (k === 'routewise-storage' || k === 'routewise-auth' || k.startsWith('sb-') || k.includes('supabase') || k.includes('routewise-auth')) {
             try { localStorage.removeItem(k); } catch {}
           }
         }
