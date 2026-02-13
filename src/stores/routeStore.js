@@ -8,9 +8,29 @@ import { createRoute as createRouteService, updateRoute as updateRouteService, d
 import { getTemplatesForRoute, saveCurrentWaypointsAsTemplate, instantiateTemplates } from '../services/waypointTemplateService';
 import { getLocalDateString } from '../utils/time';
 
+const getPersistedRouteSelection = () => {
+  try {
+    const raw = localStorage?.getItem?.('routewise-storage');
+    if (!raw) return { currentRouteId: null, currentRoute: null };
+    const parsed = JSON.parse(raw);
+    const state = parsed?.state || {};
+    return {
+      currentRouteId: state.currentRouteId || null,
+      currentRoute: state.currentRoute || null,
+    };
+  } catch {
+    return { currentRouteId: null, currentRoute: null };
+  }
+};
+
 const useRouteStore = create(
   persist(
     (set, get) => ({
+      // When enabled, the app will never auto-switch the selected route.
+      // Route changes only happen when the user explicitly chooses a route.
+      routeLockEnabled: true,
+      setRouteLockEnabled: (enabled) => set({ routeLockEnabled: !!enabled }),
+
       currentRoute: null,
       currentRouteId: null,
 
@@ -165,10 +185,19 @@ const useRouteStore = create(
             // 1) Prefer whatever the user already had selected (persisted currentRouteId)
             // 2) Else prefer the DB "active" route
             // 3) Else fall back to first route
-            const preferredId = get().currentRouteId;
+            // Use in-memory selection if present, otherwise fall back to persisted selection.
+            // This prevents "route jumping" on reload while hydration/auth is still settling.
+            const persistedSel = getPersistedRouteSelection();
+            const preferredId = get().currentRouteId || persistedSel.currentRouteId;
+
             const preferredExists = preferredId && routesMap[preferredId];
             const dbActive = routes.find((r) => r?.is_active);
-            const chosen = preferredExists ? routes.find((r) => r.id === preferredId) : (dbActive || routes[0]);
+
+            // If lock is enabled and we have a preferred route that still exists, keep it.
+            // Otherwise fall back to DB active, then first route.
+            const chosen = (get().routeLockEnabled && preferredExists)
+              ? routes.find((r) => r.id === preferredId)
+              : (preferredExists ? routes.find((r) => r.id === preferredId) : (dbActive || routes[0]));
 
             console.log('loadUserRoutes - choosing currentRouteId:', chosen?.id);
 
@@ -744,6 +773,7 @@ const useRouteStore = create(
             routeStarted: !!s.routeStarted,
             lastResetDate: s.lastResetDate || null,
             preRouteLoadingMinutes: Number(s.preRouteLoadingMinutes || 0) || 0,
+            routeLockEnabled: s.routeLockEnabled !== undefined ? !!s.routeLockEnabled : true,
             currentRouteId: s.currentRouteId || null,
             currentRoute: s.currentRoute || null,
           };
@@ -756,6 +786,7 @@ const useRouteStore = create(
         routeStarted: state.routeStarted,
         lastResetDate: state.lastResetDate,
         preRouteLoadingMinutes: state.preRouteLoadingMinutes, // ADDED: Persist loading time
+        routeLockEnabled: state.routeLockEnabled,
         // Persist selected route so refreshes don't jump to a different "active" route.
         currentRouteId: state.currentRouteId,
         currentRoute: state.currentRoute,
