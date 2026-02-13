@@ -16,6 +16,7 @@ import { ensureRouteHistoryDay, updateRouteHistory } from '../../services/routeH
 import { getStreetTimeSummaryByDate, getOperationCodesForDate } from '../../services/streetTimeHistoryService';
 import { formatUtcAsChicago } from '../../utils/timezone';
 import { deriveOfficeTimeMinutes, findFirst721 } from '../../utils/deriveOfficeTime';
+import { buildExpandedDayHistoryRows, shouldUseFixedCoreRows } from '../../utils/dayHistoryDisplay';
 import { Clock, TrendingUp, Calendar, Package, Timer, Target, Activity, Award, AlertTriangle, Shield, Trophy, History as HistoryIcon } from 'lucide-react';
 
 function formatDurationMinutes(totalMinutes) {
@@ -1075,8 +1076,15 @@ export default function StatsScreen() {
               const isOpen = expandedDay === d.date;
 
               const detailRows = (dayDetails?.[d.date] || []);
-              const hasRecorded722 = detailRows.some((r) => r?.code === '722');
-              const computed722Row = (!hasRecorded722 && derived722 > 0 && first721StartUtc)
+
+              // If the user has manually fixed minutes for this day (Fix this day modal), the
+              // route_history minutes become the source of truth. The timer-based detail rows can be stale
+              // (e.g. 721 shows 0:00) and should not be displayed for core codes.
+              const useFixedCore = shouldUseFixedCoreRows({ hist, detailRows });
+
+              // In timer mode, we sometimes synthesize a derived 722 row (clock-in -> first 721 start).
+              const hasRecorded722 = detailRows.some((r) => String(r?.code) === '722');
+              const computed722Row = (!useFixedCore && !hasRecorded722 && derived722 > 0 && first721StartUtc)
                 ? {
                     id: `derived-722-${d.date}`,
                     code: '722',
@@ -1087,7 +1095,20 @@ export default function StatsScreen() {
                     _derived: true,
                   }
                 : null;
-              const displayRows = computed722Row ? [computed722Row, ...detailRows] : detailRows;
+
+              const timerRows = computed722Row ? [computed722Row, ...detailRows] : detailRows;
+
+              const { rows: displayRows } = buildExpandedDayHistoryRows({
+                date: d.date,
+                detailRows: timerRows,
+                hist,
+                codeNameByCode: {
+                  '722': 'AM Office',
+                  '721': 'Street Time',
+                  '744': 'PM Office',
+                },
+                useFixed: useFixedCore,
+              });
 
               return (
                 <div key={d.date} className="bg-white/70 rounded-lg border border-slate-200 overflow-hidden">
@@ -1203,11 +1224,16 @@ export default function StatsScreen() {
                             const end = row?._derived
                               ? (first721StartUtc ? formatUtcAsChicago(first721StartUtc) : '--')
                               : (row.end_time ? formatUtcAsChicago(row.end_time) : '--');
+
+                            const subline = row?._fixed
+                              ? 'fixed'
+                              : `${start} → ${end}`;
+
                             return (
                               <div key={row.id} className="flex items-center justify-between bg-white rounded p-2 text-sm">
                                 <div>
-                                  <p className="font-semibold text-gray-900">{row.code} — {label}</p>
-                                  <p className="text-xs text-gray-600">{start} → {end}</p>
+                                  <p className="font-semibold text-gray-900">{row.code} — {label}{row?._fixed ? ' (fixed)' : ''}</p>
+                                  <p className="text-xs text-gray-600">{subline}</p>
                                 </div>
                                 <div className="font-mono text-gray-900">{formatMinutesAsTime(Math.round(mins))}</div>
                               </div>
