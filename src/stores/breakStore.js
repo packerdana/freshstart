@@ -119,6 +119,7 @@ const useBreakStore = create(
   loadTruckWarning: false,
 
   todaysBreaks: [],
+  todaysBreaksDate: getLocalDateString(),
 
   // Detailed break events for adjusting waypoint "expected" times.
   // Each event: { kind, label, startTime, endTime, seconds }
@@ -269,6 +270,7 @@ const useBreakStore = create(
           seconds: lunchSeconds,
         },
       ],
+      todaysBreaksDate: getLocalDateString(),
       todaysBreaks: [
         ...todaysBreaks,
         {
@@ -326,6 +328,7 @@ const useBreakStore = create(
         ...(breakEvents || []),
         { kind: 'lunch', label: 'Lunch', startTime, endTime, seconds: 30 * 60 },
       ],
+      todaysBreaksDate: getLocalDateString(),
       todaysBreaks: [
         ...todaysBreaks,
         {
@@ -411,6 +414,7 @@ const useBreakStore = create(
           seconds: breakSeconds,
         },
       ],
+      todaysBreaksDate: getLocalDateString(),
       todaysBreaks: [
         ...todaysBreaks,
         {
@@ -487,6 +491,7 @@ const useBreakStore = create(
         ...(breakEvents || []),
         { kind: 'break', label: breakType.label, startTime, endTime, seconds: breakSeconds },
       ],
+      todaysBreaksDate: getLocalDateString(),
       todaysBreaks: [
         ...todaysBreaks,
         {
@@ -540,7 +545,7 @@ const useBreakStore = create(
   },
 
   clearTodaysBreaks: () => {
-    set({ todaysBreaks: [] });
+    set({ todaysBreaks: [], todaysBreaksDate: getLocalDateString() });
   },
 
   snoozeBreakNudge: (minutes = 10) => {
@@ -609,6 +614,7 @@ const useBreakStore = create(
       loadTruckTime: 0,
       loadTruckPackageCount: 0,
       loadTruckWarning: false,
+      todaysBreaksDate: getLocalDateString(),
       todaysBreaks: [
         ...todaysBreaks,
         {
@@ -683,6 +689,7 @@ const useBreakStore = create(
       loadTruckWarning: false,
 
       todaysBreaks: [],
+      todaysBreaksDate: getLocalDateString(),
       breakEvents: [],
       waypointPausedSeconds: 0,
       breakNudgeSnoozedUntil: null,
@@ -724,6 +731,7 @@ const useBreakStore = create(
     waypointPausedSeconds: state.waypointPausedSeconds,
     breakEvents: state.breakEvents,
     todaysBreaks: state.todaysBreaks,
+    todaysBreaksDate: state.todaysBreaksDate,
     breakNudgeSnoozedUntil: state.breakNudgeSnoozedUntil,
     loadTruckNudgeSnoozedUntil: state.loadTruckNudgeSnoozedUntil,
     alarmActive: state.alarmActive,
@@ -762,7 +770,16 @@ const useBreakStore = create(
       // App.tsx / BreaksScreen will call initializeFromDatabase once auth is ready.
 
       // Ensure todaysBreaks always exists (older persisted versions didn't include it).
+      const today = getLocalDateString();
       if (!Array.isArray(state.todaysBreaks)) state.todaysBreaks = [];
+
+      // Keep "Today's Breaks" truly "today".
+      // If the stored date doesn't match local today, clear the list.
+      if (state.todaysBreaksDate !== today) {
+        state.todaysBreaks = [];
+      }
+      state.todaysBreaksDate = today;
+
       if (state.breakNudgeSnoozedUntil == null) state.breakNudgeSnoozedUntil = null;
       if (state.loadTruckNudgeSnoozedUntil == null) state.loadTruckNudgeSnoozedUntil = null;
       if (state.alarmActive == null) state.alarmActive = false;
