@@ -127,6 +127,7 @@ const useBreakStore = create(
 
   // Minutes/seconds of breaks that should PAUSE waypoint predictions (lunch + breaks only; NOT load truck)
   waypointPausedSeconds: 0,
+  waypointPauseDate: getLocalDateString(),
 
   // Nudge banner snoozes (so we don't spam)
   breakNudgeSnoozedUntil: null,
@@ -260,6 +261,7 @@ const useBreakStore = create(
       lunchStartTime: null,
       lunchTime: 30 * 60,
       waypointPausedSeconds: (waypointPausedSeconds || 0) + lunchSeconds,
+      waypointPauseDate: getLocalDateString(),
       breakEvents: [
         ...(breakEvents || []),
         {
@@ -324,6 +326,7 @@ const useBreakStore = create(
       lunchStartTime: null,
       lunchTime: 30 * 60,
       waypointPausedSeconds: (waypointPausedSeconds || 0) + (30 * 60),
+      waypointPauseDate: getLocalDateString(),
       breakEvents: [
         ...(breakEvents || []),
         { kind: 'lunch', label: 'Lunch', startTime, endTime, seconds: 30 * 60 },
@@ -404,6 +407,7 @@ const useBreakStore = create(
       breakTime: 0,
       breakStartTime: null,
       waypointPausedSeconds: (waypointPausedSeconds || 0) + breakSeconds,
+      waypointPauseDate: getLocalDateString(),
       breakEvents: [
         ...(breakEvents || []),
         {
@@ -487,6 +491,7 @@ const useBreakStore = create(
       breakTime: 0,
       breakStartTime: null,
       waypointPausedSeconds: (waypointPausedSeconds || 0) + breakSeconds,
+      waypointPauseDate: getLocalDateString(),
       breakEvents: [
         ...(breakEvents || []),
         { kind: 'break', label: breakType.label, startTime, endTime, seconds: breakSeconds },
@@ -692,6 +697,7 @@ const useBreakStore = create(
       todaysBreaksDate: getLocalDateString(),
       breakEvents: [],
       waypointPausedSeconds: 0,
+      waypointPauseDate: getLocalDateString(),
       breakNudgeSnoozedUntil: null,
       loadTruckNudgeSnoozedUntil: null,
       alarmActive: false,
@@ -729,6 +735,7 @@ const useBreakStore = create(
     loadTruckPackageCount: state.loadTruckPackageCount,
 
     waypointPausedSeconds: state.waypointPausedSeconds,
+    waypointPauseDate: state.waypointPauseDate,
     breakEvents: state.breakEvents,
     todaysBreaks: state.todaysBreaks,
     todaysBreaksDate: state.todaysBreaksDate,
@@ -779,6 +786,14 @@ const useBreakStore = create(
         state.todaysBreaks = [];
       }
       state.todaysBreaksDate = today;
+
+      // Also keep pause accumulators scoped to the current day.
+      // Otherwise old breaks can make waypoint ETAs wildly late.
+      if (state.waypointPauseDate !== today) {
+        state.waypointPausedSeconds = 0;
+        state.breakEvents = [];
+      }
+      state.waypointPauseDate = today;
 
       if (state.breakNudgeSnoozedUntil == null) state.breakNudgeSnoozedUntil = null;
       if (state.loadTruckNudgeSnoozedUntil == null) state.loadTruckNudgeSnoozedUntil = null;
