@@ -339,7 +339,7 @@ export async function getOperationCodesForDate(currentRouteId, date) {
 
     return rows.map((record) => ({
       ...record,
-      code_name: CODE_NAMES[record.code] || 'Unknown',
+      code_name: record.code_name || CODE_NAMES[record.code] || 'Unknown',
       duration_formatted: formatDuration(record.duration_minutes),
     }));
   } catch (error) {
