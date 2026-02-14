@@ -23,6 +23,7 @@ import { format } from 'date-fns';
 
 export default function WaypointsScreen() {
   const [searchQuery, setSearchQuery] = useState('');
+  const [showLiveHelp, setShowLiveHelp] = useState(true);
   const [activeFilter, setActiveFilter] = useState('all');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingWaypoint, setEditingWaypoint] = useState(null);
@@ -735,6 +736,28 @@ export default function WaypointsScreen() {
           </button>
         )}
       </div>
+
+      {viewMode === 'today' && showLiveHelp && (
+        <Card className="mb-4 border border-blue-200 bg-blue-50">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 text-blue-700 mt-0.5" />
+              <div className="text-sm text-blue-900">
+                <div className="font-semibold">About “(live)” expected times</div>
+                <div className="text-blue-800">
+                  Waypoint #0 (Leave Post Office) sets your start time. The schedule won’t start adjusting until you complete your first real stop (#1).
+                </div>
+              </div>
+            </div>
+            <button
+              onClick={() => setShowLiveHelp(false)}
+              className="text-blue-800 hover:text-blue-900 text-sm font-semibold"
+            >
+              Hide
+            </button>
+          </div>
+        </Card>
+      )}
 
       {viewMode === 'today' && paceComparison && (
         <Card className="mb-4 bg-gradient-to-br from-emerald-50 to-green-50 border-2 border-emerald-200">
