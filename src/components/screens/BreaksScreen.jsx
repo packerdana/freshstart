@@ -366,7 +366,15 @@ export default function BreaksScreen() {
           {breakTypes.map((type) => (
             <button
               key={type.id}
-              onClick={() => startBreak(type)}
+              onClick={async () => {
+                if (type.id === 'other') {
+                  const label = prompt('Describe this break (required):\n\nExample: Train delay');
+                  if (!label || !String(label).trim()) return;
+                  await startBreak({ ...type, customLabel: String(label).trim() });
+                  return;
+                }
+                await startBreak(type);
+              }}
               className="flex flex-col items-center justify-center p-3 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors border border-gray-200"
             >
               <span className="text-2xl mb-1">{type.icon}</span>

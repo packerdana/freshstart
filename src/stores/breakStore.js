@@ -2,6 +2,8 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { smartLoadMonitor } from '../services/smart-load-monitor';
 import { saveBreakState, loadBreakState, clearBreakState } from '../services/breakService';
+import useRouteStore from './routeStore';
+import { supabase } from '../lib/supabase';
 
 // ADDED: Auto-save interval (save state every 30 seconds while timer is active)
 let autoSaveInterval = null;
@@ -277,6 +279,32 @@ const useBreakStore = create(
       ],
     });
 
+    // Best-effort: persist lunch as an operation_code so it can show in Daily Timeline.
+    try {
+      const routeId = useRouteStore.getState().currentRouteId;
+      if (routeId) {
+        const { data: { user } } = await supabase.auth.getUser();
+        const today = getTodayDate();
+        const sessionId = `lunch_${Date.now()}_${user?.email?.split('@')[0] || user?.id || 'user'}`;
+
+        await supabase
+          .from('operation_codes')
+          .insert({
+            session_id: sessionId,
+            date: today,
+            code: 'BRK_LUNCH',
+            code_name: 'Lunch',
+            start_time: new Date(startTime).toISOString(),
+            end_time: new Date(endTime).toISOString(),
+            duration_minutes: Math.max(0, Math.round(duration)),
+            route_id: routeId,
+            metadata: null,
+          });
+      }
+    } catch (e) {
+      console.warn('[breakStore] Failed to write lunch operation_code (non-fatal):', e?.message || e);
+    }
+
     // Persist updated pause accumulator even when no timer is active
     await saveBreakState(get());
     stopAutoSave(); // ADDED: Stop auto-save
@@ -392,6 +420,47 @@ const useBreakStore = create(
         },
       ],
     });
+
+    // Best-effort: persist break as an operation_code so it can show in Daily Timeline.
+    try {
+      const routeId = useRouteStore.getState().currentRouteId;
+      if (routeId) {
+        const { data: { user } } = await supabase.auth.getUser();
+        const today = getTodayDate();
+        const sessionId = `brk_${Date.now()}_${user?.email?.split('@')[0] || user?.id || 'user'}`;
+
+        const codeMap = {
+          bathroom: 'BRK_BATH',
+          vehicle: 'BRK_VEH',
+          phone: 'BRK_PHONE',
+          customer: 'BRK_CUST',
+          break: 'BRK_BREAK',
+          other: 'BRK_OTHER',
+        };
+
+        const kindId = breakType?.id;
+        const code = codeMap[kindId] || 'BRK_OTHER';
+
+        const label = (breakType?.customLabel || breakType?.label || 'Other').trim();
+        const metadata = kindId === 'other' ? { label } : null;
+
+        await supabase
+          .from('operation_codes')
+          .insert({
+            session_id: sessionId,
+            date: today,
+            code,
+            code_name: kindId === 'other' ? `Other (${label})` : (breakType?.label || 'Break'),
+            start_time: new Date(startTime).toISOString(),
+            end_time: new Date(endTime).toISOString(),
+            duration_minutes: Math.max(0, Math.round((override != null ? override : duration))),
+            route_id: routeId,
+            metadata,
+          });
+      }
+    } catch (e) {
+      console.warn('[breakStore] Failed to write break operation_code (non-fatal):', e?.message || e);
+    }
 
     // Persist updated pause accumulator even when no timer is active
     await saveBreakState(get());

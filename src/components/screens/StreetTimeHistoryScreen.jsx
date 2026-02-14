@@ -156,6 +156,7 @@ export default function StreetTimeHistoryScreen() {
   const filteredHistory = getFilteredHistory();
 
   const getCodeColor = (code) => {
+    if (String(code || '').startsWith('BRK_')) return 'bg-slate-50 text-slate-700 border-slate-200';
     switch (code) {
       case '722': return 'bg-blue-50 text-blue-700 border-blue-200';
       case '721': return 'bg-green-50 text-green-700 border-green-200';
@@ -170,7 +171,7 @@ export default function StreetTimeHistoryScreen() {
     return (
       <div className="p-4 max-w-2xl mx-auto pb-20">
         <div className="mb-6">
-          <h2 className="text-2xl font-bold text-gray-900">Street Time History</h2>
+          <h2 className="text-2xl font-bold text-gray-900">Daily Timeline</h2>
         </div>
         <Card>
           <div className="text-center py-8">
@@ -249,9 +250,9 @@ export default function StreetTimeHistoryScreen() {
       )}
 
       <div className="mb-6">
-        <h2 className="text-2xl font-bold text-gray-900">Street Time History</h2>
-        <p className="text-sm text-gray-500">{filteredHistory.length > 0 ? `${filteredHistory.length} day(s) of operation code data` : 'No historical data yet'}</p>
-        <p className="text-xs text-gray-400 mt-1">💡 Click any day to view operation code details</p>
+        <h2 className="text-2xl font-bold text-gray-900">Daily Timeline</h2>
+        <p className="text-sm text-gray-500">{filteredHistory.length > 0 ? `${filteredHistory.length} day(s) of timeline data` : 'No historical data yet'}</p>
+        <p className="text-xs text-gray-400 mt-1">💡 Tap any day to view timeline details</p>
       </div>
 
       <Card className="mb-4">
@@ -340,22 +341,57 @@ export default function StreetTimeHistoryScreen() {
                       </div>
                     ) : expandedCodes.length > 0 ? (
                       <>
-                        <div className="space-y-2 mb-3 max-h-64 overflow-y-auto">
-                          {expandedCodes.map((code) => (
-                            <div key={code.id} className={`flex items-start gap-2 p-3 rounded-lg border ${getCodeColor(code.code)}`}>
-                              <Clock className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center justify-between mb-1">
-                                  <span className="text-sm font-semibold">{code.code} - {code.code_name}</span>
-                                  <span className="text-sm font-bold">{code.duration_formatted}</span>
-                                </div>
-                                <div className="text-xs text-gray-600">
-                                  {format(parseISO(code.start_time), 'h:mm a')} → {code.end_time ? format(parseISO(code.end_time), 'h:mm a') : 'Active'}
-                                </div>
+                        {(() => {
+                          const breaks = (expandedCodes || []).filter((c) => String(c.code || '').startsWith('BRK_'));
+                          const main = (expandedCodes || []).filter((c) => !String(c.code || '').startsWith('BRK_'));
+                          return (
+                            <>
+                              <div className="space-y-2 mb-3 max-h-64 overflow-y-auto">
+                                {main.map((code) => (
+                                  <div key={code.id} className={`flex items-start gap-2 p-3 rounded-lg border ${getCodeColor(code.code)}`}>
+                                    <Clock className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-center justify-between mb-1">
+                                        <span className="text-sm font-semibold">{code.code} - {code.code_name}</span>
+                                        <span className="text-sm font-bold">{code.duration_formatted}</span>
+                                      </div>
+                                      <div className="text-xs text-gray-600">
+                                        {format(parseISO(code.start_time), 'h:mm a')} → {code.end_time ? format(parseISO(code.end_time), 'h:mm a') : 'Active'}
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))}
                               </div>
-                            </div>
-                          ))}
-                        </div>
+
+                              {breaks.length > 0 ? (
+                                <div className="mb-3">
+                                  <details className="bg-white rounded-lg border border-gray-200 p-3">
+                                    <summary className="cursor-pointer text-sm font-semibold text-gray-900">
+                                      Breaks taken ({breaks.length})
+                                    </summary>
+                                    <div className="mt-3 space-y-2">
+                                      {breaks.map((code) => (
+                                        <div key={code.id} className="flex items-start justify-between gap-3 p-2 rounded border border-gray-200 bg-gray-50">
+                                          <div className="min-w-0">
+                                            <div className="text-sm font-semibold text-gray-900">
+                                              {code.code_name || code.code}
+                                            </div>
+                                            <div className="text-xs text-gray-600">
+                                              {format(parseISO(code.start_time), 'h:mm a')} → {code.end_time ? format(parseISO(code.end_time), 'h:mm a') : 'Active'}
+                                            </div>
+                                          </div>
+                                          <div className="text-sm font-bold text-gray-900 whitespace-nowrap">
+                                            {code.duration_formatted}
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </details>
+                                </div>
+                              ) : null}
+                            </>
+                          );
+                        })()}
                         
                         <div className="grid grid-cols-1 gap-2">
                           <Button
