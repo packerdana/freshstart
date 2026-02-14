@@ -548,10 +548,11 @@ export default function StatsScreen() {
 
     // Use the most recent 14 records that have both times.
     const rows = safeHistory
-      .filter((d) => d?.predictedReturnTime && d?.actualClockOut)
+      .filter((d) => (d?.predictedClockOut || d?.predictedReturnTime) && d?.actualClockOut)
       .slice(0, 30)
       .map((d) => {
-        const predicted = toMins(d.predictedReturnTime);
+        // Prefer true clock-out prediction when available.
+        const predicted = toMins(d.predictedClockOut || d.predictedReturnTime);
         const actual = toMins(d.actualClockOut);
         if (predicted == null || actual == null) return null;
         return {
@@ -559,6 +560,7 @@ export default function StatsScreen() {
           predicted,
           actual,
           error: actual - predicted,
+          usedClockOut: !!d.predictedClockOut,
         };
       })
       .filter(Boolean)
@@ -794,7 +796,7 @@ export default function StatsScreen() {
             <div className="bg-white/70 rounded-lg p-3">
               <p className="text-xs text-gray-600 mb-1">What this is</p>
               <p className="text-sm text-gray-700">
-                Predicted return/clock-out vs actual clock-out (saved when you end the day).
+                Predicted clock-out vs actual clock-out (saved when you end the day).
               </p>
             </div>
           </div>

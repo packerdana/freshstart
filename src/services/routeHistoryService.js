@@ -47,6 +47,7 @@ function convertHistoryFieldNames(dbRecord) {
     casedBoxholder: dbRecord.cased_boxholder,
     casedBoxholderType: dbRecord.cased_boxholder_type,
     predictedReturnTime: dbRecord.predicted_return_time,
+    predictedClockOut: dbRecord.predicted_clock_out,
     actualClockOut: dbRecord.actual_clock_out,
     assistanceMinutes: dbRecord.assistance_minutes,
     excludeFromAverages: !!dbRecord.exclude_from_averages,
@@ -162,6 +163,7 @@ export async function saveRouteHistory(routeId, historyData, waypoints = null) {
 
     // Prediction accuracy chart support (stored as HH:MM)
     predicted_return_time: historyData.predictedReturnTime || null,
+    predicted_clock_out: historyData.predictedClockOut || null,
     actual_clock_out: historyData.actualClockOut || null,
 
     // Assistance tracking

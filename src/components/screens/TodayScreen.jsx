@@ -1002,20 +1002,27 @@ export default function TodayScreen() {
             historyData.predictedStreetTime = Math.round(predStreetTime);
           }
 
-          // Save predicted return-to-office (not end-of-tour). Stored as HH:MM.
+          // Save predicted return-to-office. Stored as HH:MM.
           if (predReturnTime instanceof Date && !isNaN(predReturnTime.getTime())) {
             historyData.predictedReturnTime = predReturnTime.toLocaleTimeString('en-US', {
               hour12: false,
               hour: '2-digit',
               minute: '2-digit',
             });
-          } else if (prediction.clockOutTime instanceof Date && !isNaN(prediction.clockOutTime.getTime())) {
-            // Fallback to time-based estimate so we at least store something.
-            historyData.predictedReturnTime = prediction.clockOutTime.toLocaleTimeString('en-US', {
+          }
+
+          // Save predicted CLOCK-OUT (end-of-tour). Stored as HH:MM.
+          if (prediction.clockOutTime instanceof Date && !isNaN(prediction.clockOutTime.getTime())) {
+            historyData.predictedClockOut = prediction.clockOutTime.toLocaleTimeString('en-US', {
               hour12: false,
               hour: '2-digit',
               minute: '2-digit',
             });
+          }
+
+          // Back-compat fallback: if we don't have a return-to-office estimate, at least store something.
+          if (!historyData.predictedReturnTime && historyData.predictedClockOut) {
+            historyData.predictedReturnTime = historyData.predictedClockOut;
           }
         }
       } catch (predError) {
