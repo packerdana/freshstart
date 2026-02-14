@@ -569,6 +569,14 @@ export default function TodayScreen() {
     });
   };
 
+  const totalStreetMinutesFromEnded = (endedSession, accumulatedSeconds) => {
+    const segSeconds = endedSession?.duration_seconds != null
+      ? Number(endedSession.duration_seconds || 0)
+      : (Number(endedSession?.duration_minutes || 0) * 60);
+    const totalSeconds = Math.max(0, Math.floor(Number(accumulatedSeconds || 0) + segSeconds));
+    return Math.round(totalSeconds / 60);
+  };
+
   const handleStartPmOffice = async () => {
     try {
       let streetTimeEnded = false;
@@ -576,10 +584,10 @@ export default function TodayScreen() {
 
       if (streetTimeSession && !streetTimeSession.end_time) {
         const endedSession = await streetTimeService.endSession(streetTimeSession.id);
-        durationMinutes = Math.round(endedSession.duration_minutes);
+        durationMinutes = totalStreetMinutesFromEnded(endedSession, accumulatedStreetSeconds);
         setCompletedStreetTimeMinutes(durationMinutes);
         setStreetStartTime(streetTimeSession.start_time);
-        console.log(`✓ Street time preserved: ${durationMinutes} minutes (started at ${streetTimeSession.start_time})`);
+        console.log(`✓ Street time preserved (summed segments): ${durationMinutes} minutes (started at ${streetTimeSession.start_time})`);
         setStreetTime(0);
         setStreetTimeSession(null);
         streetTimeEnded = true;
@@ -707,15 +715,17 @@ export default function TodayScreen() {
       if (streetTimeSession && !streetTimeSession.end_time) {
         console.log('Ending street timer before opening dialog...');
         const endedSession = await streetTimeService.endSession(streetTimeSession.id);
-        actualStreetMinutes = Math.round(endedSession.duration_minutes);
-        
+        actualStreetMinutes = totalStreetMinutesFromEnded(endedSession, accumulatedStreetSeconds);
+        setAccumulatedStreetSeconds(0);
+
         setCompletedStreetTimeMinutes(actualStreetMinutes);
         setStreetStartTime(streetTimeSession.start_time);
-        
-        console.log(`✓ Street timer ended: ${actualStreetMinutes} minutes`);
-        
+
+        console.log(`✓ Street timer ended (summed segments): ${actualStreetMinutes} minutes`);
+
         setStreetTimeSession(null);
         setStreetTime(0);
+        setAccumulatedStreetSeconds(0);
       }
       
       const predictedStreetMinutes = Math.round(prediction?.streetTime || 0);
@@ -788,14 +798,15 @@ export default function TodayScreen() {
         try {
           console.log('Auto-ending active street time session during route completion...');
           const endedSession = await streetTimeService.endSession(streetTimeSession.id);
-          streetTimeMinutes = Math.round(endedSession.duration_minutes);
-          
+          streetTimeMinutes = totalStreetMinutesFromEnded(endedSession, accumulatedStreetSeconds);
+
           setCompletedStreetTimeMinutes(streetTimeMinutes);
           setStreetStartTime(streetTimeSession.start_time);
-          console.log(`✓ Street time preserved during completion: ${streetTimeMinutes} minutes (started at ${streetTimeSession.start_time})`);
-          
+          console.log(`✓ Street time preserved during completion (summed segments): ${streetTimeMinutes} minutes (started at ${streetTimeSession.start_time})`);
+
           setStreetTimeSession(null);
           setStreetTime(0);
+          setAccumulatedStreetSeconds(0);
         } catch (error) {
           console.error('Error stopping street time during route completion:', error);
           alert('Warning: Failed to automatically stop street time. Please verify your street time entry.');
