@@ -6,6 +6,7 @@ import Input from '../shared/Input';
 import useBreakStore from '../../stores/breakStore';
 import useRouteStore from '../../stores/routeStore';
 import useAuthStore from '../../stores/authStore';
+import { getLocalDateString } from '../../utils/time';
 
 export default function BreaksScreen() {
   const alarmActive = useBreakStore((state) => state.alarmActive);
@@ -18,6 +19,7 @@ export default function BreaksScreen() {
   const breakTime = useBreakStore((state) => state.breakTime);
   const breakType = useBreakStore((state) => state.breakType);
   const todaysBreaks = useBreakStore((state) => state.todaysBreaks);
+  const todaysBreaksDate = useBreakStore((state) => state.todaysBreaksDate);
 
   const loadTruckActive = useBreakStore((state) => state.loadTruckActive);
   const loadTruckTime = useBreakStore((state) => state.loadTruckTime);
@@ -28,6 +30,7 @@ export default function BreaksScreen() {
   const endLunch = useBreakStore((state) => state.endLunch);
   const startBreak = useBreakStore((state) => state.startBreak);
   const endBreak = useBreakStore((state) => state.endBreak);
+  const clearTodaysBreaks = useBreakStore((state) => state.clearTodaysBreaks);
   const cancelBreak = useBreakStore((state) => state.cancelBreak);
   const startLoadTruck = useBreakStore((state) => state.startLoadTruck);
   const endLoadTruck = useBreakStore((state) => state.endLoadTruck);
@@ -51,6 +54,14 @@ export default function BreaksScreen() {
       initializeFromDatabase();
     }
   }, [initialized, initializeFromDatabase]);
+
+  // Keep "Today's Breaks" list scoped to today even if the tab stays open across midnight.
+  useEffect(() => {
+    const today = getLocalDateString();
+    if (todaysBreaks?.length && todaysBreaksDate && todaysBreaksDate !== today) {
+      clearTodaysBreaks();
+    }
+  }, [todaysBreaksDate, clearTodaysBreaks]);
 
   useEffect(() => {
     if (user?.id) {
