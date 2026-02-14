@@ -321,6 +321,195 @@ export async function saveRouteHistory(routeId, historyData, waypoints = null) {
   return convertHistoryFieldNames(data);
 }
 
+export async function moveDayToRoute({ fromRouteId, toRouteId, date, overwrite = false }) {
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+  const { session } = await safeGetSession(supabase, 5000);
+  const token = session?.access_token || getAccessTokenFromStorage();
+  if (!token) {
+    throw new Error('Not authenticated (cannot move day). Please sign in again.');
+  }
+
+  if (!fromRouteId || !toRouteId) throw new Error('Missing route');
+  if (!date) throw new Error('Missing date');
+  if (fromRouteId === toRouteId) return { moved: false, reason: 'same-route' };
+
+  const selectSource = async () => {
+    return withTimeout(
+      supabase
+        .from('route_history')
+        .select('*')
+        .eq('route_id', fromRouteId)
+        .eq('date', date)
+        .maybeSingle(),
+      10000,
+      'moveDayToRoute source select'
+    );
+  };
+
+  let src;
+  try {
+    const { data, error } = await selectSource();
+    if (error) throw error;
+    src = data;
+  } catch (e) {
+    console.warn('[moveDayToRoute] Falling back to REST source select:', e?.message || e);
+    if (!supabaseUrl || !supabaseAnonKey) throw e;
+    const rows = await fetchRestJSON({
+      supabaseUrl,
+      anonKey: supabaseAnonKey,
+      token,
+      path: '/rest/v1/route_history',
+      timeoutMs: 12000,
+      label: 'REST moveDayToRoute source select',
+      query: { select: '*', route_id: `eq.${fromRouteId}`, date: `eq.${date}`, limit: '1' },
+    });
+    src = Array.isArray(rows) ? rows[0] : rows;
+  }
+
+  if (!src) throw new Error('No saved day found to move for that date on the current route.');
+
+  // Check destination existence
+  const destExists = async () => {
+    const { data, error } = await withTimeout(
+      supabase
+        .from('route_history')
+        .select('id')
+        .eq('route_id', toRouteId)
+        .eq('date', date)
+        .maybeSingle(),
+      8000,
+      'moveDayToRoute dest select'
+    );
+    if (error) throw error;
+    return !!data;
+  };
+
+  let hasDest = false;
+  try {
+    hasDest = await destExists();
+  } catch (e) {
+    // REST fallback
+    if (supabaseUrl && supabaseAnonKey) {
+      const rows = await fetchRestJSON({
+        supabaseUrl,
+        anonKey: supabaseAnonKey,
+        token,
+        path: '/rest/v1/route_history',
+        timeoutMs: 12000,
+        label: 'REST moveDayToRoute dest select',
+        query: { select: 'id', route_id: `eq.${toRouteId}`, date: `eq.${date}`, limit: '1' },
+      });
+      hasDest = Array.isArray(rows) ? rows.length > 0 : !!rows;
+    }
+  }
+
+  if (hasDest && !overwrite) {
+    throw new Error('That destination route already has a saved record for this date. Choose overwrite to replace it.');
+  }
+
+  // Prepare destination payload (clone src, swap route_id, drop id)
+  const destPayload = { ...src };
+  delete destPayload.id;
+  destPayload.route_id = toRouteId;
+  destPayload.updated_at = new Date().toISOString();
+
+  // Overwrite destination if needed
+  if (hasDest && overwrite) {
+    try {
+      await withTimeout(
+        supabase.from('route_history').delete().eq('route_id', toRouteId).eq('date', date),
+        10000,
+        'moveDayToRoute dest delete'
+      );
+    } catch (e) {
+      if (!supabaseUrl || !supabaseAnonKey) throw e;
+      await restWrite({
+        supabaseUrl,
+        anonKey: supabaseAnonKey,
+        token,
+        path: '/rest/v1/route_history',
+        method: 'DELETE',
+        query: { route_id: `eq.${toRouteId}`, date: `eq.${date}` },
+        timeoutMs: 12000,
+        label: 'REST moveDayToRoute dest delete',
+      });
+    }
+  }
+
+  // Upsert destination
+  try {
+    await withTimeout(
+      supabase.from('route_history').upsert(destPayload, { onConflict: 'route_id,date' }),
+      12000,
+      'moveDayToRoute dest upsert'
+    );
+  } catch (e) {
+    if (!supabaseUrl || !supabaseAnonKey) throw e;
+    await restUpsert({
+      supabaseUrl,
+      anonKey: supabaseAnonKey,
+      token,
+      path: '/rest/v1/route_history',
+      onConflict: 'route_id,date',
+      body: [destPayload],
+      timeoutMs: 12000,
+      label: 'REST moveDayToRoute dest upsert',
+    });
+  }
+
+  // Move operation_codes rows (best-effort)
+  try {
+    await withTimeout(
+      supabase.from('operation_codes').update({ route_id: toRouteId, updated_at: new Date().toISOString() }).eq('route_id', fromRouteId).eq('date', date),
+      12000,
+      'moveDayToRoute operation_codes update'
+    );
+  } catch (e) {
+    if (supabaseUrl && supabaseAnonKey) {
+      try {
+        await restWrite({
+          supabaseUrl,
+          anonKey: supabaseAnonKey,
+          token,
+          path: '/rest/v1/operation_codes',
+          method: 'PATCH',
+          body: { route_id: toRouteId, updated_at: new Date().toISOString() },
+          query: { route_id: `eq.${fromRouteId}`, date: `eq.${date}` },
+          timeoutMs: 12000,
+          label: 'REST moveDayToRoute operation_codes update',
+        });
+      } catch (e2) {
+        console.warn('[moveDayToRoute] operation_codes move failed:', e2?.message || e2);
+      }
+    }
+  }
+
+  // Delete source route_history row
+  try {
+    await withTimeout(
+      supabase.from('route_history').delete().eq('route_id', fromRouteId).eq('date', date),
+      10000,
+      'moveDayToRoute source delete'
+    );
+  } catch (e) {
+    if (!supabaseUrl || !supabaseAnonKey) throw e;
+    await restWrite({
+      supabaseUrl,
+      anonKey: supabaseAnonKey,
+      token,
+      path: '/rest/v1/route_history',
+      method: 'DELETE',
+      query: { route_id: `eq.${fromRouteId}`, date: `eq.${date}` },
+      timeoutMs: 12000,
+      label: 'REST moveDayToRoute source delete',
+    });
+  }
+
+  return { moved: true };
+}
+
 export async function updateRouteHistory(id, updates) {
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
   const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;

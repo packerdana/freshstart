@@ -12,7 +12,7 @@ import { calculateRecordDays, formatRecordValue, formatRecordDate } from '../../
 // Office Performance (% to Standard) removed (was confusing/inaccurate)
 // import { calculateAveragePerformance } from '../../utils/percentToStandard';
 import { calculateFullDayPrediction } from '../../services/predictionService';
-import { ensureRouteHistoryDay, updateRouteHistory } from '../../services/routeHistoryService';
+import { ensureRouteHistoryDay, updateRouteHistory, moveDayToRoute } from '../../services/routeHistoryService';
 import { getStreetTimeSummaryByDate, getOperationCodesForDate } from '../../services/streetTimeHistoryService';
 import { formatUtcAsChicago } from '../../utils/timezone';
 import { deriveOfficeTimeMinutes, findFirst721 } from '../../utils/deriveOfficeTime';
@@ -33,6 +33,8 @@ export default function StatsScreen() {
 
   const [fixDayOpen, setFixDayOpen] = useState(false);
   const [fixDaySaving, setFixDaySaving] = useState(false);
+  const [fixDayMoving, setFixDayMoving] = useState(false);
+  const [fixDayMoveRouteId, setFixDayMoveRouteId] = useState('');
   const [fixDayRecord, setFixDayRecord] = useState(null);
   const [fixDayForm, setFixDayForm] = useState({
     dps: '',
@@ -1152,6 +1154,7 @@ export default function StatsScreen() {
                             }
 
                             setFixDayRecord(record);
+                            setFixDayMoveRouteId(currentRouteId || '');
                             setFixDayForm({
                               dps: record.dps ?? '',
                               flats: record.flats ?? '',
@@ -1411,6 +1414,7 @@ export default function StatsScreen() {
                             }
 
                             setFixDayRecord(record);
+                            setFixDayMoveRouteId(currentRouteId || '');
                             setFixDayForm({
                               dps: record.dps ?? '',
                               flats: record.flats ?? '',
@@ -1730,6 +1734,68 @@ export default function StatsScreen() {
               </p>
 
               <div className="space-y-3">
+                {/* T-6 / multi-route recovery: move this day to another route */}
+                {Object.keys(routes || {}).length > 1 ? (
+                  <div className="p-3 border border-gray-200 rounded-lg bg-gray-50">
+                    <p className="font-semibold text-gray-900 text-sm">Route for this day</p>
+                    <p className="text-xs text-gray-600 mb-2">If this day saved under the wrong route, move it here.</p>
+                    <select
+                      value={fixDayMoveRouteId || ''}
+                      onChange={(e) => setFixDayMoveRouteId(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white"
+                    >
+                      {Object.values(routes || {}).map((r) => (
+                        <option key={r.id} value={r.id}>
+                          {r.routeNumber ? `Route ${r.routeNumber}` : r.id}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="flex gap-2 mt-2">
+                      <Button
+                        variant="secondary"
+                        className="flex-1"
+                        disabled={fixDayMoving || fixDaySaving || !fixDayMoveRouteId || fixDayMoveRouteId === currentRouteId}
+                        onClick={async () => {
+                          if (!fixDayRecord?.date) return;
+                          if (!fixDayMoveRouteId || fixDayMoveRouteId === currentRouteId) return;
+                          const ok = window.confirm(
+                            `Move ${fixDayRecord.date} from the current route to the selected route?\n\nThis will move BOTH the day totals and timers for that date.`
+                          );
+                          if (!ok) return;
+
+                          try {
+                            setFixDayMoving(true);
+
+                            // If destination already has data, offer overwrite.
+                            // We don't pre-check via API here; just ask if they want overwrite when needed.
+                            let overwrite = window.confirm(
+                              `If the selected route already has data for ${fixDayRecord.date}, should we overwrite it?\n\nOK = overwrite if needed\nCancel = do not overwrite`
+                            );
+
+                            await moveDayToRoute({
+                              fromRouteId: currentRouteId,
+                              toRouteId: fixDayMoveRouteId,
+                              date: fixDayRecord.date,
+                              overwrite,
+                            });
+
+                            alert('Moved day to the selected route.');
+                            setFixDayOpen(false);
+                            setFixDayRecord(null);
+                            await loadRouteHistory(currentRouteId);
+                          } catch (e) {
+                            alert(e?.message || 'Failed to move day');
+                          } finally {
+                            setFixDayMoving(false);
+                          }
+                        }}
+                      >
+                        {fixDayMoving ? 'Moving…' : 'Move day'}
+                      </Button>
+                    </div>
+                  </div>
+                ) : null}
+
                 <label className="flex items-center gap-3 p-3 border border-gray-200 rounded-lg">
                   <input
                     type="checkbox"
