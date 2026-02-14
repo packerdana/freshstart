@@ -194,19 +194,54 @@ export async function saveRouteHistory(routeId, historyData, waypoints = null) {
     error = e;
   }
 
-  // If the DB schema hasn't been migrated yet (common in early testing), retry without new columns.
+  const stripCols = (payload, cols) => {
+    const p = { ...payload };
+    (cols || []).forEach((c) => {
+      try { delete p[c]; } catch {}
+    });
+    return p;
+  };
+
+  // If the DB schema hasn't been migrated yet (common in early testing), retry without missing columns.
   if (error) {
     const msg = String(error.message || error);
-    const missingCasingCol = msg.includes("casing_withdrawal_minutes") && msg.includes('schema cache');
-    const missingDailyLogCol = msg.includes("daily_log") && msg.includes('schema cache');
 
-    if (missingCasingCol || missingDailyLogCol) {
-      console.warn('Route history save: DB missing new column(s); retrying without them. Error:', msg);
+    const missingCasingCol = msg.includes('casing_withdrawal_minutes') && msg.includes('schema cache');
+    const missingDailyLogCol = msg.includes('daily_log') && msg.includes('schema cache');
+
+    // Boxholder columns were added later; tolerate older DBs.
+    const missingHasBoxholder = msg.includes('has_boxholder') && msg.includes('schema cache');
+    const missingCasedBoxholder = msg.includes('cased_boxholder') && msg.includes('schema cache');
+    const missingCasedBoxholderType = msg.includes('cased_boxholder_type') && msg.includes('schema cache');
+
+    const colsToStrip = [];
+    if (missingCasingCol) colsToStrip.push('casing_withdrawal_minutes');
+    if (missingDailyLogCol) colsToStrip.push('daily_log');
+    if (missingHasBoxholder) colsToStrip.push('has_boxholder');
+    if (missingCasedBoxholder) colsToStrip.push('cased_boxholder');
+    if (missingCasedBoxholderType) colsToStrip.push('cased_boxholder_type');
+
+    if (colsToStrip.length) {
+      console.warn('Route history save: DB missing column(s); retrying without them. Missing:', colsToStrip.join(', '));
+      const fallbackPayload = stripCols(extendedPayload, colsToStrip);
+      const fallbackBase = stripCols(basePayload, colsToStrip);
+
       try {
-        ({ data, error } = await withTimeout(tryUpsert(basePayload), 10000, 'saveRouteHistory upsert (base)'));
+        // Prefer the extended payload unless we stripped both extended-only fields.
+        ({ data, error } = await withTimeout(tryUpsert(fallbackPayload), 10000, 'saveRouteHistory upsert (fallback)'));
       } catch (e) {
         data = null;
         error = e;
+      }
+
+      // If that still fails (e.g. multiple missing columns), fall back to base.
+      if (error) {
+        try {
+          ({ data, error } = await withTimeout(tryUpsert(fallbackBase), 10000, 'saveRouteHistory upsert (fallback base)'));
+        } catch (e) {
+          data = null;
+          error = e;
+        }
       }
     }
   }
@@ -239,17 +274,46 @@ export async function saveRouteHistory(routeId, historyData, waypoints = null) {
       return rows;
     };
 
+    const stripCols = (payload, cols) => {
+      const p = { ...payload };
+      (cols || []).forEach((c) => {
+        try { delete p[c]; } catch {}
+      });
+      return p;
+    };
+
     try {
       const row = await tryRest(extendedPayload, 'REST saveRouteHistory (extended)');
       return convertHistoryFieldNames(row);
     } catch (e) {
       const msg = String(e?.message || e);
+
       const missingCasingCol = msg.includes('casing_withdrawal_minutes') && msg.includes('schema cache');
       const missingDailyLogCol = msg.includes('daily_log') && msg.includes('schema cache');
-      if (missingCasingCol || missingDailyLogCol) {
-        const row = await tryRest(basePayload, 'REST saveRouteHistory (base)');
-        return convertHistoryFieldNames(row);
+      const missingHasBoxholder = msg.includes('has_boxholder') && msg.includes('schema cache');
+      const missingCasedBoxholder = msg.includes('cased_boxholder') && msg.includes('schema cache');
+      const missingCasedBoxholderType = msg.includes('cased_boxholder_type') && msg.includes('schema cache');
+
+      const colsToStrip = [];
+      if (missingCasingCol) colsToStrip.push('casing_withdrawal_minutes');
+      if (missingDailyLogCol) colsToStrip.push('daily_log');
+      if (missingHasBoxholder) colsToStrip.push('has_boxholder');
+      if (missingCasedBoxholder) colsToStrip.push('cased_boxholder');
+      if (missingCasedBoxholderType) colsToStrip.push('cased_boxholder_type');
+
+      if (colsToStrip.length) {
+        const fallbackExtended = stripCols(extendedPayload, colsToStrip);
+        const fallbackBase = stripCols(basePayload, colsToStrip);
+
+        try {
+          const row = await tryRest(fallbackExtended, 'REST saveRouteHistory (fallback)');
+          return convertHistoryFieldNames(row);
+        } catch {
+          const row = await tryRest(fallbackBase, 'REST saveRouteHistory (fallback base)');
+          return convertHistoryFieldNames(row);
+        }
       }
+
       throw e;
     }
   }

@@ -362,7 +362,9 @@ export default function TodayScreen() {
   }, [todayInputs, history, waypoints, currentRouteId, getCurrentRouteConfig]);
 
   // Autosave critical volumes to Supabase so mobile state loss can't wipe them.
+  const [volumesSaveError, setVolumesSaveError] = useState(null);
   const volumesSaveTimerRef = useRef(null);
+  const volumesRetryTimerRef = useRef(null);
   const lastVolumesSavedRef = useRef(null);
   const pendingVolumesPayloadRef = useRef(null);
 
@@ -399,9 +401,27 @@ export default function TodayScreen() {
       try {
         await upsertTodayVolumes(payload);
         lastVolumesSavedRef.current = fingerprint;
+        setVolumesSaveError(null);
       } catch (e) {
         // Non-fatal: keep UI working even if offline.
-        console.warn('[TodayScreen] Volume autosave failed:', e?.message || e);
+        const msg = e?.message || String(e);
+        console.warn('[TodayScreen] Volume autosave failed:', msg);
+        setVolumesSaveError(msg);
+
+        // If the user stops typing, still keep trying in the background.
+        if (volumesRetryTimerRef.current) clearTimeout(volumesRetryTimerRef.current);
+        volumesRetryTimerRef.current = setTimeout(async () => {
+          try {
+            const p = pendingVolumesPayloadRef.current;
+            if (!p) return;
+            await upsertTodayVolumes(p);
+            lastVolumesSavedRef.current = JSON.stringify(p);
+            setVolumesSaveError(null);
+          } catch (e2) {
+            console.warn('[TodayScreen] Volume autosave retry failed:', e2?.message || e2);
+            setVolumesSaveError(e2?.message || String(e2));
+          }
+        }, 15000);
       }
     }, 250);
   };
@@ -412,8 +432,10 @@ export default function TodayScreen() {
     try {
       await upsertTodayVolumes(payload);
       lastVolumesSavedRef.current = JSON.stringify(payload);
+      setVolumesSaveError(null);
     } catch (e) {
       console.warn('[TodayScreen] Volume flush failed:', e?.message || e);
+      setVolumesSaveError(e?.message || String(e));
     }
   };
 
@@ -1196,6 +1218,17 @@ export default function TodayScreen() {
 
   return (
     <div className="p-4 pb-20 max-w-4xl mx-auto">
+      {volumesSaveError ? (
+        <div className="mb-4 p-3 rounded-lg border border-red-300 bg-red-50 text-red-900 text-sm">
+          <div className="font-semibold">Not saved to cloud yet</div>
+          <div className="text-xs mt-1">
+            Your volumes may disappear if the page refreshes. Usually this means offline or signed out.
+          </div>
+          <div className="text-[11px] mt-1 opacity-80 break-words">
+            {String(volumesSaveError).slice(0, 200)}
+          </div>
+        </div>
+      ) : null}
       <div className="mb-6">
         <div className="flex items-center justify-between mb-2">
           <div>
