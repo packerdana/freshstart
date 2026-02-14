@@ -731,6 +731,24 @@ export default function TodayScreen() {
       const predictedStreetMinutes = Math.round(prediction?.streetTime || 0);
       const runningLong = actualStreetMinutes > (predictedStreetMinutes + 15);
 
+      // If 744 is active, sync it immediately before we continue.
+      // This makes 744 show up in operation_codes even if the later end-of-day save flow fails.
+      if (pmOfficeSession && !pmOfficeSession.ended_at) {
+        try {
+          const approxMinutes = Math.max(0, Math.round(Number(pmOfficeTime || 0) / 60));
+          const todayKey = getLocalDateString();
+          await syncPmOfficeToHistory({
+            routeId: currentRouteId,
+            date: todayKey,
+            minutes: approxMinutes,
+            startedAt: pmOfficeSession.started_at || null,
+            endedAt: null,
+          });
+        } catch (e) {
+          console.warn('[TodayScreen] Pre-sync 744 failed (non-fatal):', e?.message || e);
+        }
+      }
+
       // If the user never started 744 PM Office, prompt for manual minutes before completing.
       // We only prompt when something is "missing".
       const missingPmOffice = !pmOfficeSession && (pmOfficeTime || 0) <= 0;
