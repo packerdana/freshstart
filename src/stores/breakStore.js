@@ -4,6 +4,7 @@ import { smartLoadMonitor } from '../services/smart-load-monitor';
 import { saveBreakState, loadBreakState, clearBreakState } from '../services/breakService';
 import useRouteStore from './routeStore';
 import { supabase } from '../lib/supabase';
+import { getLocalDateString } from '../utils/time';
 
 // ADDED: Auto-save interval (save state every 30 seconds while timer is active)
 let autoSaveInterval = null;
@@ -284,7 +285,7 @@ const useBreakStore = create(
       const routeId = useRouteStore.getState().currentRouteId;
       if (routeId) {
         const { data: { user } } = await supabase.auth.getUser();
-        const today = getTodayDate();
+        const today = getLocalDateString();
         const sessionId = `lunch_${Date.now()}_${user?.email?.split('@')[0] || user?.id || 'user'}`;
 
         await supabase
@@ -426,7 +427,7 @@ const useBreakStore = create(
       const routeId = useRouteStore.getState().currentRouteId;
       if (routeId) {
         const { data: { user } } = await supabase.auth.getUser();
-        const today = getTodayDate();
+        const today = getLocalDateString();
         const sessionId = `brk_${Date.now()}_${user?.email?.split('@')[0] || user?.id || 'user'}`;
 
         const codeMap = {
