@@ -270,11 +270,11 @@ export default function TodayScreen() {
         setAccumulatedStreetSeconds(accumulated);
         setRouteStarted(true);
       } else {
-        // No active session - all time is accumulated
+        // No active session - all time is accumulated.
+        // IMPORTANT: Do NOT auto-end the day just because there is no currently-running timer.
+        // Carriers may stop 721 to run 744, or stop timers briefly, and still need the End Tour flow
+        // (EOD report + assistance prompt).
         setAccumulatedStreetSeconds(totalSeconds);
-        if (routeStarted && !session && !pmOfficeSession) {
-          setRouteStarted(false);
-        }
       }
     } catch (error) {
       console.error('Error loading street time session:', error);
