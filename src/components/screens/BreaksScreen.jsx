@@ -273,8 +273,8 @@ export default function BreaksScreen() {
               <span>Waypoint timers paused</span>
             </div>
             <div className="flex items-center gap-2">
-              <span>⏸️</span>
-              <span>Route timer paused</span>
+              <span>▶️</span>
+              <span>Route timer continues running</span>
             </div>
           </div>
         </Card>
