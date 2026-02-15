@@ -1198,11 +1198,23 @@ export default function StatsScreen() {
                               const m721 = Number(c['721'] || 0) || 0;
                               const m744 = Number(c['744'] || 0) || 0;
 
+                              // ⚠️ Safety: "Sync from timers" should NOT erase a manually-fixed 744 (or other overrides)
+                              // just because the timer session row is missing.
+                              // Example: carrier starts 744 then hits End Tour (timer row fails to persist) → m744=0.
+                              // In that case, keep the existing route_history.pm_office_time.
+                              const existing722 = Number(record?.office_time || 0) || 0;
+                              const existing721 = Number(record?.street_time || 0) || 0;
+                              const existing744 = Number(record?.pm_office_time || 0) || 0;
+
+                              const next722 = (m722 > 0) ? Math.round(m722) : existing722;
+                              const next721 = (m721 > 0) ? Math.round(m721) : existing721;
+                              const next744 = (m744 > 0) ? Math.round(m744) : existing744;
+
                               await updateRouteHistory(record.id, {
-                                office_time: Math.round(m722),
-                                street_time: Math.round(m721),
-                                street_time_normalized: Math.round(m721),
-                                pm_office_time: Math.round(m744),
+                                office_time: next722,
+                                street_time: next721,
+                                street_time_normalized: next721,
+                                pm_office_time: next744,
                               });
 
                               await loadRouteHistory(currentRouteId);
