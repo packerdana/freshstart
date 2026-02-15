@@ -71,13 +71,36 @@ export async function syncPmOfficeToHistory({
   // 2) Upsert operation_codes 744 row for day history display.
   // We use a deterministic session_id so repeated syncs update the same row.
   const sessionId = `rw_744_${routeId}_${date}`;
+  // History screens currently only query rows with non-null end_time.
+  // If we are backfilling from a "fixed" value (no real timestamps), synthesize
+  // a reasonable start/end so the row appears in History -> Daily Timeline.
+  let startIso = startedAt || null;
+  if (!startIso) {
+    try {
+      startIso = new Date(`${date}T00:00:00`).toISOString();
+    } catch {
+      startIso = new Date().toISOString();
+    }
+  }
+
+  let endIso = endedAt || null;
+  if (!endIso) {
+    try {
+      const base = new Date(startIso).getTime();
+      const delta = Math.max(1, safeMinutes) * 60 * 1000;
+      endIso = new Date(base + delta).toISOString();
+    } catch {
+      endIso = new Date().toISOString();
+    }
+  }
+
   const opPayload = {
     session_id: sessionId,
     date,
     code: '744',
     code_name: 'PM Office',
-    start_time: startedAt || null,
-    end_time: endedAt || null,
+    start_time: startIso,
+    end_time: endIso,
     duration_minutes: safeMinutes,
     route_id: routeId,
     updated_at: new Date().toISOString(),
