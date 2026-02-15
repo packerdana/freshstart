@@ -14,6 +14,7 @@ import { calculateRecordDays, formatRecordValue, formatRecordDate } from '../../
 import { calculateFullDayPrediction } from '../../services/predictionService';
 import { ensureRouteHistoryDay, updateRouteHistory, moveDayToRoute } from '../../services/routeHistoryService';
 import { getStreetTimeSummaryByDate, getOperationCodesForDate } from '../../services/streetTimeHistoryService';
+import { syncPmOfficeToHistory } from '../../services/pmOfficeSyncService';
 import { formatUtcAsChicago } from '../../utils/timezone';
 import { deriveOfficeTimeMinutes, findFirst721 } from '../../utils/deriveOfficeTime';
 import { buildExpandedDayHistoryRows, shouldUseFixedCoreRows } from '../../utils/dayHistoryDisplay';
@@ -1916,6 +1917,25 @@ export default function StatsScreen() {
                       };
 
                       await updateRouteHistory(fixDayRecord.id, updates);
+
+                      // If the carrier fixed 744 minutes manually, backfill an operation_codes row so
+                      // the History -> Daily Timeline can display 744.
+                      try {
+                        const fixed744 = Number(updates.pm_office_time || 0) || 0;
+                        if (fixed744 > 0 && currentRouteId && fixDayRecord?.date) {
+                          await syncPmOfficeToHistory({
+                            routeId: currentRouteId,
+                            date: fixDayRecord.date,
+                            minutes: fixed744,
+                            startedAt: null,
+                            endedAt: null,
+                          });
+                        }
+                      } catch (e) {
+                        // Non-fatal; route_history already saved.
+                        console.warn('[StatsScreen] Failed to backfill 744 operation code:', e?.message || e);
+                      }
+
                       await loadRouteHistory(currentRouteId);
                       setFixDayOpen(false);
                       setFixDayRecord(null);
