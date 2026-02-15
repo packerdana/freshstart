@@ -115,33 +115,56 @@ export async function syncPmOfficeToHistory({
       10000,
       'syncPmOfficeToHistory operation_codes upsert'
     );
+
+    // If upsert returned an error (some clients return {error} instead of throwing), handle below.
+    if (opRes?.error) throw opRes.error;
   } catch (e) {
-    console.warn('[syncPmOfficeToHistory] Falling back to REST operation_codes upsert:', e?.message || e);
-    if (supabaseUrl && supabaseAnonKey) {
-      const token = getAccessTokenFromStorage();
+    const msg = String(e?.message || e || '');
+
+    // Common schema issue: session_id may not have a unique constraint, so ON CONFLICT fails.
+    // In that case, fall back to a plain insert with a unique-ish session_id.
+    if (msg.includes('no unique') || msg.includes('ON CONFLICT') || msg.includes('42P10')) {
       try {
-        const rows = await restUpsert({
-          supabaseUrl,
-          anonKey: supabaseAnonKey,
-          token,
-          path: '/rest/v1/operation_codes',
-          onConflict: 'session_id',
-          body: [opPayload],
-          timeoutMs: 12000,
-          label: 'REST syncPmOfficeToHistory operation_codes',
-        });
-        opRes = { data: Array.isArray(rows) ? rows[0] : rows, error: null };
+        const insertPayload = {
+          ...opPayload,
+          session_id: `${sessionId}_${Date.now()}`,
+        };
+        opRes = await withTimeout(
+          supabase.from('operation_codes').insert(insertPayload).select('id').maybeSingle(),
+          10000,
+          'syncPmOfficeToHistory operation_codes insert'
+        );
       } catch (e2) {
         opRes = { data: null, error: e2 };
       }
     } else {
-      opRes = { data: null, error: e };
+      console.warn('[syncPmOfficeToHistory] Falling back to REST operation_codes upsert:', msg);
+      if (supabaseUrl && supabaseAnonKey) {
+        const token = getAccessTokenFromStorage();
+        try {
+          const rows = await restUpsert({
+            supabaseUrl,
+            anonKey: supabaseAnonKey,
+            token,
+            path: '/rest/v1/operation_codes',
+            onConflict: 'session_id',
+            body: [opPayload],
+            timeoutMs: 12000,
+            label: 'REST syncPmOfficeToHistory operation_codes',
+          });
+          opRes = { data: Array.isArray(rows) ? rows[0] : rows, error: null };
+        } catch (e2) {
+          opRes = { data: null, error: e2 };
+        }
+      } else {
+        opRes = { data: null, error: e };
+      }
     }
   }
 
   if (opRes?.error) {
     // Non-fatal: route_history is the bigger win for totals; log and continue.
-    console.warn('[syncPmOfficeToHistory] operation_codes upsert failed:', opRes.error?.message || opRes.error);
+    console.warn('[syncPmOfficeToHistory] operation_codes write failed:', opRes.error?.message || opRes.error);
   }
 
   return {
