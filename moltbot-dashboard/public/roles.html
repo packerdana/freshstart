@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>RouteWise AI Roles</title>
+  <style>
+    :root{
+      --bg:#0b1220; --panel:#0f172a; --border:#1f2937; --muted:#94a3b8; --text:#e5e7eb;
+      --blue:#2563eb; --blue2:#1d4ed8; --green:#16a34a; --red:#dc2626; --amber:#f59e0b;
+    }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, sans-serif; margin: 0; background: var(--bg); color: var(--text); }
+    header { padding: 16px 20px; border-bottom: 1px solid var(--border); display:flex; gap:12px; align-items:center; justify-content:space-between; position:sticky; top:0; background:rgba(11,18,32,.92); backdrop-filter: blur(6px); }
+    h1 { font-size: 16px; margin: 0; letter-spacing: .4px; }
+    .wrap { padding: 16px 20px; display: grid; gap: 14px; grid-template-columns: 1fr; max-width: 1100px; margin: 0 auto; }
+    .row { display:flex; gap:10px; flex-wrap: wrap; align-items:center; }
+    .card { background:var(--panel); border:1px solid var(--border); border-radius:12px; overflow:hidden; }
+    .card h2 { font-size: 13px; margin: 0; padding: 12px 14px; border-bottom: 1px solid var(--border); color:#cbd5e1; display:flex; align-items:center; justify-content:space-between; gap:10px; }
+    .card .body { padding: 12px 14px; display:grid; gap:10px; }
+    .meta { font-size: 12px; color: var(--muted); line-height: 1.4; }
+    code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+    .pill { display:inline-flex; align-items:center; gap:8px; padding: 6px 10px; border-radius: 999px; border:1px solid #334155; color:#cbd5e1; text-decoration:none; font-size:12px; }
+
+    .dot{ width:10px; height:10px; border-radius:999px; display:inline-block; border:1px solid rgba(255,255,255,.2); }
+    .dot.ok{ background: rgba(22,163,74,.9); }
+    .dot.bad{ background: rgba(220,38,38,.9); }
+    .dot.warn{ background: rgba(245,158,11,.9); }
+
+    label{ font-size:12px; color:#cbd5e1; font-weight:600; }
+    input[type=text]{ width:100%; box-sizing:border-box; background:#0b1220; border:1px solid #334155; border-radius:10px; padding:10px 12px; color:var(--text); }
+    input[type=text]::placeholder{ color:#64748b; }
+
+    button{ background:#1f2937; border:1px solid #374151; color:var(--text); padding:10px 12px; border-radius:10px; cursor:pointer; font-weight:600; }
+    button:hover{ background:#111827; }
+    button.primary{ background:var(--blue); border-color:var(--blue2); }
+    button.primary:hover{ background:var(--blue2); }
+    button.ghost{ background:transparent; }
+    button.danger{ background:#b91c1c; border-color:#991b1b; }
+    button.danger:hover{ background:#991b1b; }
+
+    .grid{ display:grid; grid-template-columns: 1fr; gap:10px; }
+    @media (min-width: 860px){
+      .grid{ grid-template-columns: 1.2fr .8fr; align-items:end; }
+    }
+
+    .actions{ display:flex; gap:10px; flex-wrap:wrap; }
+
+    .toast{ position:fixed; left:50%; bottom:18px; transform:translateX(-50%);
+      background:#0b1220; border:1px solid #334155; color:#e5e7eb; padding:10px 12px; border-radius:12px;
+      box-shadow: 0 8px 30px rgba(0,0,0,.4); font-size:12px; display:none; max-width: 92vw;
+    }
+    .toast.show{ display:block; }
+
+    a{ color:#93c5fd; }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>RouteWise AI Roles</h1>
+      <div class="meta">These are separate Moltbot sessions. This page lets you manage the session keys and quickly copy/open them.</div>
+    </div>
+    <div class="row">
+      <a class="pill" href="/">Back</a>
+      <a id="openControl" class="pill" href="/control" target="_blank" rel="noreferrer">Open Control UI</a>
+      <button id="refresh" class="ghost">Refresh</button>
+    </div>
+  </header>
+
+  <div class="wrap">
+
+    <div class="card">
+      <h2>
+        <span>PM / Command Center</span>
+        <span class="meta">(main chat)</span>
+      </h2>
+      <div class="body">
+        <div class="meta">Keep decisions here so we don’t fork reality. The other roles are specialists you can consult.</div>
+      </div>
+    </div>
+
+    <div id="roles"></div>
+
+    <div class="card">
+      <h2>Quick tips</h2>
+      <div class="body">
+        <div class="meta">
+          <ul style="margin:0; padding-left: 18px;">
+            <li>If a role shows <b>missing</b>, it means that session key doesn’t exist anymore (you’ll need a new one).</li>
+            <li>“Save” just updates <code>roles.json</code> for this dashboard so you don’t have to hunt keys.</li>
+            <li>Use “Copy key” then paste into the Control UI Sessions search.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <script>
+    const el = (id) => document.getElementById(id);
+
+    const ROLE_DEFS = [
+      {
+        key: 'role-mobile-release',
+        title: 'Mobile Release Lead (Capacitor + iOS/Android)',
+        hint: 'App store builds, Capacitor, iOS/Android release checklist.'
+      },
+      {
+        key: 'role-payments',
+        title: 'Payments / Entitlements Lead (IAP + RevenueCat + Supabase)',
+        hint: 'Subscriptions, entitlements, receipts, revenuecat + supabase wiring.'
+      },
+      {
+        key: 'role-legal-compliance',
+        title: 'Legal / Compliance Lead (checklists + drafts)',
+        hint: 'Launch readiness, policies, disclaimers, store compliance.'
+      },
+      {
+        key: 'role-marketing-aso',
+        title: 'Marketing / ASO Lead',
+        hint: 'Positioning, ASO keywords, screenshots, store listing copy.'
+      },
+    ];
+
+    async function api(path, opts) {
+      const res = await fetch(path, opts);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      return data;
+    }
+
+    function toast(msg) {
+      const t = el('toast');
+      t.textContent = msg;
+      t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), 1800);
+    }
+
+    async function copy(text) {
+      try {
+        await navigator.clipboard.writeText(text);
+      } catch {
+        // Fallback
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      }
+    }
+
+    function statusDot(found, hasKey) {
+      if (!hasKey) return '<span class="dot warn" title="Not set"></span>';
+      // The sessions list is only a local index; sessions can still be usable even if not listed.
+      return found ? '<span class="dot ok" title="Listed in local sessions index"></span>' : '<span class="dot warn" title="Not in local sessions index (may still work)""></span>';
+    }
+
+    function render(roles, sessions) {
+      const container = el('roles');
+      container.innerHTML = '';
+
+      const sessionKeys = new Set((sessions || []).map(s => s.key));
+
+      for (const def of ROLE_DEFS) {
+        const value = roles?.[def.key] || '';
+        const found = value ? sessionKeys.has(value) : false;
+        const statusText = !value ? 'not set' : (found ? 'listed' : 'unlisted (may still work)');
+
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.innerHTML = `
+          <h2>
+            <span style="display:flex; align-items:center; gap:10px;">
+              ${statusDot(found, !!value)}
+              <span>${def.title}</span>
+            </span>
+            <span class="meta"><code>${def.key}</code></span>
+          </h2>
+          <div class="body">
+            <div class="meta">${def.hint}</div>
+
+            <div class="grid">
+              <div>
+                <label for="in-${def.key}">Session key</label>
+                <input id="in-${def.key}" type="text" placeholder="agent:main:subagent:…" value="${value.replaceAll('"','&quot;')}" />
+              </div>
+              <div class="actions">
+                <button class="primary" data-save="${def.key}">Save</button>
+                <button data-copy="${def.key}">Copy key</button>
+                <button data-clear="${def.key}" class="danger">Clear</button>
+              </div>
+            </div>
+
+            <div class="meta">Status: <b>${statusText}</b></div>
+          </div>
+        `;
+
+        container.appendChild(card);
+      }
+
+      // Wire buttons
+      container.querySelectorAll('button[data-copy]').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const key = btn.getAttribute('data-copy');
+          const v = el(`in-${key}`).value.trim();
+          if (!v) return toast('Nothing to copy');
+          await copy(v);
+          toast('Copied session key');
+        });
+      });
+
+      container.querySelectorAll('button[data-clear]').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const key = btn.getAttribute('data-clear');
+          el(`in-${key}`).value = '';
+          await saveOne(key, '');
+        });
+      });
+
+      container.querySelectorAll('button[data-save]').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const key = btn.getAttribute('data-save');
+          const v = el(`in-${key}`).value.trim();
+          await saveOne(key, v);
+        });
+      });
+    }
+
+    async function saveOne(roleKey, value) {
+      try {
+        await api('/api/roles', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ roles: { [roleKey]: value } })
+        });
+        toast(value ? 'Saved' : 'Cleared');
+        await load();
+      } catch (e) {
+        alert(String(e.message || e));
+      }
+    }
+
+    async function load() {
+      const [rolesRes, sessionsRes, controlRes] = await Promise.allSettled([
+        api('/api/roles'),
+        api('/api/sessions'),
+        api('/api/control-ui-url'),
+      ]);
+
+      const roles = rolesRes.status === 'fulfilled' ? rolesRes.value.roles : {};
+      const sessions = sessionsRes.status === 'fulfilled' ? sessionsRes.value.sessions : [];
+
+      // Update Control UI link (tokenized when available)
+      if (controlRes.status === 'fulfilled' && controlRes.value?.url) {
+        el('openControl').href = controlRes.value.url;
+      }
+
+      render(roles, sessions);
+    }
+
+    el('refresh').addEventListener('click', load);
+    load();
+  </script>
+</body>
+</html>

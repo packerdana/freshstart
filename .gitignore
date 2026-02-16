@@ -3,3 +3,14 @@ secrets/
 
 # Misc local
 *.log
+
+# Temp / downloads / large artifacts
+/tmp/
+**/node_modules/
+
+# Nested repos (tracked separately)
+/Larry-Bot/
+/packerdana-freshstart/
+
+# Research PDFs (keep local unless we decide to use LFS)
+/nalc-research/

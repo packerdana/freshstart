@@ -1,0 +1,88 @@
+{
+  "meta": {
+    "orgName": "RouteWise",
+    "subtitle": "Operational structure (roles + future agents)",
+    "updated": "2026-02-16"
+  },
+  "leaders": [
+    {
+      "id": "dana",
+      "name": "Dana",
+      "title": "Founder / CEO",
+      "focus": "Vision, carrier reality checks, final product decisions",
+      "status": "active"
+    },
+    {
+      "id": "larry",
+      "name": "Larry",
+      "title": "CTO / Ops Assistant",
+      "focus": "Engineering execution, debugging, automation, dashboards",
+      "status": "active"
+    }
+  ],
+  "departments": [
+    {
+      "id": "product",
+      "name": "Product & UX",
+      "head": "Casey",
+      "desc": "Design system, Today/Setup flow, clarity, speed, accessibility",
+      "roles": [
+        {"name": "UX Polish", "status": "scaffolded", "notes": "Nightly small UI improvements + patches"},
+        {"name": "Setup Flow", "status": "scaffolded", "notes": "Wizard-style setup, reduce friction"}
+      ]
+    },
+    {
+      "id": "engineering",
+      "name": "Engineering",
+      "head": "Alex",
+      "desc": "Frontend, backend, data sync durability, deployments",
+      "roles": [
+        {"name": "Frontend", "status": "active", "notes": "React/Vite UI"},
+        {"name": "Data Sync & Durability", "status": "active", "notes": "Supabase saves, offline/refresh recovery"},
+        {"name": "DevOps", "status": "scaffolded", "notes": "CI, backups, release checks"}
+      ]
+    },
+    {
+      "id": "prediction",
+      "name": "Predictions & Analytics",
+      "head": "Eli",
+      "desc": "Great predictions, confidence, drivers, accuracy tracking",
+      "roles": [
+        {"name": "Prediction Model", "status": "active", "notes": "Street/office time prediction + confidence"},
+        {"name": "Community Averages (future)", "status": "scaffolded", "notes": "CCA shared route times with normalization + opt-in"}
+      ]
+    },
+    {
+      "id": "support",
+      "name": "Support & Feedback",
+      "head": "Maya",
+      "desc": "Bug intake, FAQs, fast fixes, release notes",
+      "roles": [
+        {"name": "Bug Triage", "status": "active", "notes": "Repro steps, logs, priority"},
+        {"name": "Docs/Manual", "status": "scaffolded", "notes": "Carrier-friendly help"}
+      ]
+    },
+    {
+      "id": "growth",
+      "name": "Growth & Marketing",
+      "head": "Chloe",
+      "desc": "Demos, landing page, referrals, list growth",
+      "roles": [
+        {"name": "Demos (Descript)", "status": "scaffolded", "notes": "Short demo clips"},
+        {"name": "One-pagers (Gamma)", "status": "scaffolded", "notes": "Shareable explainers"},
+        {"name": "Automation (Make)", "status": "scaffolded", "notes": "Lead/support workflows"}
+      ]
+    },
+    {
+      "id": "ops",
+      "name": "Ops / Security / Compliance",
+      "head": "Robocop",
+      "desc": "Keys, backups, privacy, union-friendly framing",
+      "roles": [
+        {"name": "Backups", "status": "active", "notes": "Larry-Bot encrypted backups"},
+        {"name": "Security", "status": "active", "notes": "RLS, key hygiene, auth"},
+        {"name": "NALC/USPS Compliance", "status": "scaffolded", "notes": "References + exports"}
+      ]
+    }
+  ]
+}

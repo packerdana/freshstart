@@ -1,0 +1,18 @@
+diff --git a/src/index.css b/src/index.css
+index 6a12a42..73032a1 100644
+--- a/src/index.css
++++ b/src/index.css
+@@ -4,7 +4,12 @@
+ 
+ @layer components {
+   .card {
+-    @apply bg-white rounded-xl shadow-sm p-6 mb-4;
++    /* UI polish: slightly tighter padding on small screens, keep roomy on md+ */
++    @apply bg-white rounded-xl shadow-sm p-4 md:p-6 mb-4;
++  }
++
++  .card-title {
++    @apply text-lg font-semibold text-gray-900 leading-snug;
+   }
+ 
+   .btn-primary {

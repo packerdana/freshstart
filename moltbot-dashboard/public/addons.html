@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Moltbot Dashboard — Add-ons</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, sans-serif; margin: 0; background: #0b1220; color: #e5e7eb; }
+    header { padding: 16px 20px; border-bottom: 1px solid #1f2937; display:flex; gap:12px; align-items:center; justify-content:space-between; }
+    h1 { font-size: 16px; margin: 0; letter-spacing: .4px; }
+    .wrap { padding: 16px 20px; display: grid; gap: 14px; grid-template-columns: 1fr; max-width: 1100px; margin: 0 auto; }
+    .row { display:flex; gap:10px; flex-wrap: wrap; align-items:center; }
+    button { background:#1f2937; border:1px solid #374151; color:#e5e7eb; padding:10px 12px; border-radius:10px; cursor:pointer; }
+    button:hover { background:#111827; }
+    button.primary { background:#2563eb; border-color:#1d4ed8; }
+    button.primary:hover { background:#1d4ed8; }
+    .card { background:#0f172a; border:1px solid #1f2937; border-radius:12px; overflow:hidden; }
+    .card h2 { font-size: 13px; margin: 0; padding: 12px 14px; border-bottom: 1px solid #1f2937; color:#cbd5e1; }
+    .card .content { padding: 12px 14px; }
+    pre { margin: 0; padding: 12px 14px; overflow:auto; white-space:pre-wrap; word-break:break-word; font-size: 12px; line-height: 1.45; background:#0b1220; border:1px solid #1f2937; border-radius:10px; }
+    .meta { font-size: 12px; color:#94a3b8; }
+    a { color:#93c5fd; }
+    .grid2 { display:grid; gap:10px; grid-template-columns: 1fr; }
+    @media (min-width: 900px) { .grid2 { grid-template-columns: 1fr 1fr; } }
+    .pill { display:inline-block; padding: 3px 8px; border-radius: 999px; border:1px solid #334155; color:#cbd5e1; }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>Moltbot Add-ons</h1>
+      <div class="meta">Guided setup + links (safe mode: no automatic installs)</div>
+    </div>
+    <div class="row">
+      <a href="/" class="pill">← Back to dashboard</a>
+      <a href="http://localhost:18789/" target="_blank" rel="noreferrer" class="pill">Open Control UI</a>
+      <button id="doctor" class="primary">Run moltbot doctor</button>
+    </div>
+  </header>
+
+  <div class="wrap">
+    <div class="card">
+      <h2>Recommended Add-ons</h2>
+      <div class="content">
+        <div class="grid2">
+          <div>
+            <h3 style="margin:0 0 6px 0; font-size:14px;">1) Web Search (Brave)</h3>
+            <div class="meta">Adds research + Reddit/NALC digging with sources. Requires a Brave Search API key.</div>
+            <pre id="brave">Steps:
+1) Get a Brave Search API key
+2) In Control UI → Config, set:
+   tools.web.search.enabled = true
+   tools.web.search.provider = "brave"
+   tools.web.search.apiKey = "..."
+3) Restart gateway
+
+(If you want, I can add a config form here next.)
+            </pre>
+          </div>
+          <div>
+            <h3 style="margin:0 0 6px 0; font-size:14px;">2) Browser Relay / Extension</h3>
+            <div class="meta">Lets Moltbot drive a real browser tab for Vercel/Supabase/GitHub admin tasks.</div>
+            <pre>Steps:
+1) Install Moltbot Browser Relay extension
+2) Click the extension on the tab you want to “attach”
+3) Use the Control UI Chat to ask Moltbot to operate that tab
+
+Note: best for "take the wheel" tasks.
+            </pre>
+          </div>
+          <div>
+            <h3 style="margin:0 0 6px 0; font-size:14px;">3) Remote access (Tailscale Serve)</h3>
+            <div class="meta">Safely access Control UI when you’re away from the laptop.</div>
+            <pre>Steps:
+1) Install + login to Tailscale
+2) Run:
+   moltbot gateway --tailscale serve
+3) Open your MagicDNS URL
+
+This keeps your gateway bound to loopback and uses HTTPS.
+            </pre>
+          </div>
+          <div>
+            <h3 style="margin:0 0 6px 0; font-size:14px;">4) Better Memory (optional)</h3>
+            <div class="meta">Better long-term recall (bugs fixed, decisions, prefs). Requires API key depending on provider.</div>
+            <pre>Option: memory-lancedb plugin
+- Pros: auto-capture/recall
+- Cons: needs an embeddings key and uses more resources
+
+We can keep it off until you want it.
+            </pre>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Command Output</h2>
+      <div class="content">
+        <div class="meta" id="outmeta">Click “Run moltbot doctor” to collect diagnostics.</div>
+        <pre id="out">(empty)</pre>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const el = (id) => document.getElementById(id);
+
+    async function api(path, opts) {
+      const res = await fetch(path, opts);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      return data;
+    }
+
+    function fmt(result) {
+      if (!result) return '';
+      let s = '';
+      if (result.cmd) s += result.cmd + '\n\n';
+      if (result.stdout) s += result.stdout + '\n';
+      if (result.stderr) s += '\n[stderr]\n' + result.stderr + '\n';
+      return s.trim();
+    }
+
+    async function runDoctor() {
+      el('outmeta').textContent = 'Running moltbot doctor…';
+      el('out').textContent = '';
+      try {
+        const data = await api('/api/doctor', { method: 'POST' });
+        el('outmeta').textContent = 'Doctor complete.';
+        el('out').textContent = fmt(data.result);
+      } catch (e) {
+        el('outmeta').textContent = 'Doctor failed.';
+        el('out').textContent = String(e.message || e);
+      }
+    }
+
+    el('doctor').addEventListener('click', runDoctor);
+  </script>
+</body>
+</html>

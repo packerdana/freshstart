@@ -1,0 +1,392 @@
+import { create } from 'zustand';
+import { smartLoadMonitor } from '../services/smart-load-monitor';
+import { saveBreakState, loadBreakState, clearBreakState } from '../services/breakService';
+
+// ADDED: Auto-save interval (save state every 30 seconds while timer is active)
+let autoSaveInterval = null;
+
+const startAutoSave = (getState) => {
+  if (autoSaveInterval) return; // Already running
+  
+  autoSaveInterval = setInterval(() => {
+    const state = getState();
+    if (state.lunchActive || state.breakActive || state.loadTruckActive) {
+      saveBreakState(state);
+    }
+  }, 30000); // Save every 30 seconds
+  
+  console.log('✓ Auto-save started for break timers');
+};
+
+const stopAutoSave = () => {
+  if (autoSaveInterval) {
+    clearInterval(autoSaveInterval);
+    autoSaveInterval = null;
+    console.log('✓ Auto-save stopped');
+  }
+};
+
+const useBreakStore = create((set, get) => ({
+  lunchActive: false,
+  lunchTime: 30 * 60,
+  lunchStartTime: null,
+
+  breakActive: false,
+  breakTime: 0,
+  breakType: null,
+  breakStartTime: null,
+
+  loadTruckActive: false,
+  loadTruckTime: 0,
+  loadTruckStartTime: null,
+  loadTruckPackageCount: 0,
+  loadTruckWarning: false,
+
+  todaysBreaks: [],
+
+  // ADDED: Initialize from database
+  initialized: false,
+  initializeFromDatabase: async () => {
+    const savedState = await loadBreakState();
+    
+    if (savedState) {
+      console.log('Restoring break timers from database...');
+      
+      // Restore lunch timer
+      if (savedState.lunchActive && savedState.lunchStartTime) {
+        const elapsed = Math.floor((Date.now() - savedState.lunchStartTime) / 1000);
+        const remaining = Math.max(0, 30 * 60 - elapsed);
+        
+        if (remaining > 0) {
+          set({
+            lunchActive: true,
+            lunchTime: remaining,
+            lunchStartTime: savedState.lunchStartTime,
+          });
+          startAutoSave(get);
+          console.log(`✓ Lunch timer restored: ${Math.floor(remaining / 60)} minutes remaining`);
+        }
+      }
+      
+      // Restore break timer
+      if (savedState.breakActive && savedState.breakStartTime && savedState.breakType) {
+        const elapsed = Math.floor((Date.now() - savedState.breakStartTime) / 1000);
+        
+        if (savedState.breakType.countDown) {
+          const remaining = Math.max(0, savedState.breakType.duration - elapsed);
+          if (remaining > 0) {
+            set({
+              breakActive: true,
+              breakType: savedState.breakType,
+              breakTime: remaining,
+              breakStartTime: savedState.breakStartTime,
+            });
+            startAutoSave(get);
+            console.log(`✓ Break timer restored: ${Math.floor(remaining / 60)} minutes remaining`);
+          }
+        } else {
+          set({
+            breakActive: true,
+            breakType: savedState.breakType,
+            breakTime: elapsed,
+            breakStartTime: savedState.breakStartTime,
+          });
+          startAutoSave(get);
+          console.log(`✓ Break timer restored: ${Math.floor(elapsed / 60)} minutes elapsed`);
+        }
+      }
+      
+      // Restore load truck timer
+      if (savedState.loadTruckActive && savedState.loadTruckStartTime) {
+        const elapsed = Math.floor((Date.now() - savedState.loadTruckStartTime) / 1000);
+        
+        set({
+          loadTruckActive: true,
+          loadTruckTime: elapsed,
+          loadTruckStartTime: savedState.loadTruckStartTime,
+          loadTruckPackageCount: savedState.loadTruckPackageCount || 0,
+        });
+        startAutoSave(get);
+        console.log(`✓ Load truck timer restored: ${Math.floor(elapsed / 60)} minutes elapsed`);
+      }
+    }
+    
+    set({ initialized: true });
+  },
+
+  startLunch: async () => {
+    const state = {
+      lunchActive: true,
+      lunchTime: 30 * 60,
+      lunchStartTime: Date.now(),
+    };
+    
+    set(state);
+    await saveBreakState({ ...get(), ...state }); // ADDED: Save to database
+    startAutoSave(get); // ADDED: Start auto-save
+  },
+
+  endLunch: async () => {
+    const { lunchTime, todaysBreaks } = get();
+    const duration = Math.round((30 * 60 - lunchTime) / 60);
+
+    set({
+      lunchActive: false,
+      lunchStartTime: null,
+      lunchTime: 30 * 60,
+      todaysBreaks: [
+        ...todaysBreaks,
+        {
+          type: 'Lunch',
+          icon: '🍔',
+          time: new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
+          duration: `${duration}m`,
+        },
+      ],
+    });
+    
+    await clearBreakState(); // ADDED: Clear from database
+    stopAutoSave(); // ADDED: Stop auto-save
+  },
+
+  completeLunch: async () => {
+    const { todaysBreaks } = get();
+
+    set({
+      lunchActive: false,
+      lunchStartTime: null,
+      lunchTime: 30 * 60,
+      todaysBreaks: [
+        ...todaysBreaks,
+        {
+          type: 'Lunch',
+          icon: '🍔',
+          time: new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
+          duration: '30m',
+        },
+      ],
+    });
+
+    await clearBreakState(); // ADDED: Clear from database
+    stopAutoSave(); // ADDED: Stop auto-save
+    alert('Lunch break complete!');
+  },
+
+  tickLunch: () => {
+    const { lunchActive, lunchStartTime } = get();
+    if (!lunchActive || !lunchStartTime) return;
+
+    const elapsed = Math.floor((Date.now() - lunchStartTime) / 1000);
+    const remaining = Math.max(0, 30 * 60 - elapsed);
+
+    if (remaining <= 0) {
+      get().completeLunch();
+      return;
+    }
+
+    set({ lunchTime: remaining });
+  },
+
+  startBreak: async (type) => {
+    const state = {
+      breakActive: true,
+      breakType: type,
+      breakTime: type.countDown ? type.duration : 0,
+      breakStartTime: Date.now(),
+    };
+    
+    set(state);
+    await saveBreakState({ ...get(), ...state }); // ADDED: Save to database
+    startAutoSave(get); // ADDED: Start auto-save
+  },
+
+  endBreak: async () => {
+    const { breakTime, breakType, todaysBreaks } = get();
+    let duration;
+
+    if (breakType.countDown) {
+      duration = Math.round((breakType.duration - breakTime) / 60);
+    } else {
+      duration = Math.round(breakTime / 60);
+    }
+
+    set({
+      breakActive: false,
+      breakType: null,
+      breakTime: 0,
+      breakStartTime: null,
+      todaysBreaks: [
+        ...todaysBreaks,
+        {
+          type: breakType.label,
+          icon: breakType.icon,
+          time: new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
+          duration: `${duration}m`,
+        },
+      ],
+    });
+    
+    await clearBreakState(); // ADDED: Clear from database
+    stopAutoSave(); // ADDED: Stop auto-save
+  },
+
+  completeBreak: async () => {
+    const { breakType, todaysBreaks } = get();
+    const duration = Math.round(breakType.duration / 60);
+
+    set({
+      breakActive: false,
+      breakType: null,
+      breakTime: 0,
+      breakStartTime: null,
+      todaysBreaks: [
+        ...todaysBreaks,
+        {
+          type: breakType.label,
+          icon: breakType.icon,
+          time: new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
+          duration: `${duration}m`,
+        },
+      ],
+    });
+
+    await clearBreakState(); // ADDED: Clear from database
+    stopAutoSave(); // ADDED: Stop auto-save
+    alert(`${breakType.label} break complete!`);
+  },
+
+  tickBreak: () => {
+    const { breakActive, breakType, breakStartTime } = get();
+    if (!breakActive || !breakType || !breakStartTime) return;
+
+    const elapsed = Math.floor((Date.now() - breakStartTime) / 1000);
+
+    if (breakType.countDown) {
+      const remaining = Math.max(0, breakType.duration - elapsed);
+
+      if (remaining <= 0) {
+        get().completeBreak();
+        return;
+      }
+
+      set({ breakTime: remaining });
+    } else {
+      set({ breakTime: elapsed });
+    }
+  },
+
+  cancelBreak: async () => {
+    set({
+      breakActive: false,
+      breakType: null,
+      breakTime: 0,
+      breakStartTime: null,
+    });
+    
+    await clearBreakState(); // ADDED: Clear from database
+    stopAutoSave(); // ADDED: Stop auto-save
+  },
+
+  clearTodaysBreaks: () => {
+    set({ todaysBreaks: [] });
+  },
+
+  startLoadTruck: async (packageCount) => {
+    console.log('Starting Load Truck Timer with', packageCount, 'packages');
+
+    if (!packageCount || packageCount <= 0) {
+      alert('Please enter a valid package count');
+      return false;
+    }
+
+    const state = {
+      loadTruckActive: true,
+      loadTruckTime: 0,
+      loadTruckStartTime: Date.now(),
+      loadTruckPackageCount: packageCount,
+      loadTruckWarning: false,
+    };
+
+    set(state);
+    await saveBreakState({ ...get(), ...state }); // ADDED: Save to database
+    startAutoSave(get); // ADDED: Start auto-save
+
+    return true;
+  },
+
+  endLoadTruck: async (userId = null, routeStore = null) => {
+    const { loadTruckTime, loadTruckPackageCount, todaysBreaks } = get();
+    const duration = Math.round(loadTruckTime / 60);
+    const loadingTimeMs = loadTruckTime * 1000;
+
+    console.log('Ending Load Truck Timer. Duration:', duration, 'minutes');
+
+    if (userId) {
+      await smartLoadMonitor.saveLoadingEntry(userId, loadTruckPackageCount, loadingTimeMs);
+    }
+
+    // ADDED: Save loading time to routeStore so it can be included in 721 street time
+    if (routeStore && duration > 0) {
+      routeStore.getState().setPreRouteLoadingMinutes(duration);
+      console.log(`✓ Pre-route loading time saved: ${duration} minutes (will be included when route starts)`);
+    }
+
+    set({
+      loadTruckActive: false,
+      loadTruckStartTime: null,
+      loadTruckTime: 0,
+      loadTruckPackageCount: 0,
+      loadTruckWarning: false,
+      todaysBreaks: [
+        ...todaysBreaks,
+        {
+          type: 'Load Truck',
+          icon: '🚚',
+          time: new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
+          duration: `${duration}m`,
+          packages: loadTruckPackageCount,
+        },
+      ],
+    });
+    
+    await clearBreakState(); // ADDED: Clear from database
+    stopAutoSave(); // ADDED: Stop auto-save
+  },
+
+  tickLoadTruck: async () => {
+    const { loadTruckActive, loadTruckStartTime, loadTruckPackageCount } = get();
+    if (!loadTruckActive || !loadTruckStartTime) return;
+
+    const elapsed = Math.floor((Date.now() - loadTruckStartTime) / 1000);
+    const expectedTime = await get().getExpectedLoadTime(loadTruckPackageCount);
+    const warningThreshold = expectedTime * 1.5;
+
+    const shouldShowWarning = elapsed >= warningThreshold;
+
+    set({
+      loadTruckTime: elapsed,
+      loadTruckWarning: shouldShowWarning
+    });
+  },
+
+  getExpectedLoadTime: async (packageCount) => {
+    const averageLoadTime = await smartLoadMonitor.getAverageLoadTime(packageCount);
+
+    if (averageLoadTime !== null) {
+      return Math.round(averageLoadTime / 1000);
+    }
+
+    const baseTime = 300;
+    const timePerPackage = 6;
+    return baseTime + (packageCount * timePerPackage);
+  },
+
+  loadSmartLoadHistory: async (userId) => {
+    if (userId) {
+      await smartLoadMonitor.loadHistoryFromDatabase(userId);
+      console.log('Smart load history loaded for user');
+    }
+  },
+}));
+
+export default useBreakStore;

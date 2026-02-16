@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Org Chart · RouteWise</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, sans-serif; margin: 0; background: #0b1220; color: #e5e7eb; }
+    header { padding: 16px 20px; border-bottom: 1px solid #1f2937; display:flex; gap:12px; align-items:center; justify-content:space-between; }
+    h1 { font-size: 16px; margin: 0; letter-spacing: .4px; }
+    .meta { font-size: 12px; color:#94a3b8; }
+    .row { display:flex; gap:10px; flex-wrap: wrap; align-items:center; }
+    .pill { display:inline-block; padding: 3px 8px; border-radius: 999px; border:1px solid #334155; color:#cbd5e1; text-decoration:none; }
+    button { background:#1f2937; border:1px solid #374151; color:#e5e7eb; padding:10px 12px; border-radius:10px; cursor:pointer; }
+    button:hover { background:#111827; }
+    button.primary { background:#2563eb; border-color:#1d4ed8; }
+    button.primary:hover { background:#1d4ed8; }
+
+    .wrap { padding: 16px 20px; display: grid; gap: 14px; max-width: 1200px; margin: 0 auto; }
+    .card { background:#0f172a; border:1px solid #1f2937; border-radius:12px; overflow:hidden; }
+    .card h2 { font-size: 13px; margin: 0; padding: 12px 14px; border-bottom: 1px solid #1f2937; color:#cbd5e1; display:flex; align-items:center; justify-content:space-between; gap:10px; }
+
+    .top { display:grid; gap: 14px; grid-template-columns: 1fr; }
+
+    .leaderGrid { display:grid; gap: 12px; grid-template-columns: 1fr 1fr; padding: 12px 14px; }
+    @media (max-width: 900px) { .leaderGrid { grid-template-columns: 1fr; } }
+
+    .person { background:#0b1220; border:1px solid #1f2937; border-radius: 12px; padding: 12px; }
+    .person .name { font-weight: 900; font-size: 14px; }
+    .person .title { color:#cbd5e1; font-size: 12px; margin-top:2px; }
+    .person .focus { color:#94a3b8; font-size: 12px; margin-top:8px; }
+
+    .deptGrid { display:grid; gap: 14px; grid-template-columns: 1fr 1fr; padding: 12px 14px; }
+    @media (max-width: 900px) { .deptGrid { grid-template-columns: 1fr; } }
+
+    .dept { background:#0b1220; border:1px solid #1f2937; border-radius:12px; overflow:hidden; }
+    .deptHead { padding: 12px; border-bottom:1px solid #1f2937; }
+    .deptName { font-weight: 900; }
+    .deptDesc { color:#94a3b8; font-size: 12px; margin-top:4px; }
+
+    .role { padding: 10px 12px; border-bottom: 1px solid #1f2937; display:flex; justify-content:space-between; gap:10px; }
+    .role:last-child { border-bottom:none; }
+    .role .rname { font-weight: 800; font-size: 12px; }
+    .role .rnotes { color:#94a3b8; font-size: 12px; margin-top:2px; }
+
+    .tag { display:inline-block; padding:2px 8px; border-radius: 999px; border:1px solid #334155; color:#cbd5e1; font-size: 11px; height: fit-content; }
+    .active { border-color:#14532d; color:#bbf7d0; background:#052e16; }
+    .scaffolded { border-color:#7c3aed; color:#ddd6fe; background:#2e1065; }
+    .deprecated { border-color:#7f1d1d; color:#fecaca; background:#450a0a; }
+
+    details { padding: 0; }
+    summary { list-style:none; cursor:pointer; user-select:none; }
+    summary::-webkit-details-marker { display:none; }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1 id="title">Org Chart</h1>
+      <div class="meta" id="subtitle">Loading…</div>
+    </div>
+    <div class="row">
+      <a class="pill" href="/">Home</a>
+      <a class="pill" href="/task-manager.html">Task Manager</a>
+      <button id="expand" class="primary">Expand all</button>
+      <button id="collapse">Collapse all</button>
+      <button id="refresh">Refresh</button>
+    </div>
+  </header>
+
+  <div class="wrap">
+    <div class="card">
+      <h2>Leadership <span class="meta" id="updated">—</span></h2>
+      <div class="leaderGrid" id="leaders"></div>
+    </div>
+
+    <div class="card">
+      <h2>Departments</h2>
+      <div class="deptGrid" id="depts"></div>
+    </div>
+  </div>
+
+  <script>
+    const el = (id) => document.getElementById(id);
+    async function api(path) {
+      const res = await fetch(path);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      return data;
+    }
+
+    function tag(status) {
+      const s = (status || 'scaffolded').toLowerCase();
+      const cls = (s === 'active' || s === 'scaffolded' || s === 'deprecated') ? s : 'scaffolded';
+      return `<span class="tag ${cls}">${s}</span>`;
+    }
+
+    function render(org) {
+      el('title').textContent = org?.meta?.orgName ? `Org Chart · ${org.meta.orgName}` : 'Org Chart';
+      el('subtitle').textContent = org?.meta?.subtitle || '';
+      el('updated').textContent = org?.meta?.updated ? `Updated: ${org.meta.updated}` : '';
+
+      // Leaders
+      const leaders = el('leaders');
+      leaders.innerHTML = '';
+      for (const p of (org?.leaders || [])) {
+        const div = document.createElement('div');
+        div.className = 'person';
+        div.innerHTML = `
+          <div class="row" style="justify-content:space-between">
+            <div>
+              <div class="name">${p.name || ''}</div>
+              <div class="title">${p.title || ''}</div>
+            </div>
+            ${tag(p.status)}
+          </div>
+          <div class="focus">${p.focus || ''}</div>
+        `;
+        leaders.appendChild(div);
+      }
+
+      // Departments
+      const depts = el('depts');
+      depts.innerHTML = '';
+      for (const d of (org?.departments || [])) {
+        const wrap = document.createElement('div');
+        wrap.className = 'dept';
+
+        const det = document.createElement('details');
+        det.open = true;
+        det.innerHTML = `
+          <summary>
+            <div class="deptHead">
+              <div class="row" style="justify-content:space-between">
+                <div>
+                  <div class="deptName">${d.name || ''}</div>
+                  <div class="deptDesc">${d.desc || ''}</div>
+                  ${d.head ? `<div class=\"deptDesc\">Head: <span style=\"color:#e5e7eb\">${d.head}</span></div>` : ''}
+                </div>
+                <span class="tag">${(d.roles || []).length} roles</span>
+              </div>
+            </div>
+          </summary>
+        `;
+
+        for (const r of (d.roles || [])) {
+          const row = document.createElement('div');
+          row.className = 'role';
+          row.innerHTML = `
+            <div>
+              <div class="rname">${r.name || ''}</div>
+              <div class="rnotes">${r.notes || ''}</div>
+            </div>
+            ${tag(r.status)}
+          `;
+          det.appendChild(row);
+        }
+
+        wrap.appendChild(det);
+        depts.appendChild(wrap);
+      }
+    }
+
+    async function refresh() {
+      const data = await api('/api/routewise/org');
+      render(data.org);
+    }
+
+    function setAll(open) {
+      document.querySelectorAll('details').forEach((d) => { d.open = open; });
+    }
+
+    el('refresh').addEventListener('click', () => refresh().catch((e) => alert(e.message || e)));
+    el('expand').addEventListener('click', () => setAll(true));
+    el('collapse').addEventListener('click', () => setAll(false));
+
+    refresh().catch((e) => {
+      el('subtitle').textContent = String(e.message || e);
+    });
+  </script>
+</body>
+</html>

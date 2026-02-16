@@ -1,0 +1,6 @@
+{
+  "role-mobile-release": "agent:main:subagent:c00da9bf-7e68-4516-aac1-7109d07e01e6",
+  "role-payments": "agent:main:subagent:4b92dc11-5e54-4d84-b5de-e5c54c3d8aec",
+  "role-legal-compliance": "agent:main:subagent:9edd16ce-ad06-4548-88d0-a61f0e3669f1",
+  "role-marketing-aso": "agent:main:subagent:fe96dd78-6309-48da-88d7-36650fbe6162"
+}

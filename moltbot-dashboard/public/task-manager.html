@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Task Manager · Moltbot Dashboard</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, sans-serif; margin: 0; background: #0b1220; color: #e5e7eb; }
+    header { padding: 16px 20px; border-bottom: 1px solid #1f2937; display:flex; gap:12px; align-items:center; justify-content:space-between; }
+    h1 { font-size: 16px; margin: 0; letter-spacing: .4px; }
+    .wrap { padding: 16px 20px; display: grid; gap: 14px; grid-template-columns: 1fr; max-width: 1200px; margin: 0 auto; }
+    .row { display:flex; gap:10px; flex-wrap: wrap; align-items:center; }
+    button { background:#1f2937; border:1px solid #374151; color:#e5e7eb; padding:10px 12px; border-radius:10px; cursor:pointer; }
+    button:hover { background:#111827; }
+    button.primary { background:#2563eb; border-color:#1d4ed8; }
+    button.primary:hover { background:#1d4ed8; }
+    .pill { display:inline-block; padding: 3px 8px; border-radius: 999px; border:1px solid #334155; color:#cbd5e1; text-decoration:none; }
+    .meta { font-size: 12px; color:#94a3b8; }
+    .card { background:#0f172a; border:1px solid #1f2937; border-radius:12px; overflow:hidden; }
+    .card h2 { font-size: 13px; margin: 0; padding: 12px 14px; border-bottom: 1px solid #1f2937; color:#cbd5e1; display:flex; align-items:center; justify-content:space-between; gap:10px; }
+    pre { margin: 0; padding: 12px 14px; overflow:auto; white-space:pre-wrap; word-break:break-word; font-size: 12px; line-height: 1.45; }
+
+    .stats { display:grid; gap: 10px; grid-template-columns: repeat(5, minmax(0, 1fr)); }
+    @media (max-width: 900px) { .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    .stat { background:#0b1220; border:1px solid #1f2937; border-radius: 12px; padding: 10px 12px; }
+    .stat .k { font-size: 11px; color:#94a3b8; }
+    .stat .v { font-size: 18px; font-weight: 800; margin-top: 4px; }
+
+    .grid2 { display:grid; gap: 14px; grid-template-columns: 1fr 1fr; }
+    @media (max-width: 900px) { .grid2 { grid-template-columns: 1fr; } }
+
+    table { width:100%; border-collapse: collapse; }
+    th, td { padding: 10px 12px; border-bottom: 1px solid #1f2937; font-size: 12px; vertical-align: top; }
+    th { text-align:left; color:#cbd5e1; font-weight: 700; background: #0b1220; }
+    td { color:#e5e7eb; }
+    .dim { color:#94a3b8; }
+    .tag { display:inline-block; padding:2px 8px; border-radius: 999px; border:1px solid #334155; color:#cbd5e1; font-size: 11px; }
+    .on { border-color:#14532d; color:#bbf7d0; background:#052e16; }
+    .off { border-color:#7f1d1d; color:#fecaca; background:#450a0a; }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>Task Manager</h1>
+      <div class="meta">Daily + weekly view of sessions and cron jobs</div>
+    </div>
+    <div class="row">
+      <a class="pill" href="/">Home</a>
+      <a class="pill" href="/control" target="_blank" rel="noreferrer">Control UI</a>
+      <button id="refresh" class="primary">Refresh</button>
+    </div>
+  </header>
+
+  <div class="wrap">
+    <div class="card">
+      <h2>Overview <span class="meta" id="ts">—</span></h2>
+      <div style="padding:12px 14px;">
+        <div class="stats">
+          <div class="stat"><div class="k">Active (est.)</div><div class="v" id="sActive">—</div></div>
+          <div class="stat"><div class="k">Total sessions</div><div class="v" id="sTotal">—</div></div>
+          <div class="stat"><div class="k">Cron jobs</div><div class="v" id="sCron">—</div></div>
+          <div class="stat"><div class="k">Next cron run</div><div class="v" id="sNextCron">—</div></div>
+          <div class="stat"><div class="k">Current model</div><div class="v" id="sModel">—</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid2">
+      <div class="card">
+        <h2>Active Sessions (incl. subagents) <span class="meta">latest 25</span></h2>
+        <div style="overflow:auto">
+          <table>
+            <thead>
+              <tr>
+                <th>Session</th>
+                <th>Updated</th>
+              </tr>
+            </thead>
+            <tbody id="sessionsBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Cron Monitor <span class="meta">all jobs</span></h2>
+        <div style="overflow:auto">
+          <table>
+            <thead>
+              <tr>
+                <th>Job</th>
+                <th>Schedule</th>
+                <th>Next</th>
+                <th>Last</th>
+              </tr>
+            </thead>
+            <tbody id="cronBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Larry OS (weekly) <span class="meta">from nightly-log</span></h2>
+      <pre id="larryOs">Loading…</pre>
+    </div>
+  </div>
+
+  <script>
+    const el = (id) => document.getElementById(id);
+
+    async function api(path, opts) {
+      const res = await fetch(path, opts);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      return data;
+    }
+
+    function fmtWhen(ms) {
+      if (!ms) return '—';
+      const d = new Date(ms);
+      return d.toLocaleString();
+    }
+
+    function parseCurrentModel(statusText) {
+      // Try to parse "Model:" from /status output
+      const m = String(statusText || '').match(/Model:\s*([^\n]+)/i);
+      return m ? m[1].trim() : '—';
+    }
+
+    function fmtLarryOs(data) {
+      if (!data) return 'No data.';
+      const lines = [];
+      lines.push(`Weekly items completed: ${data.weeklyCount}`);
+      lines.push('');
+      lines.push('Most recent:');
+      for (const item of (data.recent || []).slice(0, 10)) {
+        lines.push(`- ${item.date} — ${item.title}`);
+      }
+      lines.push('');
+      lines.push('Recent patch files:');
+      for (const p of (data.patchFiles || []).slice(0, 15)) {
+        lines.push(`- ${p}`);
+      }
+      return lines.join('\n');
+    }
+
+    function renderSessions(rows) {
+      const tbody = el('sessionsBody');
+      tbody.innerHTML = '';
+      for (const s of (rows || []).slice(0, 25)) {
+        const tr = document.createElement('tr');
+        const name = document.createElement('td');
+        const when = document.createElement('td');
+        name.innerHTML = `<div style="font-weight:700">${s.key || ''}</div><div class="dim">${s.kind || ''}</div>`;
+        when.textContent = fmtWhen(s.updatedAt);
+        tr.appendChild(name);
+        tr.appendChild(when);
+        tbody.appendChild(tr);
+      }
+    }
+
+    function renderCron(jobs) {
+      const tbody = el('cronBody');
+      tbody.innerHTML = '';
+      const sorted = (jobs || []).slice().sort((a,b) => (a?.state?.nextRunAtMs||Infinity) - (b?.state?.nextRunAtMs||Infinity));
+      for (const j of sorted) {
+        const tr = document.createElement('tr');
+        const c1 = document.createElement('td');
+        const c2 = document.createElement('td');
+        const c3 = document.createElement('td');
+        const c4 = document.createElement('td');
+
+        const enabled = !!j.enabled;
+        const tag = `<span class="tag ${enabled ? 'on' : 'off'}">${enabled ? 'enabled' : 'disabled'}</span>`;
+        c1.innerHTML = `<div style="font-weight:700">${j.name || j.id}</div><div class="dim">${tag} <span class="tag">${j.sessionTarget || 'main'}</span> <span class="tag">${j.payload?.kind || ''}</span></div>`;
+
+        if (j.schedule?.kind === 'cron') c2.textContent = `${j.schedule.expr} (${j.schedule.tz || 'local'})`;
+        else if (j.schedule?.kind === 'at') c2.textContent = `at ${fmtWhen(j.schedule.atMs)}`;
+        else if (j.schedule?.kind === 'every') c2.textContent = `every ${Math.round((j.schedule.everyMs||0)/60000)}m`;
+        else c2.textContent = j.schedule?.kind || '—';
+
+        c3.textContent = fmtWhen(j.state?.nextRunAtMs);
+        c4.textContent = fmtWhen(j.state?.lastRunAtMs);
+
+        tr.appendChild(c1); tr.appendChild(c2); tr.appendChild(c3); tr.appendChild(c4);
+        tbody.appendChild(tr);
+      }
+    }
+
+    async function refresh() {
+      el('ts').textContent = 'Loading…';
+      try {
+        const [status, sessions, cron, larry] = await Promise.all([
+          api('/api/status'),
+          api('/api/sessions?limit=50'),
+          api('/api/cron/jobs'),
+          api('/api/larry-os/summary?days=14'),
+        ]);
+
+        const statusText = status?.status?.stdout || '';
+        const model = parseCurrentModel(statusText);
+
+        const sessionRows = sessions?.sessions || [];
+        renderSessions(sessionRows);
+
+        const jobs = cron?.jobs || [];
+        renderCron(jobs);
+
+        el('larryOs').textContent = fmtLarryOs(larry);
+
+        // Overview stats
+        const now = Date.now();
+        const activeEst = sessionRows.filter((s) => (now - (s.updatedAt||0)) < 30*60*1000).length;
+        el('sActive').textContent = String(activeEst);
+        el('sTotal').textContent = String(sessions?.count ?? sessionRows.length ?? '—');
+        el('sCron').textContent = String(jobs.length);
+        const next = jobs.map((j) => j?.state?.nextRunAtMs).filter(Boolean).sort((a,b)=>a-b)[0];
+        el('sNextCron').textContent = next ? new Date(next).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—';
+        el('sModel').textContent = model;
+        el('ts').textContent = new Date().toLocaleString();
+      } catch (e) {
+        el('larryOs').textContent = String(e.message || e);
+        el('ts').textContent = 'error';
+      }
+    }
+
+    el('refresh').addEventListener('click', refresh);
+    refresh();
+    setInterval(refresh, 30000);
+  </script>
+</body>
+</html>

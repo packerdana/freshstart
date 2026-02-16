@@ -6,8 +6,8 @@ const raw = await fs.readFile(secretsPath, 'utf8');
 const { functionUrl, adminToken, anonKey } = JSON.parse(raw);
 
 const [action, email, arg3, arg4] = process.argv.slice(2);
-if (!action || !email) {
-  console.error('Usage: supabase-admin.mjs <status|confirm-email|route-history|route-history-delete> <email> [routeNumber] [days|date]');
+if (!action || (action !== 'unverified-users' && !email)) {
+  console.error('Usage: supabase-admin.mjs <status|confirm-email|route-history|route-history-delete|waypoints-count|unverified-users> <email?> [routeNumber] [days|date]');
   process.exit(2);
 }
 
@@ -19,7 +19,13 @@ const res = await fetch(functionUrl, {
     ...(anonKey ? { authorization: `Bearer ${anonKey}` } : {}),
     'x-admin-token': adminToken,
   },
-  body: JSON.stringify({ action, email, routeNumber: arg3, days: arg4 ? Number(arg4) : undefined }),
+  body: JSON.stringify({
+    action,
+    email: email || undefined,
+    routeNumber: arg3,
+    days: action === 'route-history' && arg4 ? Number(arg4) : undefined,
+    date: action === 'route-history-delete' ? arg4 : undefined,
+  }),
 });
 
 const text = await res.text();

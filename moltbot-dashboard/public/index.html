@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Moltbot Dashboard</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, sans-serif; margin: 0; background: #0b1220; color: #e5e7eb; }
+    header { padding: 16px 20px; border-bottom: 1px solid #1f2937; display:flex; gap:12px; align-items:center; justify-content:space-between; }
+    h1 { font-size: 16px; margin: 0; letter-spacing: .4px; }
+    .wrap { padding: 16px 20px; display: grid; gap: 14px; grid-template-columns: 1fr; max-width: 1100px; margin: 0 auto; }
+    .row { display:flex; gap:10px; flex-wrap: wrap; }
+    button { background:#1f2937; border:1px solid #374151; color:#e5e7eb; padding:10px 12px; border-radius:10px; cursor:pointer; }
+    button:hover { background:#111827; }
+    button.primary { background:#2563eb; border-color:#1d4ed8; }
+    button.primary:hover { background:#1d4ed8; }
+    button.danger { background:#b91c1c; border-color:#991b1b; }
+    button.danger:hover { background:#991b1b; }
+    .card { background:#0f172a; border:1px solid #1f2937; border-radius:12px; overflow:hidden; }
+    .card h2 { font-size: 13px; margin: 0; padding: 12px 14px; border-bottom: 1px solid #1f2937; color:#cbd5e1; }
+    pre { margin: 0; padding: 12px 14px; overflow:auto; white-space:pre-wrap; word-break:break-word; font-size: 12px; line-height: 1.45; }
+    .meta { font-size: 12px; color:#94a3b8; }
+    .pill { display:inline-block; padding: 3px 8px; border-radius: 999px; border:1px solid #334155; color:#cbd5e1; }
+    .ok { border-color:#14532d; color:#bbf7d0; background:#052e16; }
+    .bad { border-color:#7f1d1d; color:#fecaca; background:#450a0a; }
+    a { color:#93c5fd; }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>Moltbot Dashboard</h1>
+      <div class="meta">Lightweight local status + controls (manual run)</div>
+    </div>
+    <div class="row">
+      <span id="health" class="pill">loading…</span>
+      <a href="/task-manager.html" class="pill">Task Manager</a>
+      <a href="/org-chart.html" class="pill">Org Chart</a>
+      <a href="/roles.html" class="pill">Roles</a>
+      <a href="/addons.html" class="pill">Add-ons</a>
+      <button id="refresh" class="primary">Refresh</button>
+      <button id="restart" class="danger">Restart Gateway</button>
+    </div>
+  </header>
+
+  <div class="wrap">
+    <div class="card">
+      <h2>Status</h2>
+      <pre id="status">Loading…</pre>
+    </div>
+
+    <div class="card">
+      <h2>Gateway</h2>
+      <pre id="gateway">Loading…</pre>
+    </div>
+
+    <div class="card">
+      <h2>Chat (Moltbot Control UI)</h2>
+      <div style="padding:12px 14px; display:flex; gap:10px; align-items:center; justify-content:space-between;">
+        <div class="meta">
+          Open the Control UI in a new tab (recommended). Some browsers block localStorage in iframes, which breaks token persistence.
+        </div>
+        <a id="controlUiOpen" class="pill" href="/control" target="_blank" rel="noreferrer">Open tokenized link</a>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Larry OS (daily / weekly)</h2>
+      <pre id="larryOs">Loading…</pre>
+    </div>
+
+    <div class="card">
+      <h2>Notes / Commands</h2>
+      <pre>Useful commands:
+
+moltbot status
+moltbot gateway status
+moltbot gateway restart
+
+This dashboard calls the moltbot CLI (allowlisted).
+
+Docs: https://docs.molt.bot
+      </pre>
+    </div>
+  </div>
+
+  <script>
+    const el = (id) => document.getElementById(id);
+
+    async function api(path, opts) {
+      const res = await fetch(path, opts);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      return data;
+    }
+
+    function setHealth(ok) {
+      const h = el('health');
+      h.textContent = ok ? 'online' : 'error';
+      h.classList.toggle('ok', !!ok);
+      h.classList.toggle('bad', !ok);
+    }
+
+    function fmtBlock(title, obj) {
+      if (!obj) return '';
+      let s = `${title}\n`;
+      if (obj.cmd) s += `${obj.cmd}\n\n`;
+      if (obj.stdout) s += obj.stdout + "\n";
+      if (obj.stderr) s += "\n[stderr]\n" + obj.stderr + "\n";
+      return s.trim();
+    }
+
+    function fmtLarryOs(data) {
+      if (!data) return 'No data.';
+      const lines = [];
+      lines.push(`Weekly items completed: ${data.weeklyCount}`);
+      lines.push('');
+      lines.push('Most recent:');
+      for (const item of (data.recent || []).slice(0, 7)) {
+        lines.push(`- ${item.date} — ${item.title}`);
+      }
+      lines.push('');
+      lines.push('Recent patch files:');
+      for (const p of (data.patchFiles || []).slice(0, 10)) {
+        lines.push(`- ${p}`);
+      }
+      return lines.join('\n');
+    }
+
+    async function refresh() {
+      el('status').textContent = 'Loading…';
+      el('gateway').textContent = 'Loading…';
+      el('larryOs').textContent = 'Loading…';
+      try {
+        const [data, larry] = await Promise.all([
+          api('/api/status'),
+          api('/api/larry-os/summary?days=7'),
+        ]);
+        setHealth(true);
+        el('status').textContent = fmtBlock('Moltbot Status', data.status);
+        el('gateway').textContent = fmtBlock('Gateway Status', data.gateway);
+        el('larryOs').textContent = fmtLarryOs(larry);
+      } catch (e) {
+        setHealth(false);
+        el('status').textContent = String(e.message || e);
+        el('gateway').textContent = String(e.message || e);
+        el('larryOs').textContent = String(e.message || e);
+      }
+    }
+
+    async function restart() {
+      if (!confirm('Restart Moltbot gateway?')) return;
+      try {
+        await api('/api/gateway/restart', { method: 'POST' });
+      } catch (e) {
+        alert(String(e.message || e));
+      }
+      await refresh();
+    }
+
+    el('refresh').addEventListener('click', refresh);
+    el('restart').addEventListener('click', restart);
+
+    // Default to /control (stable redirect). If it fails, try resolving a direct tokenized URL.
+    async function resolveControlUiUrl() {
+      try {
+        const data = await api('/api/control-ui-url');
+        if (data && data.url) {
+          el('controlUiOpen').href = data.url;
+          el('controlUiFrame').src = data.url;
+        }
+      } catch (e) {
+        console.warn('Could not resolve tokenized Control UI URL:', e);
+      }
+    }
+
+    refresh();
+    // /control already works for most cases, but this improves reliability if redirects are blocked.
+    resolveControlUiUrl();
+    setInterval(refresh, 15000);
+  </script>
+</body>
+</html>
