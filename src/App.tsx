@@ -8,6 +8,7 @@ import BreaksScreen from './components/screens/BreaksScreen';
 import StatsScreen from './components/screens/StatsScreen';
 import SettingsScreen from './components/screens/SettingsScreen';
 import LoginScreen from './components/screens/LoginScreen';
+import ReportProblemModal from './components/ReportProblemModal';
 import SignupScreen from './components/screens/SignupScreen';
 import AuthCallbackScreen from './components/screens/AuthCallbackScreen';
 import BottomNav from './components/layout/BottomNav';
@@ -20,6 +21,7 @@ import useBreakStore from './stores/breakStore';
 function App() {
   const [showSignup, setShowSignup] = useState(false);
   const [activeTab, setActiveTab] = useState('today');
+  const [reportOpen, setReportOpen] = useState(false);
   const loadUserRoutes = useRouteStore((state: any) => state.loadUserRoutes);
   const checkAndResetDailyData = useRouteStore((state: any) => state.checkAndResetDailyData);
   const autoPopulateWaypointsIfNeeded = useRouteStore((state: any) => state.autoPopulateWaypointsIfNeeded);
@@ -279,10 +281,18 @@ function App() {
           <div className="text-right">
             <p className="text-xs text-blue-100">Signed in as</p>
             <p className="text-xs font-mono text-white truncate max-w-[45vw]">{user?.email || '—'}</p>
+            <button
+              type="button"
+              className="mt-1 text-[10px] text-blue-100 underline"
+              onClick={() => setReportOpen(true)}
+            >
+              Report a problem
+            </button>
           </div>
         </div>
       </header>
       <main className="flex-1 overflow-auto">
+        {reportOpen && <ReportProblemModal onClose={() => setReportOpen(false)} />}
         {breakNudgeVisible && breakType && (
           <div className="mx-4 mt-3 mb-2 rounded-xl border border-amber-200 bg-amber-50 p-3">
             <div className="flex items-start justify-between gap-3">
