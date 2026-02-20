@@ -1633,8 +1633,8 @@ export default function TodayScreen() {
               {todayInputs.hasBoxholder && (
                 <p className="text-xs text-blue-600 mt-1 leading-relaxed">
                   💡 Route stop boxholder: {todayInputs.casedBoxholder 
-                    ? `App will average your last 10 door to door days.`
-                    : `You will get full coverage casing credit. No need to count the flat or letters.`}
+                    ? `You will get full coverage casing credit. No need to count in with the flats or letters volume.`
+                    : `App will average your last 10 door to door days.`}
                 </p>
               )}
 
