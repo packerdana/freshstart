@@ -1603,6 +1603,9 @@ export default function TodayScreen() {
             />
             <span className="text-sm text-gray-700">Boxholder/EDDM</span>
           </label>
+          <p className="text-xs text-gray-500 pl-6">
+            Average street time uses last X Boxholder days (with fallback to overall average if needed).
+          </p>
 
           {Number(getCurrentRouteConfig()?.stops || 0) > 0 ? (
             <div className="pl-6">
