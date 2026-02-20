@@ -1633,8 +1633,8 @@ export default function TodayScreen() {
               {todayInputs.hasBoxholder && (
                 <p className="text-xs text-blue-600 mt-1 leading-relaxed">
                   💡 Route stop boxholder: {todayInputs.casedBoxholder 
-                    ? `Letters/flats cased at the stop reduce your street time. Only time actually spent on street (not casing at stop) counts toward 721.`
-                    : `You picked up mail at a route stop but didn't case it there. All time still counts as 721 street time.`}
+                    ? `App will average your last 10 door to door days.`
+                    : `You will get full coverage casing credit. No need to count the flat or letters.`}
                 </p>
               )}
 
