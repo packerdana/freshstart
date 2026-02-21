@@ -14,6 +14,7 @@ function hhmmFromDate(date) {
 import AddWaypointModal from '../shared/AddWaypointModal';
 import DatePicker from '../shared/DatePicker';
 import WaypointDebugModal from '../shared/WaypointDebugModal';
+import EndOfTourPredictionCard from '../shared/EndOfTourPredictionCard';
 import { exportWaypointsToJSON, markWaypointCompleted, markWaypointPending, getWaypointsForRoute, removeDuplicateWaypoints, createQuickSetupWaypoints } from '../../services/waypointsService';
 import useBreakStore from '../../stores/breakStore';
 import { predictWaypointTimes } from '../../services/waypointPredictionService';
@@ -161,6 +162,29 @@ export default function WaypointsScreen() {
       return { minutes: 0, fromSeq: null };
     }
   }, [waypoints, waypointPredictions, departureTimeStr, routeConfig, breakEvents, waypointPausedSeconds]);
+
+  // Compute end-of-tour prediction (final predicted clock-out time)
+  const endOfTourPrediction = useMemo(() => {
+    try {
+      if (!waypointPredictions?.length) return null;
+
+      // Find the last waypoint with a valid prediction
+      const lastPrediction = waypointPredictions
+        .filter((p) => p.predictedMinutes && Number.isFinite(p.predictedMinutes))
+        .sort((a, b) => Number(b.sequence_number || 0) - Number(a.sequence_number || 0))[0];
+
+      if (!lastPrediction) return null;
+
+      // Return the predicted street time (will be used in EndOfTourPredictionCard)
+      return {
+        streetTime: Math.round(lastPrediction.predictedMinutes || 0),
+        confidence: lastPrediction.confidence,
+      };
+    } catch (e) {
+      console.warn('[Waypoints] endOfTourPrediction failed:', e?.message || e);
+      return null;
+    }
+  }, [waypointPredictions]);
 
   useEffect(() => {
     async function loadPredictions() {
@@ -778,6 +802,14 @@ export default function WaypointsScreen() {
             </div>
           </div>
         </Card>
+      )}
+
+      {viewMode === 'today' && endOfTourPrediction && (
+        <EndOfTourPredictionCard
+          prediction={endOfTourPrediction}
+          routeStartTime={departureTimeStr || routeConfig?.startTime || '07:30'}
+          routeConfig={routeConfig}
+        />
       )}
 
       <Card className="mb-4">
