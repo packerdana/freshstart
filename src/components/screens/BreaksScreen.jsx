@@ -36,7 +36,7 @@ export default function BreaksScreen() {
   const endLoadTruck = useBreakStore((state) => state.endLoadTruck);
   const getExpectedLoadTime = useBreakStore((state) => state.getExpectedLoadTime);
   const loadSmartLoadHistory = useBreakStore((state) => state.loadSmartLoadHistory);
-  
+
   // ADDED: Get initialization function and status
   const initialized = useBreakStore((state) => state.initialized);
   const initializeFromDatabase = useBreakStore((state) => state.initializeFromDatabase);
@@ -226,10 +226,23 @@ export default function BreaksScreen() {
                 ? Math.round(((breakType.duration || 0) - (breakTime || 0)) / 60)
                 : Math.round((breakTime || 0) / 60);
 
-              // Only prompt for non-countdown timers (bathroom/vehicle/phone/etc).
-              if (!breakType.countDown) {
+              // For countdown timers ending early, ask if they want to adjust the time.
+              // For count-up timers (bathroom/vehicle/phone), always ask for manual time.
+              if (breakType.countDown && breakTime > 0) {
+                // Countdown timer: only prompt if ending early (breakTime > 0 means time remains)
                 const input = prompt(
-                  `How many minutes was your ${breakType.label} break?\n\n(We’ll use this to keep your stats accurate.)`,
+                  `You're ending this ${breakType.label} early with ${Math.round(breakTime / 60)}:${String(Math.round(breakTime % 60)).padStart(2, '0')} left.\n\nHow many minutes should we count?\n\n(Default: ${computedMins} min)`,
+                  String(Math.max(0, computedMins))
+                );
+                if (input === null) {
+                  // User cancelled; don't end the timer.
+                  return;
+                }
+                overrideMinutes = Math.max(0, Math.round(Number(input) || 0));
+              } else if (!breakType.countDown) {
+                // Count-up timers: always ask for manual time
+                const input = prompt(
+                  `How many minutes was your ${breakType.label} break?\n\n(We'll use this to keep your stats accurate.)\n\n(Default: ${computedMins} min)`,
                   String(Math.max(0, computedMins))
                 );
                 if (input === null) {

@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { ChevronDown, ChevronUp, Clock, Coffee, AlertCircle } from 'lucide-react';
+import { ChevronDown, ChevronUp, Clock, Coffee, AlertCircle, CheckCircle2 } from 'lucide-react';
 import Card from './Card';
 import Button from './Button';
 import useBreakStore from '../../stores/breakStore';
@@ -19,6 +19,7 @@ import { addMinutes, formatTimeAMPM, parseLocalDate, getLocalDateString } from '
  */
 export default function EndOfTourPredictionCard({ prediction, routeStartTime, routeConfig }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [showManualBreakOptions, setShowManualBreakOptions] = useState(false);
   
   // Break/lunch state
   const lunchTime = useBreakStore((state) => state.lunchTime);
@@ -27,6 +28,8 @@ export default function EndOfTourPredictionCard({ prediction, routeStartTime, ro
   const breakActive = useBreakStore((state) => state.breakActive);
   const breakType = useBreakStore((state) => state.breakType);
   const todaysBreaks = useBreakStore((state) => state.todaysBreaks);
+  const completeLunch = useBreakStore((state) => state.completeLunch);
+  const completeBreak = useBreakStore((state) => state.completeBreak);
   
   // Current time for calculations
   const [now, setNow] = useState(new Date());
@@ -141,9 +144,7 @@ export default function EndOfTourPredictionCard({ prediction, routeStartTime, ro
 
   const formatClock = (date) => {
     if (!date) return '--:--';
-    const h = String(date.getHours()).padStart(2, '0');
-    const m = String(date.getMinutes()).padStart(2, '0');
-    return `${h}:${m}`;
+    return formatTimeAMPM(date);
   };
 
   return (
@@ -203,6 +204,101 @@ export default function EndOfTourPredictionCard({ prediction, routeStartTime, ro
                 <div className="text-sm font-medium text-gray-900">
                   {breakLunchStatus}
                 </div>
+                {/* Manual break/lunch checkoff for non-timer users */}
+                {!breakActive && !lunchActive && (
+                  <div className="mt-2 space-y-1">
+                    <button
+                      onClick={() => setShowManualBreakOptions(!showManualBreakOptions)}
+                      className="text-xs text-blue-600 hover:text-blue-700 font-medium"
+                    >
+                      {showManualBreakOptions ? '▼' : '▶'} Mark breaks manually
+                    </button>
+                    {showManualBreakOptions && (
+                      <div className="pl-2 pt-1 border-l-2 border-blue-200 space-y-1">
+                        <button
+                          onClick={async () => {
+                            const minutes = prompt('How many minutes for lunch?\n\n(Default: 30 min)', '30');
+                            if (minutes === null) return;
+                            const mins = Math.max(0, parseInt(minutes, 10) || 30);
+                            if (mins > 0) {
+                              // Create a manual lunch entry
+                              const endTime = Date.now();
+                              const startTime = endTime - (mins * 60 * 1000);
+                              useBreakStore.setState((state) => ({
+                                waypointPausedSeconds: (state.waypointPausedSeconds || 0) + (mins * 60),
+                                waypointPauseDate: getLocalDateString(),
+                                breakEvents: [
+                                  ...(state.breakEvents || []),
+                                  {
+                                    kind: 'lunch',
+                                    label: 'Lunch (manual)',
+                                    startTime,
+                                    endTime,
+                                    seconds: mins * 60,
+                                  },
+                                ],
+                                todaysBreaksDate: getLocalDateString(),
+                                todaysBreaks: [
+                                  ...state.todaysBreaks,
+                                  {
+                                    type: 'Lunch',
+                                    icon: '🍔',
+                                    time: new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
+                                    duration: `${mins}m`,
+                                  },
+                                ],
+                              }));
+                              setShowManualBreakOptions(false);
+                            }
+                          }}
+                          className="block w-full text-left px-2 py-1 text-xs bg-blue-50 hover:bg-blue-100 rounded text-blue-700 font-medium"
+                        >
+                          ✓ Mark Lunch Done
+                        </button>
+                        <button
+                          onClick={async () => {
+                            const minutes = prompt('How many minutes for breaks?\n\n(Default: 20 min)', '20');
+                            if (minutes === null) return;
+                            const mins = Math.max(0, parseInt(minutes, 10) || 20);
+                            if (mins > 0) {
+                              // Create a manual break entry
+                              const endTime = Date.now();
+                              const startTime = endTime - (mins * 60 * 1000);
+                              useBreakStore.setState((state) => ({
+                                waypointPausedSeconds: (state.waypointPausedSeconds || 0) + (mins * 60),
+                                waypointPauseDate: getLocalDateString(),
+                                breakEvents: [
+                                  ...(state.breakEvents || []),
+                                  {
+                                    kind: 'break',
+                                    label: 'Break (manual)',
+                                    startTime,
+                                    endTime,
+                                    seconds: mins * 60,
+                                  },
+                                ],
+                                todaysBreaksDate: getLocalDateString(),
+                                todaysBreaks: [
+                                  ...state.todaysBreaks,
+                                  {
+                                    type: 'Break',
+                                    icon: '⏸️',
+                                    time: new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
+                                    duration: `${mins}m`,
+                                  },
+                                ],
+                              }));
+                              setShowManualBreakOptions(false);
+                            }
+                          }}
+                          className="block w-full text-left px-2 py-1 text-xs bg-blue-50 hover:bg-blue-100 rounded text-blue-700 font-medium"
+                        >
+                          ✓ Mark Breaks Done
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 
