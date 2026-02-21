@@ -51,18 +51,40 @@ export default function EndOfTourPredictionCard({ prediction, routeStartTime, ro
       startMs = routeStartTime.getTime();
     }
 
-    // Base predicted clock-out time
-    // prediction is typically { streetTime: minutesOfStreetTime, ... }
-    const basePredictedMinutes = prediction.streetTime || prediction || 0;
+    /**
+     * ✅ FIX: Use the actual Return to Post Office waypoint prediction if available.
+     * 
+     * BEFORE: We were using prediction.streetTime + fixed 45 min office time.
+     * This was wrong because:
+     * - prediction.streetTime is CUMULATIVE street time (all deliveries)
+     * - Adding 45 min office time doesn't account for actual return-to-PO duration
+     * - Result: End of Tour was 60+ minutes AFTER Return to PO prediction
+     *
+     * AFTER: We check if the prediction object already has the return-to-PO time
+     * (from waypoint calculations). If not, we fall back to streetTime + office.
+     * This keeps End of Tour synchronized with the Waypoints screen.
+     */
     
-    // Office time constants (fixed)
-    const officeMinutes = 45; // Standard office time: 30 min (lunch) + 15 min (office stuff)
+    // Try to use returnToPOTime if available (from waypoint predictions)
+    let baseClock = null;
     
-    // Total time including office
-    const totalMinutes = basePredictedMinutes + officeMinutes;
-    
-    // Calculate base clock-out (no breaks/lunch adjustment)
-    const baseClock = new Date(startMs + totalMinutes * 60 * 1000);
+    if (prediction.returnToPOTime instanceof Date && !isNaN(prediction.returnToPOTime.getTime())) {
+      // Use the actual Return to Post Office waypoint prediction
+      baseClock = new Date(prediction.returnToPOTime);
+      console.log('[EndOfTourCard] Using Return to PO waypoint time:', baseClock.toLocaleTimeString());
+    } else if (prediction.returnToPOMinutes && typeof prediction.returnToPOMinutes === 'number') {
+      // Fallback: if we have total minutes to return to PO
+      baseClock = new Date(startMs + prediction.returnToPOMinutes * 60 * 1000);
+      console.log('[EndOfTourCard] Using return-to-PO minutes:', prediction.returnToPOMinutes);
+    } else {
+      // Final fallback: use streetTime + standard office time (old behavior)
+      // This is for backward compatibility when waypoint data isn't available
+      const basePredictedMinutes = prediction.streetTime || prediction || 0;
+      const officeMinutes = 45; // Standard: 30 min lunch + 15 min office
+      const totalMinutes = basePredictedMinutes + officeMinutes;
+      baseClock = new Date(startMs + totalMinutes * 60 * 1000);
+      console.log('[EndOfTourCard] Fallback to streetTime + 45 min:', baseClock.toLocaleTimeString());
+    }
     
     // Now calculate how much break/lunch time is remaining
     const lunchMinutesTotal = 30;

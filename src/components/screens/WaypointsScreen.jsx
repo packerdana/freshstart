@@ -168,7 +168,27 @@ export default function WaypointsScreen() {
     try {
       if (!waypointPredictions?.length) return null;
 
-      // Find the last waypoint with a valid prediction
+      // ✅ FIX: Find the Return to Post Office waypoint specifically (seq 99)
+      // This is the actual "end of tour" — when you physically arrive back at the office
+      const returnToPostOffice = waypointPredictions.find(p => {
+        const seqNum = Number(p.sequence_number || 0);
+        const name = (p.address || p.name || '').toLowerCase();
+        return seqNum === 99 || name.includes('return') || name.includes('post office');
+      });
+
+      if (returnToPostOffice && returnToPostOffice.predictedTime && !isNaN(returnToPostOffice.predictedTime.getTime())) {
+        // Use the Return to Post Office waypoint's predicted time directly
+        // This keeps End of Tour synchronized with the Waypoints screen
+        return {
+          streetTime: Math.round(returnToPostOffice.predictedMinutes || 0),
+          returnToPOTime: returnToPostOffice.predictedTime,
+          returnToPOMinutes: returnToPostOffice.predictedMinutes,
+          confidence: returnToPostOffice.confidence,
+        };
+      }
+
+      // Fallback: if Return to Post Office is not available, use the last waypoint
+      // (for backward compatibility with older routes)
       const lastPrediction = waypointPredictions
         .filter((p) => p.predictedMinutes && Number.isFinite(p.predictedMinutes))
         .sort((a, b) => Number(b.sequence_number || 0) - Number(a.sequence_number || 0))[0];
