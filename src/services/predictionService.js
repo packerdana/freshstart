@@ -36,12 +36,30 @@ function isWithinLast30Days(date) {
 }
 
 const MIN_VALID_STREET_MINUTES = 120; // ignore obvious bad data like 5 minutes
-const MAX_VALID_STREET_MINUTES = 16 * 60; // safety cap
+const MAX_VALID_STREET_MINUTES = 720; // 12 hour hard limit (carrier-realistic)
+const MAX_PM_OFFICE_MINUTES = 60; // 1 hour hard limit for PM office (744)
+const MAX_AM_OFFICE_MINUTES = 180; // 3 hour hard limit for AM office (722)
 
 function filterValidHistory(history) {
   return (history || []).filter((day) => {
     const st = getStreetTime(day);
-    return st >= MIN_VALID_STREET_MINUTES && st <= MAX_VALID_STREET_MINUTES;
+    const pm = Number(day.pmOfficeTime ?? day.pm_office_time ?? 0) || 0;
+    const am = Number(day.officeTime ?? day.office_time ?? 0) || 0;
+
+    // Reject street time outliers
+    if (st > MAX_VALID_STREET_MINUTES) return false;
+    if (st < MIN_VALID_STREET_MINUTES) return false;
+
+    // Reject PM office outliers
+    if (pm > MAX_PM_OFFICE_MINUTES) return false;
+
+    // Reject AM office outliers
+    if (am > MAX_AM_OFFICE_MINUTES) return false;
+
+    // Reject suspicious "PM office only" days (no street time but high PM office)
+    if (st === 0 && pm > 30) return false;
+
+    return true;
   });
 }
 

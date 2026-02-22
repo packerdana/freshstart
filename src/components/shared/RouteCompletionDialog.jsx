@@ -35,10 +35,50 @@ export default function RouteCompletionDialog({
     // Convert hours and minutes to total minutes
     const hours = parseInt(streetTimeHours) || 0;
     const mins = parseInt(streetTimeMinutes) || 0;
-    const totalMinutes = (hours * 60) + mins;
+    const totalStreetMinutes = (hours * 60) + mins;
 
-    if (totalMinutes <= 0) {
+    // VALIDATION: Hard limits to prevent unrealistic data entry
+    const MAX_STREET_TIME = 720; // 12 hours
+    const MAX_PM_OFFICE = 60; // 1 hour
+    const MAX_AM_OFFICE = 180; // 3 hours
+
+    const validationWarnings = [];
+
+    // Check street time
+    if (totalStreetMinutes <= 0) {
       setShowError(true);
+      return;
+    }
+    if (totalStreetMinutes > MAX_STREET_TIME) {
+      validationWarnings.push(
+        `⚠️ Street time ${hours}h ${mins}m (${totalStreetMinutes} min) exceeds 12-hour limit.\n`
+      );
+    }
+
+    // Check PM office time from prediction
+    if (prediction && prediction.pmOfficeTime) {
+      const pmOffice = Math.round(prediction.pmOfficeTime);
+      if (pmOffice > MAX_PM_OFFICE) {
+        validationWarnings.push(
+          `⚠️ PM Office time ${pmOffice}m exceeds 1-hour limit.\n`
+        );
+      }
+    }
+
+    // Check AM office time from prediction
+    if (prediction && prediction.officeTime) {
+      const amOffice = Math.round(prediction.officeTime);
+      if (amOffice > MAX_AM_OFFICE) {
+        validationWarnings.push(
+          `⚠️ AM Office time ${amOffice}m exceeds 3-hour limit.\n`
+        );
+      }
+    }
+
+    // If there are validation warnings, ask user to confirm
+    if (validationWarnings.length > 0) {
+      const message = `Data validation warnings:\n\n${validationWarnings.join('')}\nThese values will be REJECTED by the system.\n\nPlease fix them before saving.`;
+      alert(message);
       return;
     }
 
@@ -46,7 +86,7 @@ export default function RouteCompletionDialog({
 
     try {
       await onComplete({
-        streetTime: totalMinutes,
+        streetTime: totalStreetMinutes,
         actualClockOut,
         auxiliaryAssistance,
         assistanceMinutes: auxiliaryAssistance ? (parseInt(assistanceMinutes) || 0) : 0,
