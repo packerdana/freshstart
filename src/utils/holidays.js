@@ -97,3 +97,17 @@ export function getDayTypeLabel(dayType) {
 export function getTodayDayType() {
   return getDayType(getLocalDateString());
 }
+
+export function isPeakSeason(dateStr) {
+  // Peak season: November - December (holiday shopping season)
+  if (!dateStr) return false;
+  const date = parseLocalDate(dateStr);
+  const month = date.getMonth(); // 0-11
+  return month >= 10; // November (10) and December (11)
+}
+
+export function canExceedStreetTimeLimit(dateStr) {
+  // Returns true if this day type allows street time > 12 hours
+  const dayType = getDayType(dateStr);
+  return dayType === 'day-after-holiday' || isPeakSeason(dateStr);
+}

@@ -1,15 +1,21 @@
 -- Database constraints to prevent unrealistic data entry
 -- These limits are carrier-realistic based on USPS standards
+-- 
+-- NOTE: Street time allows up to 14 hours (840 min) at DB level to accommodate
+-- day-after-holiday and peak season (Nov-Dec) routes. The app layer enforces
+-- 12-hour limit for normal days; 14-hour limit for exceptional days.
+-- This DB constraint is a safety net to catch truly bad data (e.g., 1175 min).
 
 -- PM Office (744) should never exceed 1 hour
 ALTER TABLE route_history
 ADD CONSTRAINT check_pm_office_max_60 
   CHECK (pm_office_time IS NULL OR (pm_office_time >= 0 AND pm_office_time <= 60));
 
--- Street time (721) should never exceed 12 hours
+-- Street time (721) should never exceed 14 hours (allows peak season + day-after-holiday)
+-- App layer enforces 12h for normal days; 14h for exceptional days
 ALTER TABLE route_history
-ADD CONSTRAINT check_street_time_max_720 
-  CHECK (street_time IS NULL OR (street_time > 0 AND street_time <= 720));
+ADD CONSTRAINT check_street_time_max_840 
+  CHECK (street_time IS NULL OR (street_time > 0 AND street_time <= 840));
 
 -- AM Office (722) should never exceed 3 hours
 ALTER TABLE route_history

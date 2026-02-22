@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { formatMinutesAsTime } from '../../utils/time';
+import { formatMinutesAsTime, getLocalDateString } from '../../utils/time';
+import { canExceedStreetTimeLimit } from '../../utils/holidays';
 import Card from './Card';
 import Input from './Input';
 import Button from './Button';
@@ -38,20 +39,25 @@ export default function RouteCompletionDialog({
     const totalStreetMinutes = (hours * 60) + mins;
 
     // VALIDATION: Hard limits to prevent unrealistic data entry
-    const MAX_STREET_TIME = 720; // 12 hours
+    const MAX_STREET_TIME = 720; // 12 hours (normal days)
+    const MAX_STREET_TIME_PEAK = 840; // 14 hours (day-after-holiday or peak season)
     const MAX_PM_OFFICE = 60; // 1 hour
     const MAX_AM_OFFICE = 180; // 3 hours
 
     const validationWarnings = [];
+    const today = getLocalDateString();
+    const isExceptionalDay = canExceedStreetTimeLimit(today);
+    const maxStreetTime = isExceptionalDay ? MAX_STREET_TIME_PEAK : MAX_STREET_TIME;
+    const streetTimeLabel = isExceptionalDay ? '14-hour' : '12-hour';
 
     // Check street time
     if (totalStreetMinutes <= 0) {
       setShowError(true);
       return;
     }
-    if (totalStreetMinutes > MAX_STREET_TIME) {
+    if (totalStreetMinutes > maxStreetTime) {
       validationWarnings.push(
-        `⚠️ Street time ${hours}h ${mins}m (${totalStreetMinutes} min) exceeds 12-hour limit.\n`
+        `⚠️ Street time ${hours}h ${mins}m (${totalStreetMinutes} min) exceeds ${streetTimeLabel} limit for this day.\n`
       );
     }
 
