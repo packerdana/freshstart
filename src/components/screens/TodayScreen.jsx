@@ -348,9 +348,18 @@ export default function TodayScreen() {
       };
       const routeHistory = history || [];
 
+      // NEW: Gather break status to avoid predicting extra break time if all breaks are done
+      const breakState = useBreakStore.getState();
+      const breakStatus = {
+        lunchActive: breakState.lunchActive || false,
+        breakActive: breakState.breakActive || false,
+        todaysBreaks: breakState.todaysBreaks || [],
+        allBreaksDone: !breakState.lunchActive && !breakState.breakActive && (breakState.todaysBreaks || []).length > 0,
+      };
+
       try {
         const pauseMinutes = Math.round((waypointPausedSeconds || 0) / 60);
-        const pred = await calculateFullDayPrediction(todayMail, routeConfigForPrediction, routeHistory, waypoints, currentRouteId, pauseMinutes);
+        const pred = await calculateFullDayPrediction(todayMail, routeConfigForPrediction, routeHistory, waypoints, currentRouteId, pauseMinutes, breakStatus);
         setPrediction(pred);
       } catch (error) {
         console.error('[TodayScreen] Error calculating prediction:', error);

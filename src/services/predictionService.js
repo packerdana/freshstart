@@ -145,7 +145,7 @@ export function calculateSmartPrediction(todayMail, history, routeConfig) {
   return calculateVolumeWeightedPrediction(similarDayTypes, todayMail, todayDayType, routeConfig);
 }
 
-export async function calculateFullDayPrediction(todayMail, routeConfig, history, waypoints = null, routeId = null, waypointPauseMinutes = 0) {
+export async function calculateFullDayPrediction(todayMail, routeConfig, history, waypoints = null, routeId = null, waypointPauseMinutes = 0, breakStatus = null) {
   let streetPrediction = calculateSmartPrediction(todayMail, history, routeConfig);
   let totalStreetTime;
 
@@ -265,28 +265,36 @@ export async function calculateFullDayPrediction(todayMail, routeConfig, history
 
   // Estimate PM office (744) from history, but cap it at P85 so "helping others" outliers
   // don't inflate the route prediction.
-  const pmOfficeSamples = (history || [])
-    .filter((d) => {
-      const v = Number(d.pmOfficeTime ?? d.pm_office_time ?? 0) || 0;
-      return v > 0;
-    })
-    // history is already limited upstream in many calls, but we enforce last ~30 records here.
-    .slice(0, 30)
-    .map((d) => Number(d.pmOfficeTime ?? d.pm_office_time ?? 0) || 0);
-
+  // CRITICAL FIX (Feb 2026): If all breaks have been taken during the route,
+  // do NOT add any PM office buffer time. This prevents the 60+ minute gap issue
+  // where End of Tour shows way too late (e.g., 6:10 PM instead of 5:00 PM).
+  const breaksAlreadyTaken = breakStatus && breakStatus.allBreaksDone;
+  
   let pmOfficeAvg = 0;
   let pmOfficeP85 = 0;
   let pmOfficeUsed = 0;
 
-  if (pmOfficeSamples.length) {
-    const sorted = [...pmOfficeSamples].sort((a, b) => a - b);
-    const avg = sorted.reduce((s, n) => s + n, 0) / sorted.length;
-    const idx = Math.max(0, Math.min(sorted.length - 1, Math.ceil(0.85 * sorted.length) - 1));
-    const p85 = sorted[idx];
+  if (!breaksAlreadyTaken) {
+    // Only include historical 744 time if breaks HAVEN'T been taken yet
+    const pmOfficeSamples = (history || [])
+      .filter((d) => {
+        const v = Number(d.pmOfficeTime ?? d.pm_office_time ?? 0) || 0;
+        return v > 0;
+      })
+      // history is already limited upstream in many calls, but we enforce last ~30 records here.
+      .slice(0, 30)
+      .map((d) => Number(d.pmOfficeTime ?? d.pm_office_time ?? 0) || 0);
 
-    pmOfficeAvg = Math.round(avg);
-    pmOfficeP85 = Math.round(p85);
-    pmOfficeUsed = Math.min(pmOfficeAvg, pmOfficeP85);
+    if (pmOfficeSamples.length) {
+      const sorted = [...pmOfficeSamples].sort((a, b) => a - b);
+      const avg = sorted.reduce((s, n) => s + n, 0) / sorted.length;
+      const idx = Math.max(0, Math.min(sorted.length - 1, Math.ceil(0.85 * sorted.length) - 1));
+      const p85 = sorted[idx];
+
+      pmOfficeAvg = Math.round(avg);
+      pmOfficeP85 = Math.round(p85);
+      pmOfficeUsed = Math.min(pmOfficeAvg, pmOfficeP85);
+    }
   }
 
   let waypointEnhanced = false;
