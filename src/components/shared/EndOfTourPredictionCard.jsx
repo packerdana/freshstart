@@ -28,6 +28,7 @@ export default function EndOfTourPredictionCard({ prediction, routeStartTime, ro
   const breakActive = useBreakStore((state) => state.breakActive);
   const breakType = useBreakStore((state) => state.breakType);
   const todaysBreaks = useBreakStore((state) => state.todaysBreaks);
+  const breakEvents = useBreakStore((state) => state.breakEvents || []);
   const completeLunch = useBreakStore((state) => state.completeLunch);
   const completeBreak = useBreakStore((state) => state.completeBreak);
   
@@ -88,8 +89,8 @@ export default function EndOfTourPredictionCard({ prediction, routeStartTime, ro
     const lunchMinutesTotal = 30;
     const breakMinutesTotal = 20; // 2× 10-min breaks
     
-    // Count completed breaks/lunch
-    const completedBreakSeconds = todaysBreaks.reduce((sum, b) => {
+    // Count completed breaks/lunch from breakEvents (has correct format with seconds)
+    const completedBreakSeconds = breakEvents.reduce((sum, b) => {
       if (b.kind === 'break' || b.kind === 'lunch') {
         return sum + (b.seconds || 0);
       }
@@ -114,7 +115,7 @@ export default function EndOfTourPredictionCard({ prediction, routeStartTime, ro
       remainingBreakLunchMinutes: Math.max(0, remainingBreakLunchMinutes),
       completedBreakMinutes,
     };
-  }, [prediction, routeStartTime, todaysBreaks]);
+  }, [prediction, routeStartTime, breakEvents]);
 
   // Update time every 10 seconds for real-time updates
   useEffect(() => {
@@ -188,8 +189,10 @@ export default function EndOfTourPredictionCard({ prediction, routeStartTime, ro
               <div className="text-xs font-semibold text-gray-600">END OF TOUR</div>
               <div className="text-2xl font-bold text-gray-900">
                 {formatClock(predictions.earliest)}
+                {/* Only show range if breaks/lunch remain. Once consumed, show single time. */}
                 {predictions.earliest && predictions.latest && 
-                  predictions.earliest.getTime() !== predictions.latest.getTime() && (
+                  predictions.earliest.getTime() !== predictions.latest.getTime() &&
+                  predictions.remainingBreakLunchMinutes > 0 && (
                     <span className="text-sm font-normal text-gray-600 ml-2">
                       – {formatClock(predictions.latest)}
                     </span>
@@ -323,28 +326,39 @@ export default function EndOfTourPredictionCard({ prediction, routeStartTime, ro
             </div>
 
             {/* Prediction Details */}
-            <div className="grid grid-cols-2 gap-3 text-xs">
-              <div className="bg-white/60 rounded p-2">
-                <div className="text-gray-600 font-semibold">Earliest</div>
-                <div className="text-lg font-bold text-blue-600">
+            {/* Show range only if breaks remain. Once all breaks used, show single prediction. */}
+            {predictions.remainingBreakLunchMinutes > 0 ? (
+              <div className="grid grid-cols-2 gap-3 text-xs">
+                <div className="bg-white/60 rounded p-2">
+                  <div className="text-gray-600 font-semibold">Earliest</div>
+                  <div className="text-lg font-bold text-blue-600">
+                    {formatClock(predictions.earliest)}
+                  </div>
+                  <div className="text-gray-600 text-xs mt-1">All breaks during route</div>
+                </div>
+                
+                <div className="bg-white/60 rounded p-2">
+                  <div className="text-gray-600 font-semibold">Latest</div>
+                  <div className="text-lg font-bold text-blue-600">
+                    {formatClock(predictions.latest)}
+                  </div>
+                  <div className="text-gray-600 text-xs mt-1">
+                    +{Math.round(predictions.remainingBreakLunchMinutes)}min
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="bg-white/60 rounded p-2 text-xs">
+                <div className="text-gray-600 font-semibold">All breaks taken</div>
+                <div className="text-lg font-bold text-green-600 mt-1">
                   {formatClock(predictions.earliest)}
                 </div>
-                <div className="text-gray-600 text-xs mt-1">All breaks during route</div>
+                <div className="text-gray-600 text-xs mt-1">✓ Your predicted clock-out time</div>
               </div>
-              
-              <div className="bg-white/60 rounded p-2">
-                <div className="text-gray-600 font-semibold">Latest</div>
-                <div className="text-lg font-bold text-blue-600">
-                  {formatClock(predictions.latest)}
-                </div>
-                <div className="text-gray-600 text-xs mt-1">
-                  +{Math.round(predictions.remainingBreakLunchMinutes)}min
-                </div>
-              </div>
-            </div>
+            )}
 
-            {/* Warning Banner */}
-            {shouldWarn && (
+            {/* Warning Banner - only show if breaks remain and would push past expected out time */}
+            {shouldWarn && predictions.remainingBreakLunchMinutes > 0 && (
               <div className="bg-amber-100 border border-amber-300 rounded p-3 flex gap-3">
                 <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
                 <div className="text-sm text-amber-900">
@@ -358,9 +372,15 @@ export default function EndOfTourPredictionCard({ prediction, routeStartTime, ro
             )}
 
             {/* Smart Tips */}
-            <div className="text-xs text-gray-600 bg-gray-50 rounded p-2 italic">
-              💡 Tip: Take breaks during your route to keep your earliest time stable
-            </div>
+            {predictions.remainingBreakLunchMinutes > 0 ? (
+              <div className="text-xs text-gray-600 bg-gray-50 rounded p-2 italic">
+                💡 Tip: Take breaks during your route to keep your earliest time stable
+              </div>
+            ) : (
+              <div className="text-xs text-green-700 bg-green-50 rounded p-2 italic">
+                ✓ All breaks taken. You're locked in at {formatClock(predictions.earliest)}
+              </div>
+            )}
           </div>
         )}
       </Card>
