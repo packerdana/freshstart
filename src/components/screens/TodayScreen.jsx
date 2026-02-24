@@ -1255,13 +1255,42 @@ export default function TodayScreen() {
   return (
     <div className="p-4 pb-20 max-w-4xl mx-auto">
       {volumesSaveError ? (
-        <div className="mb-4 p-3 rounded-lg border border-red-300 bg-red-50 text-red-900 text-sm">
-          <div className="font-semibold">Not saved to cloud yet</div>
-          <div className="text-xs mt-1">
-            Your volumes may disappear if the page refreshes. Usually this means offline or signed out.
-          </div>
-          <div className="text-[11px] mt-1 opacity-80 break-words">
-            {String(volumesSaveError).slice(0, 200)}
+        <div className="mb-4 p-4 rounded-lg border-2 border-red-500 bg-red-50 text-red-900 text-sm font-semibold">
+          <div className="flex items-start gap-3">
+            <div className="text-2xl">🚨</div>
+            <div className="flex-1">
+              <div className="font-bold">MAIL VOLUMES NOT SAVED</div>
+              <div className="text-xs mt-2 font-normal">
+                Your volumes failed to save to the cloud and may disappear if you refresh or navigate away.
+              </div>
+              <div className="text-xs mt-2 bg-red-100 p-2 rounded border border-red-300 font-mono break-words">
+                {String(volumesSaveError).slice(0, 300)}
+              </div>
+              <div className="text-xs mt-3 font-normal">
+                Fix: Check internet connection, wait 10 seconds, or refresh the page. If the problem persists, re-enter your volumes.
+              </div>
+              <button
+                onClick={async () => {
+                  console.log('[TodayScreen] Manual volume autosave retry...');
+                  const payload = pendingVolumesPayloadRef.current;
+                  if (!payload) {
+                    setVolumesSaveError('No volumes to save (data lost)');
+                    return;
+                  }
+                  try {
+                    await upsertTodayVolumes(payload);
+                    setVolumesSaveError(null);
+                    console.log('[TodayScreen] ✓ Manual retry succeeded');
+                  } catch (e) {
+                    setVolumesSaveError(e?.message || String(e));
+                    console.error('[TodayScreen] Manual retry failed:', e);
+                  }
+                }}
+                className="mt-3 px-3 py-1 bg-red-600 text-white text-xs font-bold rounded hover:bg-red-700"
+              >
+                🔄 Retry Save Now
+              </button>
+            </div>
           </div>
         </div>
       ) : null}
