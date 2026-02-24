@@ -120,45 +120,28 @@ export async function syncPmOfficeToHistory({
     if (opRes?.error) throw opRes.error;
   } catch (e) {
     const msg = String(e?.message || e || '');
-
-    // Common schema issue: session_id may not have a unique constraint, so ON CONFLICT fails.
-    // In that case, fall back to a plain insert with a unique-ish session_id.
-    if (msg.includes('no unique') || msg.includes('ON CONFLICT') || msg.includes('42P10')) {
+    console.warn('[syncPmOfficeToHistory] operation_codes upsert failed (falling back to REST):', msg);
+    
+    // Try REST API as fallback
+    if (supabaseUrl && supabaseAnonKey) {
+      const token = getAccessTokenFromStorage();
       try {
-        const insertPayload = {
-          ...opPayload,
-          session_id: `${sessionId}_${Date.now()}`,
-        };
-        opRes = await withTimeout(
-          supabase.from('operation_codes').insert(insertPayload).select('id').maybeSingle(),
-          10000,
-          'syncPmOfficeToHistory operation_codes insert'
-        );
+        const rows = await restUpsert({
+          supabaseUrl,
+          anonKey: supabaseAnonKey,
+          token,
+          path: '/rest/v1/operation_codes',
+          onConflict: 'session_id',
+          body: [opPayload],
+          timeoutMs: 12000,
+          label: 'REST syncPmOfficeToHistory operation_codes',
+        });
+        opRes = { data: Array.isArray(rows) ? rows[0] : rows, error: null };
       } catch (e2) {
         opRes = { data: null, error: e2 };
       }
     } else {
-      console.warn('[syncPmOfficeToHistory] Falling back to REST operation_codes upsert:', msg);
-      if (supabaseUrl && supabaseAnonKey) {
-        const token = getAccessTokenFromStorage();
-        try {
-          const rows = await restUpsert({
-            supabaseUrl,
-            anonKey: supabaseAnonKey,
-            token,
-            path: '/rest/v1/operation_codes',
-            onConflict: 'session_id',
-            body: [opPayload],
-            timeoutMs: 12000,
-            label: 'REST syncPmOfficeToHistory operation_codes',
-          });
-          opRes = { data: Array.isArray(rows) ? rows[0] : rows, error: null };
-        } catch (e2) {
-          opRes = { data: null, error: e2 };
-        }
-      } else {
-        opRes = { data: null, error: e };
-      }
+      opRes = { data: null, error: e };
     }
   }
 
