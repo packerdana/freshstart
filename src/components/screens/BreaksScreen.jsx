@@ -41,6 +41,17 @@ export default function BreaksScreen() {
   const initialized = useBreakStore((state) => state.initialized);
   const initializeFromDatabase = useBreakStore((state) => state.initializeFromDatabase);
 
+  // USPS Break Allocations
+  const lunchTaken = useBreakStore((state) => state.lunchTaken);
+  const break1Taken = useBreakStore((state) => state.break1Taken);
+  const break2Taken = useBreakStore((state) => state.break2Taken);
+  const comfortStops = useBreakStore((state) => state.comfortStops);
+  const takeLunch = useBreakStore((state) => state.takeLunch);
+  const takeBreak1 = useBreakStore((state) => state.takeBreak1);
+  const takeBreak2 = useBreakStore((state) => state.takeBreak2);
+  const logComfortStop = useBreakStore((state) => state.logComfortStop);
+  const endComfortStop = useBreakStore((state) => state.endComfortStop);
+
   const routeStarted = useRouteStore((state) => state.routeStarted);
   const user = useAuthStore((state) => state.user);
 
@@ -363,17 +374,110 @@ export default function BreaksScreen() {
         </Card>
       )}
 
+      {/* USPS Break Allocations (30-min lunch + two 10-min breaks) */}
+      <Card className="mb-6 bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="text-3xl">📋</div>
+          <div className="flex-1">
+            <h3 className="font-bold text-gray-900">USPS Break Allocation</h3>
+            <p className="text-xs text-gray-600">30-min lunch + two 10-min breaks</p>
+          </div>
+        </div>
+
+        {/* Allocation Status */}
+        <div className="grid grid-cols-3 gap-2 mb-4">
+          <div className="p-3 bg-white rounded border border-blue-200">
+            <div className="text-xl mb-1">{lunchTaken ? '✅' : '☐'}</div>
+            <p className="text-xs font-semibold text-gray-700">Lunch</p>
+            <p className="text-xs text-gray-500">30 min</p>
+          </div>
+          <div className="p-3 bg-white rounded border border-blue-200">
+            <div className="text-xl mb-1">{break1Taken ? '✅' : '☐'}</div>
+            <p className="text-xs font-semibold text-gray-700">Break #1</p>
+            <p className="text-xs text-gray-500">10 min</p>
+          </div>
+          <div className="p-3 bg-white rounded border border-blue-200">
+            <div className="text-xl mb-1">{break2Taken ? '✅' : '☐'}</div>
+            <p className="text-xs font-semibold text-gray-700">Break #2</p>
+            <p className="text-xs text-gray-500">10 min</p>
+          </div>
+        </div>
+
+        {/* Take Break Buttons */}
+        <div className="grid grid-cols-2 gap-2 mb-4">
+          <Button
+            onClick={takeLunch}
+            disabled={lunchTaken}
+            className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300"
+          >
+            🍽️ Take Lunch
+          </Button>
+          <Button
+            onClick={takeBreak1}
+            disabled={break1Taken}
+            className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-300"
+          >
+            ☕ Take Break #1
+          </Button>
+          <Button
+            onClick={takeBreak2}
+            disabled={break2Taken}
+            className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-300"
+            variant="secondary"
+          >
+            ☕ Take Break #2
+          </Button>
+          <Button
+            onClick={() => logComfortStop('bathroom')}
+            className="bg-green-600 hover:bg-green-700"
+            variant="secondary"
+          >
+            🚽 Comfort Stop
+          </Button>
+        </div>
+
+        {/* Comfort Stops Log */}
+        {comfortStops && comfortStops.length > 0 && (
+          <div className="border-t border-blue-200 pt-3">
+            <p className="text-xs font-semibold text-gray-700 mb-2">Comfort Stops Logged:</p>
+            <div className="space-y-1 max-h-24 overflow-y-auto">
+              {comfortStops.map((stop, idx) => (
+                <div key={idx} className="flex items-center justify-between text-xs bg-white p-2 rounded border border-gray-200">
+                  <div>
+                    <span className="font-semibold text-gray-700">{stop.label}</span>
+                    {stop.secondsElapsed && (
+                      <span className="text-gray-600"> - {Math.round(stop.secondsElapsed / 60)}m</span>
+                    )}
+                    {!stop.secondsElapsed && (
+                      <span className="text-gray-500"> - Duration TBD</span>
+                    )}
+                  </div>
+                  {!stop.endTime && (
+                    <button
+                      onClick={() => endComfortStop(idx)}
+                      className="text-blue-600 font-medium hover:text-blue-700"
+                    >
+                      End
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </Card>
+
       <Card className="mb-4">
         <div className="flex items-center gap-3 mb-3">
           <div className="text-3xl">🍔</div>
           <div className="flex-1">
-            <h3 className="font-bold text-gray-900">LUNCH BREAK</h3>
+            <h3 className="font-bold text-gray-900">LUNCH BREAK (LEGACY)</h3>
             <p className="text-sm text-gray-600">30 minute countdown</p>
             <p className="text-xs text-gray-500">Auto-stops, pauses route</p>
           </div>
         </div>
         <Button onClick={startLunch} className="w-full">
-          Start Lunch
+          Start Lunch (Old Timer)
         </Button>
       </Card>
 
