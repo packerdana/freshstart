@@ -103,9 +103,25 @@ const stopAutoSave = () => {
 const useBreakStore = create(
   persist(
     (set, get) => ({
+  // USPS Standard Allocations: 30-min lunch, two 10-min breaks, unlimited comfort stops
+  lunchTaken: false,
+  lunchStartTime: null,
+  lunchEndTime: null,
+
+  break1Taken: false,
+  break1StartTime: null,
+  break1EndTime: null,
+
+  break2Taken: false,
+  break2StartTime: null,
+  break2EndTime: null,
+
+  // Comfort stops (bathroom, phone, other) - don't count against allocation
+  comfortStops: [], // { type, startTime, endTime, label, secondsElapsed }
+
+  // Legacy timers (kept for compatibility with existing break UI)
   lunchActive: false,
   lunchTime: 30 * 60,
-  lunchStartTime: null,
 
   breakActive: false,
   breakTime: 0,
@@ -671,6 +687,301 @@ const useBreakStore = create(
     }
   },
 
+  // === USPS BREAK ALLOCATION TRACKING ===
+  // Standard: 30-min lunch, 10-min break #1, 10-min break #2, unlimited comfort stops
+
+  takeLunch: async () => {
+    stopAlarm(set);
+    const now = Date.now();
+    const { breakEvents, waypointPausedSeconds, todaysBreaks } = get();
+
+    set({
+      lunchTaken: true,
+      lunchStartTime: now,
+      lunchEndTime: now + (30 * 60 * 1000),
+    });
+
+    // Persist to database
+    await saveBreakState(get());
+    
+    // Record in operation_codes for timeline
+    try {
+      const routeId = useRouteStore.getState().currentRouteId;
+      if (routeId) {
+        const { data: { user } } = await supabase.auth.getUser();
+        const today = getLocalDateString();
+        const sessionId = `lunch_${Date.now()}_${user?.email?.split('@')[0] || user?.id || 'user'}`;
+
+        await supabase
+          .from('operation_codes')
+          .insert({
+            session_id: sessionId,
+            date: today,
+            code: 'BRK_LUNCH',
+            code_name: 'Lunch',
+            start_time: new Date(now).toISOString(),
+            end_time: new Date(now + (30 * 60 * 1000)).toISOString(),
+            duration_minutes: 30,
+            route_id: routeId,
+            metadata: null,
+          });
+      }
+    } catch (e) {
+      console.warn('[breakStore] Failed to write lunch operation_code (non-fatal):', e?.message || e);
+    }
+
+    // Update break events for waypoint adjustments
+    set({
+      waypointPausedSeconds: waypointPausedSeconds + (30 * 60),
+      breakEvents: [
+        ...(breakEvents || []),
+        {
+          kind: 'lunch',
+          label: 'Lunch (30 min)',
+          startTime: now,
+          endTime: now + (30 * 60 * 1000),
+          seconds: 30 * 60,
+        },
+      ],
+      todaysBreaksDate: getLocalDateString(),
+      todaysBreaks: [
+        ...todaysBreaks,
+        {
+          type: 'Lunch',
+          icon: '🍽️',
+          time: new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
+          duration: '30m',
+        },
+      ],
+    });
+  },
+
+  takeBreak1: async () => {
+    stopAlarm(set);
+    const now = Date.now();
+    const { breakEvents, waypointPausedSeconds, todaysBreaks } = get();
+
+    set({
+      break1Taken: true,
+      break1StartTime: now,
+      break1EndTime: now + (10 * 60 * 1000),
+    });
+
+    await saveBreakState(get());
+    
+    try {
+      const routeId = useRouteStore.getState().currentRouteId;
+      if (routeId) {
+        const { data: { user } } = await supabase.auth.getUser();
+        const today = getLocalDateString();
+        const sessionId = `break1_${Date.now()}_${user?.email?.split('@')[0] || user?.id || 'user'}`;
+
+        await supabase
+          .from('operation_codes')
+          .insert({
+            session_id: sessionId,
+            date: today,
+            code: 'BRK_BREAK_1',
+            code_name: '10-Min Break #1',
+            start_time: new Date(now).toISOString(),
+            end_time: new Date(now + (10 * 60 * 1000)).toISOString(),
+            duration_minutes: 10,
+            route_id: routeId,
+            metadata: null,
+          });
+      }
+    } catch (e) {
+      console.warn('[breakStore] Failed to write break1 operation_code (non-fatal):', e?.message || e);
+    }
+
+    set({
+      waypointPausedSeconds: waypointPausedSeconds + (10 * 60),
+      breakEvents: [
+        ...(breakEvents || []),
+        {
+          kind: 'break1',
+          label: '10-Min Break #1',
+          startTime: now,
+          endTime: now + (10 * 60 * 1000),
+          seconds: 10 * 60,
+        },
+      ],
+      todaysBreaksDate: getLocalDateString(),
+      todaysBreaks: [
+        ...todaysBreaks,
+        {
+          type: '10-Min Break #1',
+          icon: '☕',
+          time: new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
+          duration: '10m',
+        },
+      ],
+    });
+  },
+
+  takeBreak2: async () => {
+    stopAlarm(set);
+    const now = Date.now();
+    const { breakEvents, waypointPausedSeconds, todaysBreaks } = get();
+
+    set({
+      break2Taken: true,
+      break2StartTime: now,
+      break2EndTime: now + (10 * 60 * 1000),
+    });
+
+    await saveBreakState(get());
+    
+    try {
+      const routeId = useRouteStore.getState().currentRouteId;
+      if (routeId) {
+        const { data: { user } } = await supabase.auth.getUser();
+        const today = getLocalDateString();
+        const sessionId = `break2_${Date.now()}_${user?.email?.split('@')[0] || user?.id || 'user'}`;
+
+        await supabase
+          .from('operation_codes')
+          .insert({
+            session_id: sessionId,
+            date: today,
+            code: 'BRK_BREAK_2',
+            code_name: '10-Min Break #2',
+            start_time: new Date(now).toISOString(),
+            end_time: new Date(now + (10 * 60 * 1000)).toISOString(),
+            duration_minutes: 10,
+            route_id: routeId,
+            metadata: null,
+          });
+      }
+    } catch (e) {
+      console.warn('[breakStore] Failed to write break2 operation_code (non-fatal):', e?.message || e);
+    }
+
+    set({
+      waypointPausedSeconds: waypointPausedSeconds + (10 * 60),
+      breakEvents: [
+        ...(breakEvents || []),
+        {
+          kind: 'break2',
+          label: '10-Min Break #2',
+          startTime: now,
+          endTime: now + (10 * 60 * 1000),
+          seconds: 10 * 60,
+        },
+      ],
+      todaysBreaksDate: getLocalDateString(),
+      todaysBreaks: [
+        ...todaysBreaks,
+        {
+          type: '10-Min Break #2',
+          icon: '☕',
+          time: new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
+          duration: '10m',
+        },
+      ],
+    });
+  },
+
+  logComfortStop: async (stopType = 'bathroom') => {
+    const now = Date.now();
+    const { comfortStops } = get();
+
+    // Comfort stops don't have a pre-set duration; mark as TBD
+    const newStop = {
+      type: stopType, // 'bathroom', 'phone', 'other'
+      startTime: now,
+      endTime: null,
+      label: stopType.charAt(0).toUpperCase() + stopType.slice(1),
+      secondsElapsed: null,
+    };
+
+    set({
+      comfortStops: [...(comfortStops || []), newStop],
+    });
+
+    await saveBreakState(get());
+  },
+
+  endComfortStop: async (index) => {
+    const now = Date.now();
+    const { comfortStops, breakEvents, waypointPausedSeconds, todaysBreaks } = get();
+
+    if (index < 0 || index >= comfortStops.length) return;
+
+    const stop = comfortStops[index];
+    const endTime = now;
+    const secondsElapsed = Math.round((endTime - stop.startTime) / 1000);
+
+    // Update the comfort stop with end time
+    const updated = [...comfortStops];
+    updated[index] = {
+      ...stop,
+      endTime,
+      secondsElapsed,
+    };
+
+    // Add to breakEvents for waypoint adjustments
+    set({
+      comfortStops: updated,
+      waypointPausedSeconds: waypointPausedSeconds + secondsElapsed,
+      breakEvents: [
+        ...(breakEvents || []),
+        {
+          kind: 'comfort',
+          label: `${stop.label} (${Math.round(secondsElapsed / 60)}m)`,
+          startTime: stop.startTime,
+          endTime,
+          seconds: secondsElapsed,
+        },
+      ],
+      todaysBreaksDate: getLocalDateString(),
+      todaysBreaks: [
+        ...todaysBreaks,
+        {
+          type: stop.label,
+          icon: '🚽',
+          time: new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
+          duration: `${Math.round(secondsElapsed / 60)}m`,
+        },
+      ],
+    });
+
+    // Persist to database
+    await saveBreakState(get());
+
+    // Record in operation_codes
+    try {
+      const routeId = useRouteStore.getState().currentRouteId;
+      if (routeId) {
+        const { data: { user } } = await supabase.auth.getUser();
+        const today = getLocalDateString();
+        const sessionId = `comfort_${Date.now()}_${user?.email?.split('@')[0] || user?.id || 'user'}`;
+
+        const codeMap = {
+          bathroom: 'BRK_BATHROOM',
+          phone: 'BRK_PHONE',
+          other: 'BRK_OTHER',
+        };
+
+        await supabase
+          .from('operation_codes')
+          .insert({
+            session_id: sessionId,
+            date: today,
+            code: codeMap[stop.type] || 'BRK_OTHER',
+            code_name: `${stop.label} (${Math.round(secondsElapsed / 60)}m)`,
+            start_time: new Date(stop.startTime).toISOString(),
+            end_time: new Date(endTime).toISOString(),
+            duration_minutes: Math.round(secondsElapsed / 60),
+            route_id: routeId,
+            metadata: { type: stop.type },
+          });
+      }
+    } catch (e) {
+      console.warn('[breakStore] Failed to write comfort stop operation_code (non-fatal):', e?.message || e);
+    }
+  },
+
   // Reset the store to initial defaults (used on account switch/logout)
   resetStore: async () => {
     // Stop any repeating alarms/auto-saves
@@ -678,9 +989,24 @@ const useBreakStore = create(
     try { stopAutoSave(); } catch {}
 
     set({
+      // USPS allocations
+      lunchTaken: false,
+      lunchStartTime: null,
+      lunchEndTime: null,
+
+      break1Taken: false,
+      break1StartTime: null,
+      break1EndTime: null,
+
+      break2Taken: false,
+      break2StartTime: null,
+      break2EndTime: null,
+
+      comfortStops: [],
+
+      // Legacy timers
       lunchActive: false,
       lunchTime: 30 * 60,
-      lunchStartTime: null,
 
       breakActive: false,
       breakTime: 0,
@@ -719,10 +1045,21 @@ const useBreakStore = create(
   name: 'routewise-break-timers',
   version: 1,
   partialize: (state) => ({
-    // Persist only what we need to restore timers and pace adjustments after refresh.
+    // USPS break allocations
+    lunchTaken: state.lunchTaken,
+    lunchStartTime: state.lunchStartTime,
+    lunchEndTime: state.lunchEndTime,
+    break1Taken: state.break1Taken,
+    break1StartTime: state.break1StartTime,
+    break1EndTime: state.break1EndTime,
+    break2Taken: state.break2Taken,
+    break2StartTime: state.break2StartTime,
+    break2EndTime: state.break2EndTime,
+    comfortStops: state.comfortStops,
+
+    // Legacy timers (kept for compatibility)
     lunchActive: state.lunchActive,
     lunchTime: state.lunchTime,
-    lunchStartTime: state.lunchStartTime,
 
     breakActive: state.breakActive,
     breakTime: state.breakTime,
