@@ -122,21 +122,13 @@ export async function syncPmOfficeToHistory({
     const msg = String(e?.message || e || '');
 
     // Common schema issue: session_id may not have a unique constraint, so ON CONFLICT fails.
-    // In that case, fall back to a plain insert with a unique-ish session_id.
+    // Instead of creating NEW entries with timestamps, try a direct UPDATE or just log the error.
+    // DO NOT fall back to insert with a new session_id — that creates duplicates.
     if (msg.includes('no unique') || msg.includes('ON CONFLICT') || msg.includes('42P10')) {
-      try {
-        const insertPayload = {
-          ...opPayload,
-          session_id: `${sessionId}_${Date.now()}`,
-        };
-        opRes = await withTimeout(
-          supabase.from('operation_codes').insert(insertPayload).select('id').maybeSingle(),
-          10000,
-          'syncPmOfficeToHistory operation_codes insert'
-        );
-      } catch (e2) {
-        opRes = { data: null, error: e2 };
-      }
+      console.warn('[syncPmOfficeToHistory] Schema constraint issue with operation_codes upsert. Logging but not retrying to avoid duplicates.');
+      // Schema mismatch: the table doesn't support upsert on session_id.
+      // This is a DB schema issue that needs admin attention; don't create duplicates by inserting new rows.
+      opRes = { data: null, error: e };
     } else {
       console.warn('[syncPmOfficeToHistory] Falling back to REST operation_codes upsert:', msg);
       if (supabaseUrl && supabaseAnonKey) {

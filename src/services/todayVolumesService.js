@@ -56,12 +56,12 @@ export async function upsertTodayVolumes({
 
   if (res.error) {
     const msg = String(res.error.message || res.error);
-    const missingDailyLog = msg.includes('daily_log') && msg.includes('schema cache');
-    const missingHasBoxholder = msg.includes('has_boxholder') && msg.includes('schema cache');
-    const missingCurtailedLetters = msg.includes('curtailed_letters') && msg.includes('schema cache');
-    const missingCurtailedFlats = msg.includes('curtailed_flats') && msg.includes('schema cache');
-    const missingCasedBoxholder = msg.includes('cased_boxholder') && msg.includes('schema cache');
-    const missingCasedBoxholderType = msg.includes('cased_boxholder_type') && msg.includes('schema cache');
+    const missingDailyLog = msg.includes('daily_log') && msg.includes('does not exist');
+    const missingHasBoxholder = msg.includes('has_boxholder') && msg.includes('does not exist');
+    const missingCurtailedLetters = msg.includes('curtailed_letters') && msg.includes('does not exist');
+    const missingCurtailedFlats = msg.includes('curtailed_flats') && msg.includes('does not exist');
+    const missingCasedBoxholder = msg.includes('cased_boxholder') && msg.includes('does not exist');
+    const missingCasedBoxholderType = msg.includes('cased_boxholder_type') && msg.includes('does not exist');
 
     if (missingDailyLog || missingHasBoxholder || missingCurtailedLetters || missingCurtailedFlats || missingCasedBoxholder || missingCasedBoxholderType) {
       const fallback = { ...payload };

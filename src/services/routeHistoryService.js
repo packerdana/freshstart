@@ -208,8 +208,8 @@ export async function saveRouteHistory(routeId, historyData, waypoints = null) {
   if (error) {
     const msg = String(error.message || error);
 
-    const missingCasingCol = msg.includes('casing_withdrawal_minutes') && msg.includes('schema cache');
-    const missingDailyLogCol = msg.includes('daily_log') && msg.includes('schema cache');
+    const missingCasingCol = msg.includes('casing_withdrawal_minutes') && msg.includes('does not exist');
+    const missingDailyLogCol = msg.includes('daily_log') && msg.includes('does not exist');
 
     // Boxholder columns were added later; tolerate older DBs.
     const missingHasBoxholder = msg.includes('has_boxholder') && msg.includes('schema cache');

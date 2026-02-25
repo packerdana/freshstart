@@ -169,82 +169,58 @@ export default function WaypointsScreen() {
       if (!waypointPredictions?.length) return null;
 
       /**
-       * ✅ CLEANER FIX: Calculate End of Tour as:
-       * End of Tour = Last Real Delivery Prediction + Avg Duration (Last Stop → Return to PO)
-       *
-       * Why this is better:
-       * 1. Uses the verified last delivery prediction (which is working correctly)
-       * 2. Adds the historical average duration from that stop back to office
-       * 3. Avoids relying on Return to Post Office waypoint calculation (which may have day-rollover issues)
-       * 4. Self-corrects if you're ahead/behind — the last waypoint time already reflects that
+       * ✅ End of Tour = Return to Post Office Time
+       * 
+       * Why this is right:
+       * End of Tour is when you clock out, which is exactly when you return to the Post Office.
+       * No need to calculate — just use the Return to PO waypoint's predicted time (with live offset).
        */
 
-      // Find the last REAL delivery waypoint (not Return to PO, which is seq 99)
-      const lastDeliveryWaypoint = waypointPredictions
-        .filter(p => {
-          const seqNum = Number(p.sequence_number || 0);
-          const name = (p.address || p.name || '').toLowerCase();
-          // Include all waypoints EXCEPT "Return to Post Office" (seq 99)
-          return seqNum > 0 && seqNum < 99 && p.predictedMinutes && Number.isFinite(p.predictedMinutes);
-        })
-        .sort((a, b) => Number(b.sequence_number || 0) - Number(a.sequence_number || 0))[0];
-
-      if (!lastDeliveryWaypoint || !lastDeliveryWaypoint.predictedTime) {
-        console.log('[EndOfTour] No last delivery waypoint found');
-        return null;
-      }
-
-      // Find the average duration from last delivery to Return to Post Office
-      // Look for Return to Post Office in the predictions to get its average duration
+      // Find Return to Post Office waypoint (seq 99, must include "return")
       const returnToPostOffice = waypointPredictions.find(p => {
         const seqNum = Number(p.sequence_number || 0);
         const name = (p.address || p.name || '').toLowerCase();
-        return seqNum === 99 || name.includes('return') || name.includes('post office');
+        // Be specific: must be seq 99 OR contain "return to" to avoid matching "Leave Post Office"
+        return seqNum === 99 || (name.includes('return') && name.includes('post office'));
       });
 
-      if (!returnToPostOffice) {
+      if (!returnToPostOffice || !returnToPostOffice.predictedTime) {
         console.log('[EndOfTour] No Return to Post Office waypoint found');
         return null;
       }
 
-      // The duration from last delivery to return is the difference between their predicted times
-      const lastDeliveryTime = lastDeliveryWaypoint.predictedTime instanceof Date 
-        ? lastDeliveryWaypoint.predictedTime.getTime()
-        : new Date(lastDeliveryWaypoint.predictedTime).getTime();
+      // End of Tour time is simply the Return to Post Office predicted time
+      const baseEndOfTourTime = returnToPostOffice.predictedTime instanceof Date
+        ? new Date(returnToPostOffice.predictedTime)
+        : new Date(returnToPostOffice.predictedTime);
 
-      const returnToPOTime = returnToPostOffice.predictedTime instanceof Date
-        ? returnToPostOffice.predictedTime.getTime()
-        : new Date(returnToPostOffice.predictedTime).getTime();
-
-      // Calculate the average duration from last stop to return
-      const durationToReturn = Math.max(0, (returnToPOTime - lastDeliveryTime) / 60000); // in minutes
-
-      // End of Tour = Last Delivery Time + Duration to Return
-      const endOfTourTime = new Date(lastDeliveryTime + durationToReturn * 60000);
+      // Apply live offset to end of tour time (if ahead/behind schedule)
+      const liveEndOfTourTime = applyLiveOffsetToPredictedTime(
+        baseEndOfTourTime,
+        returnToPostOffice.sequence_number,
+        scheduleOffset
+      );
 
       // Total time from start to end of tour
       const totalMinutes = returnToPostOffice.predictedMinutes || 0;
 
       console.log(
-        '[EndOfTour] Calculated: Last delivery @ ' +
-        lastDeliveryWaypoint.predictedTime.toLocaleTimeString() +
-        ' + ' + Math.round(durationToReturn) + ' min to return = ' +
-        endOfTourTime.toLocaleTimeString()
+        '[EndOfTour] Return to Post Office @ ' +
+        baseEndOfTourTime.toLocaleTimeString() +
+        ' (live: ' + liveEndOfTourTime.toLocaleTimeString() + ')'
       );
 
       return {
         streetTime: Math.round(totalMinutes),
-        returnToPOTime: endOfTourTime,
+        returnToPOTime: liveEndOfTourTime,
         returnToPOMinutes: returnToPostOffice.predictedMinutes,
-        lastDeliveryTime: lastDeliveryWaypoint.predictedTime,
-        durationToReturn: Math.round(durationToReturn),
         confidence: returnToPostOffice.confidence,
       };
     } catch (e) {
       console.warn('[Waypoints] endOfTourPrediction failed:', e?.message || e);
       return null;
     }
-  }, [waypointPredictions]);
+  }, [waypointPredictions, scheduleOffset]);
 
   useEffect(() => {
     async function loadPredictions() {
