@@ -248,7 +248,16 @@ export async function calculateFullDayPrediction(todayMail, routeConfig, history
   // FIXED: Boxholder does NOT add to office time - it affects street time through historical matching
   const totalOfficeTime = fixedOfficeTime + caseTime + pullDownTime + safetyTalk;
 
-  const loadTruckTime = ((todayMail.parcels || 0) + (todayMail.sprs || 0)) * USPS_STANDARDS.LOAD_TRUCK_TIME;
+  // FIXED (Feb 25, 2026): Use actual measured load truck time from timer if available
+  // Otherwise, fall back to formula estimate
+  let loadTruckTime;
+  if (breakStatus && breakStatus.loadTruckTime > 0) {
+    // Convert seconds to minutes
+    loadTruckTime = Math.round(breakStatus.loadTruckTime / 60);
+  } else {
+    // Formula fallback: estimate based on package count
+    loadTruckTime = ((todayMail.parcels || 0) + (todayMail.sprs || 0)) * USPS_STANDARDS.LOAD_TRUCK_TIME;
+  }
 
   const breakdown = {
     dps: {

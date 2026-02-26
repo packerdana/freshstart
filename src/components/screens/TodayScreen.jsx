@@ -355,6 +355,7 @@ export default function TodayScreen() {
         breakActive: breakState.breakActive || false,
         todaysBreaks: breakState.todaysBreaks || [],
         allBreaksDone: !breakState.lunchActive && !breakState.breakActive && (breakState.todaysBreaks || []).length > 0,
+        loadTruckTime: breakState.loadTruckTime || 0,  // FIXED: Pass actual measured load truck time (in seconds)
       };
 
       try {
