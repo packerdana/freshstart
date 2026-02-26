@@ -44,11 +44,15 @@ export async function upsertTodayVolumes({
     updated_at: new Date().toISOString(),
   };
 
-  const doUpsert = async (p) => {
+  const doUpsert = async (p, skipCols = []) => {
+    // Build select list dynamically to avoid columns that don't exist
+    let selectCols = ['id', 'route_id', 'date', 'dps', 'flats', 'letters', 'parcels', 'spurs', 'safety_talk', 'has_boxholder', 'cased_boxholder', 'cased_boxholder_type', 'curtailed_letters', 'curtailed_flats', 'daily_log', 'updated_at'];
+    selectCols = selectCols.filter(col => !skipCols.includes(col));
+    
     return supabase
       .from('route_history')
       .upsert(p, { onConflict: 'route_id,date' })
-      .select('id, route_id, date, dps, flats, letters, parcels, spurs, safety_talk, has_boxholder, cased_boxholder, cased_boxholder_type, curtailed_letters, curtailed_flats, daily_log, updated_at')
+      .select(selectCols.join(', '))
       .maybeSingle();
   };
 
@@ -65,13 +69,14 @@ export async function upsertTodayVolumes({
 
     if (missingDailyLog || missingHasBoxholder || missingCurtailedLetters || missingCurtailedFlats || missingCasedBoxholder || missingCasedBoxholderType) {
       const fallback = { ...payload };
-      if (missingDailyLog) delete fallback.daily_log;
-      if (missingHasBoxholder) delete fallback.has_boxholder;
-      if (missingCurtailedLetters) delete fallback.curtailed_letters;
-      if (missingCurtailedFlats) delete fallback.curtailed_flats;
-      if (missingCasedBoxholder) delete fallback.cased_boxholder;
-      if (missingCasedBoxholderType) delete fallback.cased_boxholder_type;
-      res = await doUpsert(fallback);
+      const skipCols = [];
+      if (missingDailyLog) { delete fallback.daily_log; skipCols.push('daily_log'); }
+      if (missingHasBoxholder) { delete fallback.has_boxholder; skipCols.push('has_boxholder'); }
+      if (missingCurtailedLetters) { delete fallback.curtailed_letters; skipCols.push('curtailed_letters'); }
+      if (missingCurtailedFlats) { delete fallback.curtailed_flats; skipCols.push('curtailed_flats'); }
+      if (missingCasedBoxholder) { delete fallback.cased_boxholder; skipCols.push('cased_boxholder'); }
+      if (missingCasedBoxholderType) { delete fallback.cased_boxholder_type; skipCols.push('cased_boxholder_type'); }
+      res = await doUpsert(fallback, skipCols);
     }
   }
 
