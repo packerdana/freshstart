@@ -32,6 +32,11 @@ export default function EndOfTourPredictionCard({ prediction, routeStartTime, ro
   const completeLunch = useBreakStore((state) => state.completeLunch);
   const completeBreak = useBreakStore((state) => state.completeBreak);
   
+  // USPS break allocation tracking (30-min lunch, 10-min break #1, 10-min break #2)
+  const lunchTaken = useBreakStore((state) => state.lunchTaken);
+  const break1Taken = useBreakStore((state) => state.break1Taken);
+  const break2Taken = useBreakStore((state) => state.break2Taken);
+  
   // Current time for calculations
   const [now, setNow] = useState(new Date());
   
@@ -124,17 +129,14 @@ export default function EndOfTourPredictionCard({ prediction, routeStartTime, ro
   }, []);
 
   // Calculate break/lunch display text
-  // Use predictions.remainingBreakLunchMinutes (already calculated correctly from breakEvents)
+  // FIXED: Now shows USPS allocation tracking (Lunch, Break #1, Break #2)
   const breakLunchStatus = useMemo(() => {
-    const remaining = predictions?.remainingBreakLunchMinutes || 0;
+    const lunchStatus = lunchTaken ? '✓ Lunch done' : '☐ Lunch';
+    const break1Status = break1Taken ? '✓ Break #1 done' : '☐ Break #1';
+    const break2Status = break2Taken ? '✓ Break #2 done' : '☐ Break #2';
     
-    if (remaining <= 0) {
-      return '✓ All breaks taken';
-    }
-    
-    // Show total remaining (simplified; exact breakdown depends on what was taken)
-    return `Breaks & Lunch: ${Math.round(remaining)} min remaining`;
-  }, [predictions?.remainingBreakLunchMinutes]);
+    return `${lunchStatus} • ${break1Status} • ${break2Status}`;
+  }, [lunchTaken, break1Taken, break2Taken]);
 
   // Warning: check if remaining break/lunch time will push finish past config "usual out"
   const shouldWarn = useMemo(() => {
@@ -319,7 +321,7 @@ export default function EndOfTourPredictionCard({ prediction, routeStartTime, ro
 
             {/* Prediction Details */}
             {/* Show range only if breaks remain. Once all breaks used, show single prediction. */}
-            {predictions.remainingBreakLunchMinutes > 0 ? (
+            {!(lunchTaken && break1Taken && break2Taken) ? (
               <div className="grid grid-cols-2 gap-3 text-xs">
                 <div className="bg-white/60 rounded p-2">
                   <div className="text-gray-600 font-semibold">Earliest</div>
@@ -350,7 +352,7 @@ export default function EndOfTourPredictionCard({ prediction, routeStartTime, ro
             )}
 
             {/* Warning Banner - only show if breaks remain and would push past expected out time */}
-            {shouldWarn && predictions.remainingBreakLunchMinutes > 0 && (
+            {shouldWarn && !(lunchTaken && break1Taken && break2Taken) && (
               <div className="bg-amber-100 border border-amber-300 rounded p-3 flex gap-3">
                 <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
                 <div className="text-sm text-amber-900">
@@ -364,7 +366,7 @@ export default function EndOfTourPredictionCard({ prediction, routeStartTime, ro
             )}
 
             {/* Smart Tips */}
-            {predictions.remainingBreakLunchMinutes > 0 ? (
+            {!(lunchTaken && break1Taken && break2Taken) ? (
               <div className="text-xs text-gray-600 bg-gray-50 rounded p-2 italic">
                 💡 Tip: Take breaks during your route to keep your earliest time stable
               </div>
