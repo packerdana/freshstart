@@ -896,30 +896,38 @@ export default function StatsScreen() {
               const display = (v) => (v === null || v === undefined ? '—' : v);
               const hasAnyVolume = [r.dps, r.flats, r.letters, r.parcels, r.sprs].some((v) => v !== null && v !== undefined);
               const total = (r.dps || 0) + (r.flats || 0) + (r.letters || 0) + (r.parcels || 0) + (r.sprs || 0);
+              const today = getLocalDateString();
+              const isToday = r.date === today;
 
               return (
-                <button
-                  key={r.date}
-                  type="button"
-                  className="w-full text-left bg-white rounded-lg p-3 border border-indigo-100 hover:border-indigo-200"
-                  onClick={() => setExpandedVolumeDate((cur) => (cur === r.date ? null : r.date))}
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="font-semibold text-gray-900">{format(parseLocalDate(r.date), 'EEE MMM d')}</p>
-                      <p className="text-xs text-gray-600">
-                        D {display(r.dps)} • F {display(r.flats)} • L {display(r.letters)} • P {display(r.parcels)} • SPR {display(r.sprs)}
-                        {!hasAnyVolume ? <span className="ml-2 text-amber-700">(not saved)</span> : null}
-                      </p>
+                <div key={r.date} className={`bg-white rounded-lg p-3 border ${isToday ? 'border-red-300 bg-red-50' : 'border-indigo-100'}`}>
+                  <button
+                    type="button"
+                    className="w-full text-left"
+                    onClick={() => setExpandedVolumeDate((cur) => (cur === r.date ? null : r.date))}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className={`font-semibold ${isToday ? 'text-red-900' : 'text-gray-900'}`}>
+                          {format(parseLocalDate(r.date), 'EEE MMM d')}
+                          {isToday ? <span className="ml-2 text-red-700">(today)</span> : null}
+                        </p>
+                        <p className={`text-xs ${isToday ? 'text-red-700' : 'text-gray-600'}`}>
+                          D {display(r.dps)} • F {display(r.flats)} • L {display(r.letters)} • P {display(r.parcels)} • SPR {display(r.sprs)}
+                          {!hasAnyVolume ? <span className="ml-2 font-semibold text-amber-700">(not saved)</span> : null}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xs text-gray-600">Total</p>
+                        <p className={`font-mono text-sm ${isToday ? 'text-red-700 font-bold' : 'text-gray-900'}`}>
+                          {hasAnyVolume ? total : '—'}
+                        </p>
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <p className="text-xs text-gray-600">Total</p>
-                      <p className="font-mono text-sm text-gray-900">{hasAnyVolume ? total : '—'}</p>
-                    </div>
-                  </div>
+                  </button>
 
                   {isOpen && (
-                    <div className="mt-3 pt-3 border-t border-indigo-100 text-sm text-gray-800">
+                    <div className={`mt-3 pt-3 border-t ${isToday ? 'border-red-200' : 'border-indigo-100'} text-sm text-gray-800`}>
                       <div className="grid grid-cols-2 gap-2">
                         <div>
                           <p className="text-xs text-gray-600">DPS</p>
@@ -953,9 +961,53 @@ export default function StatsScreen() {
                       {r.notes ? (
                         <p className="mt-2 text-xs text-gray-600 whitespace-pre-line">Notes: {r.notes}</p>
                       ) : null}
+                      
+                      {/* Edit this day button */}
+                      <button
+                        type="button"
+                        className={`mt-3 w-full px-3 py-2 rounded-lg font-semibold text-sm transition ${
+                          isToday
+                            ? 'bg-red-600 text-white hover:bg-red-700'
+                            : 'bg-blue-600 text-white hover:bg-blue-700'
+                        }`}
+                        onClick={async () => {
+                          let record = (history || []).find((h) => h?.date === r.date) || null;
+                          if (!record) {
+                            try {
+                              record = await ensureRouteHistoryDay(currentRouteId, r.date);
+                              await loadRouteHistory(currentRouteId);
+                            } catch (e) {
+                              alert(e?.message || 'No saved day record found yet for that date.');
+                              return;
+                            }
+                          }
+
+                          setFixDayRecord(record);
+                          setFixDayMoveRouteId(currentRouteId || '');
+                          setFixDayForm({
+                            dps: record.dps ?? '',
+                            flats: record.flats ?? '',
+                            letters: record.letters ?? '',
+                            parcels: record.parcels ?? '',
+                            sprs: record.sprs ?? '',
+                            safetyTalk: record.safetyTalk ?? '',
+                            amOfficeTime: record.officeTime ?? record.office_time ?? '',
+                            streetTime: record.streetTimeNormalized ?? record.street_time_normalized ?? record.streetTime ?? record.street_time ?? '',
+                            pmOfficeTime: record.pmOfficeTime ?? record.pm_office_time ?? '',
+                            hasBoxholder: !!record.hasBoxholder,
+                            excludeFromAverages: !!record.excludeFromAverages,
+                            assistance: !!record.auxiliaryAssistance,
+                            assistanceMinutes: record.assistanceMinutes ?? '',
+                            notes: record.notes ?? '',
+                          });
+                          setFixDayOpen(true);
+                        }}
+                      >
+                        ✏️ Edit this day
+                      </button>
                     </div>
                   )}
-                </button>
+                </div>
               );
             })}
           </div>
