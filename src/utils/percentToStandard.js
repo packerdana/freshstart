@@ -75,23 +75,30 @@ export function calculateStandardOfficeTime(lettersFeet, flatsFeet, sprsCount = 
  * @param {number} lettersFeet - Letters in feet
  * @param {number} flatsFeet - Flats in feet
  * @param {number} actualMinutes - Actual office time in minutes
+ * @param {number} predictedMinutes - Predicted office time (including all tasks, not just DOIS)
  * @returns {object} Performance metrics
  */
-export function calculatePercentToStandard(lettersFeet, flatsFeet, actualMinutes, sprsCount = 0) {
+export function calculatePercentToStandard(lettersFeet, flatsFeet, actualMinutes, sprsCount = 0, predictedMinutes = null) {
   const standard = calculateStandardOfficeTime(lettersFeet, flatsFeet, sprsCount);
 
   const actual = toNum(actualMinutes);
 
-  // Guard against divide-by-zero (e.g., if volume is 0)
-  if (!standard.standardTotal || standard.standardTotal <= 0 || actual <= 0) {
+  // Use provided predicted time as standard if available; otherwise fall back to DOIS formula
+  let standardTotal = standard.standardTotal;
+  if (predictedMinutes && toNum(predictedMinutes) > 0) {
+    standardTotal = toNum(predictedMinutes);
+  }
+
+  // Guard against divide-by-zero
+  if (!standardTotal || standardTotal <= 0 || actual <= 0) {
     return null;
   }
 
-  // % to Standard (DOIS formula): (ACTUAL / STANDARD) × 100
-  const percentToStandard = (actual / standard.standardTotal) * 100;
+  // % to Standard: (ACTUAL / STANDARD) × 100
+  const percentToStandard = (actual / standardTotal) * 100;
 
   // Variance (positive = slower, negative = faster)
-  const variance = actual - standard.standardTotal;
+  const variance = actual - standardTotal;
   const variancePercent = percentToStandard - 100;
 
   // Interpretation
@@ -113,11 +120,14 @@ export function calculatePercentToStandard(lettersFeet, flatsFeet, actualMinutes
     sprPieces: standard.sprPieces,
     totalPieces: standard.totalPieces,
 
-    // Standard times (what DOIS expects)
+    // Standard times (DOIS formula for reference)
     letterMinutes: Math.round(standard.letterMinutes),
     flatMinutes: Math.round(standard.flatMinutes),
     pullDownMinutes: Math.round(standard.pullDownMinutes),
-    standardTotal: Math.round(standard.standardTotal),
+    doisStandardTotal: Math.round(standard.standardTotal),
+    
+    // Actual standard used (either predicted or DOIS)
+    standardTotal: Math.round(standardTotal),
 
     // Actual time
     actualMinutes: Math.round(actual),

@@ -36,7 +36,8 @@ export default function EndOfDayReport({ reportData, onClose }) {
       mailVolumes.letters,
       mailVolumes.flats,
       officeTime722,
-      mailVolumes.sprs || 0
+      mailVolumes.sprs || 0,
+      predictedOfficeTime // Use predicted time as the standard, not DOIS formula
     );
   }
 
@@ -367,7 +368,7 @@ export default function EndOfDayReport({ reportData, onClose }) {
                       </tr>
                       <tr className="bg-indigo-50">
                         <td className="py-2 px-2">
-                          <div className="font-bold text-indigo-900">Total</div>
+                          <div className="font-bold text-indigo-900">Total (Predicted)</div>
                         </td>
                         <td className="text-right py-2 px-2 font-bold text-indigo-700 tabular-nums">
                           {officePerformance.standardTotal} min
