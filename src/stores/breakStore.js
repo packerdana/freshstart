@@ -1121,6 +1121,18 @@ const useBreakStore = create(
       // If the stored date doesn't match local today, clear the list.
       if (state.todaysBreaksDate !== today) {
         state.todaysBreaks = [];
+        // FIXED: Also reset USPS break allocation flags at midnight
+        // (lunchTaken, break1Taken, break2Taken, comfortStops)
+        state.lunchTaken = false;
+        state.lunchStartTime = null;
+        state.lunchEndTime = null;
+        state.break1Taken = false;
+        state.break1StartTime = null;
+        state.break1EndTime = null;
+        state.break2Taken = false;
+        state.break2StartTime = null;
+        state.break2EndTime = null;
+        state.comfortStops = [];
       }
       state.todaysBreaksDate = today;
 
