@@ -48,6 +48,9 @@ function filterValidHistory(history) {
     const am = Number(day.officeTime ?? day.office_time ?? 0) || 0;
     const date = day.date;
 
+    // Reject excluded days (marked exclude_from_averages or excludeFromAverages)
+    if (day.exclude_from_averages || day.excludeFromAverages) return false;
+
     // Reject street time outliers (with exception for day-after-holiday / peak season)
     if (st < MIN_VALID_STREET_MINUTES) return false;
     

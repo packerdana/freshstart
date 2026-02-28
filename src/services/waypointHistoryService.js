@@ -16,6 +16,35 @@ export async function fetchWaypointHistory(routeId, daysBack = 30, dateFilter = 
         : `[WAYPOINT HISTORY] Fetching deliveries for route ${routeId} since ${cutoffDateStr}`
     );
 
+    // Fetch route_history to get exclude_from_averages flags
+    let excludedDates = new Set();
+    try {
+      let historyQuery = supabase
+        .from('route_history')
+        .select('date, exclude_from_averages')
+        .eq('route_id', routeId)
+        .eq('exclude_from_averages', true);
+
+      if (usingFilter) {
+        historyQuery = historyQuery.in('date', dateFilter);
+      } else {
+        historyQuery = historyQuery.gte('date', cutoffDateStr);
+      }
+
+      const { data: excludedRows, error: historyError } = await withTimeout(
+        historyQuery,
+        5000,
+        'route_history exclusion lookup'
+      );
+
+      if (!historyError && excludedRows && excludedRows.length > 0) {
+        excludedDates = new Set(excludedRows.map(r => r.date));
+        console.log(`[WAYPOINT HISTORY] Found ${excludedDates.size} excluded days to filter out`);
+      }
+    } catch (e) {
+      console.warn('[WAYPOINT HISTORY] Failed to fetch exclusion flags, continuing without them:', e?.message);
+    }
+
     let query = supabase
       .from('waypoints')
       .select('date, address, delivery_time, sequence_number')
@@ -47,9 +76,11 @@ export async function fetchWaypointHistory(routeId, daysBack = 30, dateFilter = 
         return [];
       }
 
-      console.log(`[WAYPOINT HISTORY] Found ${deliveries.length} delivery records across multiple dates`);
+      // Filter out waypoints from excluded days
+      const filteredDeliveries = deliveries.filter(d => !excludedDates.has(d.date));
+      console.log(`[WAYPOINT HISTORY] Found ${deliveries.length} delivery records, ${filteredDeliveries.length} after exclusion filter`);
 
-      const historyByDate = groupDeliveriesByDate(deliveries);
+      const historyByDate = groupDeliveriesByDate(filteredDeliveries);
 
       // Sort newest → oldest
       historyByDate.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
@@ -92,26 +123,14 @@ export async function fetchWaypointHistory(routeId, daysBack = 30, dateFilter = 
       const list = Array.isArray(deliveries) ? deliveries : [];
       if (!list.length) return [];
 
-      const historyByDate = groupDeliveriesByDate(list);
+      // Filter out waypoints from excluded days (using exclusion set fetched above)
+      const filteredList = list.filter(d => !excludedDates.has(d.date));
+      console.log(`[WAYPOINT HISTORY] REST fallback: ${list.length} deliveries, ${filteredList.length} after exclusion filter`);
+
+      const historyByDate = groupDeliveriesByDate(filteredList);
       historyByDate.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
       return historyByDate;
     }
-
-    if (!deliveries || deliveries.length === 0) {
-      console.log('[WAYPOINT HISTORY] No historical delivery data found for this route');
-      return [];
-    }
-
-    console.log(`[WAYPOINT HISTORY] Found ${deliveries.length} delivery records across multiple dates`);
-
-    const historyByDate = groupDeliveriesByDate(deliveries);
-
-    // Sort newest → oldest
-    historyByDate.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
-
-    console.log(`[WAYPOINT HISTORY] Processed ${historyByDate.length} days of data`);
-
-    return historyByDate;
   } catch (error) {
     console.error('[WAYPOINT HISTORY] Unexpected error:', error);
     return [];
