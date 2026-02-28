@@ -882,6 +882,65 @@ const useBreakStore = create(
     });
   },
 
+  // === UNDO FUNCTIONS FOR ACCIDENTAL ALLOCATION CLICKS ===
+  
+  undoLunch: async () => {
+    const { waypointPausedSeconds, breakEvents, todaysBreaks } = get();
+    
+    // Remove the lunch from waypoint pause accumulator
+    const lunchBreakEvent = breakEvents?.find(e => e.kind === 'lunch');
+    const lunchSeconds = lunchBreakEvent?.seconds || (30 * 60);
+    
+    set({
+      lunchTaken: false,
+      lunchStartTime: null,
+      lunchEndTime: null,
+      waypointPausedSeconds: Math.max(0, waypointPausedSeconds - lunchSeconds),
+      breakEvents: (breakEvents || []).filter(e => e.kind !== 'lunch'),
+      todaysBreaks: (todaysBreaks || []).filter(b => b.type !== 'Lunch'),
+    });
+    
+    await saveBreakState(get());
+  },
+
+  undoBreak1: async () => {
+    const { waypointPausedSeconds, breakEvents, todaysBreaks } = get();
+    
+    // Remove break #1 from waypoint pause accumulator
+    const break1Event = breakEvents?.find(e => e.kind === 'break1');
+    const breakSeconds = break1Event?.seconds || (10 * 60);
+    
+    set({
+      break1Taken: false,
+      break1StartTime: null,
+      break1EndTime: null,
+      waypointPausedSeconds: Math.max(0, waypointPausedSeconds - breakSeconds),
+      breakEvents: (breakEvents || []).filter(e => e.kind !== 'break1'),
+      todaysBreaks: (todaysBreaks || []).filter(b => b.type !== '10-Min Break #1'),
+    });
+    
+    await saveBreakState(get());
+  },
+
+  undoBreak2: async () => {
+    const { waypointPausedSeconds, breakEvents, todaysBreaks } = get();
+    
+    // Remove break #2 from waypoint pause accumulator
+    const break2Event = breakEvents?.find(e => e.kind === 'break2');
+    const breakSeconds = break2Event?.seconds || (10 * 60);
+    
+    set({
+      break2Taken: false,
+      break2StartTime: null,
+      break2EndTime: null,
+      waypointPausedSeconds: Math.max(0, waypointPausedSeconds - breakSeconds),
+      breakEvents: (breakEvents || []).filter(e => e.kind !== 'break2'),
+      todaysBreaks: (todaysBreaks || []).filter(b => b.type !== '10-Min Break #2'),
+    });
+    
+    await saveBreakState(get());
+  },
+
   logComfortStop: async (stopType = 'bathroom') => {
     const now = Date.now();
     const { comfortStops } = get();

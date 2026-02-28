@@ -49,6 +49,9 @@ export default function BreaksScreen() {
   const takeLunch = useBreakStore((state) => state.takeLunch);
   const takeBreak1 = useBreakStore((state) => state.takeBreak1);
   const takeBreak2 = useBreakStore((state) => state.takeBreak2);
+  const undoLunch = useBreakStore((state) => state.undoLunch);
+  const undoBreak1 = useBreakStore((state) => state.undoBreak1);
+  const undoBreak2 = useBreakStore((state) => state.undoBreak2);
   const logComfortStop = useBreakStore((state) => state.logComfortStop);
   const endComfortStop = useBreakStore((state) => state.endComfortStop);
 
@@ -406,26 +409,23 @@ export default function BreaksScreen() {
         {/* Take Break Buttons */}
         <div className="grid grid-cols-2 gap-2 mb-4">
           <Button
-            onClick={takeLunch}
-            disabled={lunchTaken}
-            className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300"
+            onClick={lunchTaken ? undoLunch : takeLunch}
+            className={lunchTaken ? 'bg-red-600 hover:bg-red-700' : 'bg-blue-600 hover:bg-blue-700'}
           >
-            🍽️ Take Lunch
+            {lunchTaken ? '↩️ Undo Lunch' : '🍽️ Take Lunch'}
           </Button>
           <Button
-            onClick={takeBreak1}
-            disabled={break1Taken}
-            className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-300"
+            onClick={break1Taken ? undoBreak1 : takeBreak1}
+            className={break1Taken ? 'bg-red-600 hover:bg-red-700' : 'bg-indigo-600 hover:bg-indigo-700'}
           >
-            ☕ Take Break #1
+            {break1Taken ? '↩️ Undo #1' : '☕ Take Break #1'}
           </Button>
           <Button
-            onClick={takeBreak2}
-            disabled={break2Taken}
-            className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-300"
+            onClick={break2Taken ? undoBreak2 : takeBreak2}
+            className={break2Taken ? 'bg-red-600 hover:bg-red-700' : 'bg-indigo-600 hover:bg-indigo-700'}
             variant="secondary"
           >
-            ☕ Take Break #2
+            {break2Taken ? '↩️ Undo #2' : '☕ Take Break #2'}
           </Button>
           <Button
             onClick={() => logComfortStop('bathroom')}
