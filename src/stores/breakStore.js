@@ -1117,24 +1117,48 @@ const useBreakStore = create(
       const today = getLocalDateString();
       if (!Array.isArray(state.todaysBreaks)) state.todaysBreaks = [];
 
+      // Helper: check if a timestamp is from today
+      const isFromToday = (timestamp) => {
+        if (!timestamp) return false;
+        const breakDate = new Date(timestamp);
+        const y = breakDate.getFullYear();
+        const m = String(breakDate.getMonth() + 1).padStart(2, '0');
+        const d = String(breakDate.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}` === today;
+      };
+
       // Keep "Today's Breaks" truly "today".
-      // If the stored date doesn't match local today, clear the list.
+      // If the stored date doesn't match local today, clear the list AND reset allocation flags.
+      // Also check individual break timestamps — if they're from a different day, reset those flags.
       if (state.todaysBreaksDate !== today) {
         state.todaysBreaks = [];
-        // FIXED: Also reset USPS break allocation flags at midnight
-        // (lunchTaken, break1Taken, break2Taken, comfortStops)
-        state.lunchTaken = false;
-        state.lunchStartTime = null;
-        state.lunchEndTime = null;
-        state.break1Taken = false;
-        state.break1StartTime = null;
-        state.break1EndTime = null;
-        state.break2Taken = false;
-        state.break2StartTime = null;
-        state.break2EndTime = null;
         state.comfortStops = [];
       }
       state.todaysBreaksDate = today;
+
+      // FIXED: Reset USPS break allocation flags if the break start time is not from today
+      if (state.lunchStartTime && !isFromToday(state.lunchStartTime)) {
+        state.lunchTaken = false;
+        state.lunchStartTime = null;
+        state.lunchEndTime = null;
+      }
+
+      if (state.break1StartTime && !isFromToday(state.break1StartTime)) {
+        state.break1Taken = false;
+        state.break1StartTime = null;
+        state.break1EndTime = null;
+      }
+
+      if (state.break2StartTime && !isFromToday(state.break2StartTime)) {
+        state.break2Taken = false;
+        state.break2StartTime = null;
+        state.break2EndTime = null;
+      }
+
+      // Comfort stops also should be cleared if from a previous day
+      if (Array.isArray(state.comfortStops) && state.comfortStops.length > 0) {
+        state.comfortStops = state.comfortStops.filter(stop => isFromToday(stop.startTime));
+      }
 
       // Also keep pause accumulators scoped to the current day.
       // Otherwise old breaks can make waypoint ETAs wildly late.
