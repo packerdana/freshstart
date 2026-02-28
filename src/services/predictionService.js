@@ -95,9 +95,18 @@ export function calculateSimplePrediction(history) {
 }
 
 function calculateVolumeWeightedPrediction(days, todayMail, dayType, routeConfig) {
-  // Keep existing boxholder behavior (if present) to avoid mixing boxholder/non-boxholder days.
+  // Boxholder days require separate prediction (longer street times due to extra door-to-door delivery)
+  // Only use boxholder-specific history if available; don't mix with non-boxholder days
   const boxholderFiltered = days.filter(day => day.hasBoxholder === todayMail.hasBoxholder);
-  const daysToUse = boxholderFiltered.length >= 3 ? boxholderFiltered : days;
+  
+  let daysToUse;
+  if (boxholderFiltered.length >= 3) {
+    // Boxholder days available: use last 5 if available, otherwise all 3+
+    daysToUse = boxholderFiltered.length > 5 ? boxholderFiltered.slice(-5) : boxholderFiltered;
+  } else {
+    // Not enough boxholder-specific data, cannot safely predict
+    return null;
+  }
 
   const similar = findSimilarDays(daysToUse, todayMail, routeConfig, new Date(), { topN: 10, maxCandidates: 120 });
 
@@ -165,10 +174,14 @@ export function calculateSmartPrediction(todayMail, history, routeConfig) {
       return calculateSimplePrediction(history);
     }
 
-    return calculateVolumeWeightedPrediction(recentDays, todayMail, todayDayType, routeConfig);
+    const weighted = calculateVolumeWeightedPrediction(recentDays, todayMail, todayDayType, routeConfig);
+    // If boxholder filtering returned null (insufficient boxholder data), fall back to simple
+    return weighted || calculateSimplePrediction(recentDays);
   }
 
-  return calculateVolumeWeightedPrediction(similarDayTypes, todayMail, todayDayType, routeConfig);
+  const weighted = calculateVolumeWeightedPrediction(similarDayTypes, todayMail, todayDayType, routeConfig);
+  // If boxholder filtering returned null (insufficient boxholder data), fall back to simple
+  return weighted || calculateSimplePrediction(similarDayTypes);
 }
 
 export async function calculateFullDayPrediction(todayMail, routeConfig, history, waypoints = null, routeId = null, waypointPauseMinutes = 0, breakStatus = null) {
