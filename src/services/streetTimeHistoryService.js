@@ -136,7 +136,7 @@ export async function getStreetTimeSummaryByDate(currentRouteId) {
           const res = await withTimeout(
             supabase
               .from('route_history')
-              .select('date, exclude_from_averages, actual_office_time, office_722_time, office_time')
+              .select('date, exclude_from_averages, exclusion_reason, actual_office_time, office_722_time, office_time')
               .eq('route_id', currentRouteId)
               .in('date', dates),
             8000,
@@ -158,7 +158,7 @@ export async function getStreetTimeSummaryByDate(currentRouteId) {
               timeoutMs: 12000,
               label: 'REST route_history enrich',
               query: {
-                select: 'date,exclude_from_averages,actual_office_time,office_722_time,office_time',
+                select: 'date,exclude_from_averages,exclusion_reason,actual_office_time,office_722_time,office_time',
                 route_id: `eq.${currentRouteId}`,
                 date: `in.(${dates.join(',')})`,
               },
@@ -190,6 +190,7 @@ export async function getStreetTimeSummaryByDate(currentRouteId) {
           const next = {
             ...r,
             exclude_from_averages: !!meta.exclude_from_averages,
+            exclusion_reason: meta.exclusion_reason || null,
           };
 
           if ((next.codes['722'] || 0) <= 0 && stored722 > 0) {

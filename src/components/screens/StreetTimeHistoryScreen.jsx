@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { History, Calendar, Clock, ChevronDown, ChevronUp, Search, TrendingUp, Trash2, AlertCircle, Check, Ban } from 'lucide-react';
 import Card from '../shared/Card';
 import Button from '../shared/Button';
+import ExclusionReasonModal from '../shared/ExclusionReasonModal';
 import useRouteStore from '../../stores/routeStore';
 import { supabase } from '../../lib/supabase';
 import { getStreetTimeSummaryByDate, getOperationCodesForDate, formatDuration } from '../../services/streetTimeHistoryService';
@@ -22,6 +23,9 @@ export default function StreetTimeHistoryScreen() {
   const [dayToDelete, setDayToDelete] = useState(null);
   const [deleteResult, setDeleteResult] = useState(null);
   const [routeName, setRouteName] = useState(null);
+  const [showExclusionModal, setShowExclusionModal] = useState(false);
+  const [exclusionModalDate, setExclusionModalDate] = useState(null);
+  const [exclusionModalLoading, setExclusionModalLoading] = useState(false);
 
   const { currentRouteId, loadRouteHistory } = useRouteStore();
   const { deletingDate, deleteStreetTimeDay } = useDayDeletion();
@@ -129,6 +133,43 @@ export default function StreetTimeHistoryScreen() {
   const cancelDelete = () => {
     setShowDeleteConfirm(false);
     setDayToDelete(null);
+  };
+
+  const formatExclusionReason = (reason) => {
+    const reasonLabels = {
+      maintenance: 'Maintenance / Box prep',
+      unusual_conditions: 'Unusual conditions',
+      sick: 'Sick / Not feeling well',
+      different_mail_volume: 'Different mail volume',
+      other: 'Other',
+    };
+    return reasonLabels[reason] || reason;
+  };
+
+  const handleToggleExclude = async (date, exclude, reason = null) => {
+    if (!currentRouteId) return;
+
+    try {
+      setExclusionModalLoading(true);
+      await setExcludeFromAverages({
+        routeId: currentRouteId,
+        date,
+        exclude,
+        reason,
+      });
+      await loadHistorySummary();
+      // Refresh route_history-based stats/averages too.
+      if (typeof loadRouteHistory === 'function') {
+        await loadRouteHistory(currentRouteId);
+      }
+    } catch (err) {
+      console.error('Failed to toggle exclude_from_averages:', err);
+      alert(err?.message || 'Failed to update day');
+    } finally {
+      setExclusionModalLoading(false);
+      setShowExclusionModal(false);
+      setExclusionModalDate(null);
+    }
   };
 
   const getFilteredHistory = () => {
@@ -311,7 +352,7 @@ export default function StreetTimeHistoryScreen() {
 {item.exclude_from_averages && (
   <p className="text-xs mt-1 inline-flex items-center gap-1 text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded">
     <Ban className="w-3 h-3" />
-    Excluded from averages
+    Excluded{item.exclusion_reason ? `: ${formatExclusionReason(item.exclusion_reason)}` : ' from averages'}
   </p>
 ) }
                     </div>
@@ -395,22 +436,15 @@ export default function StreetTimeHistoryScreen() {
                         
                         <div className="grid grid-cols-1 gap-2">
                           <Button
-                            onClick={async (e) => {
+                            onClick={(e) => {
                               e.stopPropagation();
-                              try {
-                                await setExcludeFromAverages({
-                                  routeId: currentRouteId,
-                                  date: item.date,
-                                  exclude: !item.exclude_from_averages,
-                                });
-                                await loadHistorySummary();
-                                // Refresh route_history-based stats/averages too.
-                                if (typeof loadRouteHistory === 'function') {
-                                  await loadRouteHistory(currentRouteId);
-                                }
-                              } catch (err) {
-                                console.error('Failed to toggle exclude_from_averages:', err);
-                                alert(err?.message || 'Failed to update day');
+                              if (item.exclude_from_averages) {
+                                // If already excluded, clicking it again will include (no modal needed)
+                                handleToggleExclude(item.date, false, null);
+                              } else {
+                                // If not excluded, show modal to pick reason
+                                setExclusionModalDate(item.date);
+                                setShowExclusionModal(true);
                               }
                             }}
                             variant="secondary"
@@ -470,6 +504,20 @@ export default function StreetTimeHistoryScreen() {
           </div>
         </Card>
       )}
+
+      <ExclusionReasonModal
+        isOpen={showExclusionModal}
+        onClose={() => {
+          setShowExclusionModal(false);
+          setExclusionModalDate(null);
+        }}
+        onConfirm={(reason) => {
+          if (exclusionModalDate) {
+            handleToggleExclude(exclusionModalDate, true, reason);
+          }
+        }}
+        isLoading={exclusionModalLoading}
+      />
     </div>
   );
 }
