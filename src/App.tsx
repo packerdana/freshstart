@@ -11,6 +11,7 @@ import LoginScreen from './components/screens/LoginScreen';
 import ReportProblemModal from './components/ReportProblemModal';
 import SignupScreen from './components/screens/SignupScreen';
 import AuthCallbackScreen from './components/screens/AuthCallbackScreen';
+import TestHub from './components/screens/TestHub';
 import BottomNav from './components/layout/BottomNav';
 import Button from './components/shared/Button';
 import useRouteStore from './stores/routeStore';
@@ -71,12 +72,16 @@ function App() {
     return () => clearTimeout(t);
   }, [initializing]);
 
-  // URL escape hatch: /?reset=1
+  // URL escape hatch: /?reset=1 or /?test=1 for TestHub
+  const [testMode, setTestMode] = useState(false);
   useEffect(() => {
     try {
       const params = new URLSearchParams(window.location.search || '');
       if (params.get('reset') === '1') {
         hardResetAuth?.();
+      }
+      if (params.get('test') === '1') {
+        setTestMode(true);
       }
     } catch {}
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -209,6 +214,11 @@ function App() {
         </div>
       </div>
     );
+  }
+
+  // Test mode: show TestHub without authentication
+  if (testMode) {
+    return <TestHub />;
   }
 
   if (!user) {
