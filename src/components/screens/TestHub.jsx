@@ -73,16 +73,18 @@ export default function TestHub() {
         <h1 className="text-3xl font-bold text-gray-900 mb-2">RouteWise Test Hub</h1>
         <p className="text-gray-600 mb-8">Private testing for wizards & new UI components (Feb 28, 2026)</p>
 
+        {/* FULL DEMO FLOW - FEATURED */}
+        <button
+          onClick={() => setActiveTest('demo-flow')}
+          className="w-full mb-8 p-8 bg-gradient-to-br from-green-400 to-blue-500 text-white rounded-lg hover:shadow-xl transition transform hover:scale-105 text-left"
+        >
+          <div className="text-5xl mb-3">🚀</div>
+          <h2 className="text-2xl font-bold mb-2">Full Demo Flow</h2>
+          <p className="text-lg font-semibold mb-1">Complete New Experience</p>
+          <p className="text-sm opacity-90">Setup Wizard → Waypoint Wizard → Today Screen → Street Time</p>
+        </button>
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <button
-            onClick={() => setActiveTest('demo-flow')}
-            className="p-6 bg-gradient-to-br from-blue-100 to-blue-50 border-2 border-blue-400 rounded-lg hover:shadow-lg transition text-left"
-          >
-            <div className="text-2xl mb-2">🚀</div>
-            <h2 className="text-lg font-bold text-blue-900 mb-2">Full Demo Flow</h2>
-            <p className="text-sm text-blue-700 font-semibold">Complete user experience with all new screens</p>
-            <p className="text-xs text-blue-600 mt-1">Setup → Waypoints → Today → Street Time</p>
-          </button>
 
           <button
             onClick={() => setActiveTest('setup-wizard')}
