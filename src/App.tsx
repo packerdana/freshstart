@@ -11,7 +11,8 @@ import LoginScreen from './components/screens/LoginScreen';
 import ReportProblemModal from './components/ReportProblemModal';
 import SignupScreen from './components/screens/SignupScreen';
 import AuthCallbackScreen from './components/screens/AuthCallbackScreen';
-import TestHub from './components/screens/TestHub';
+import SetupWizard from './components/screens/SetupWizard';
+import WaypointWizard from './components/screens/WaypointWizard';
 import BottomNav from './components/layout/BottomNav';
 import Button from './components/shared/Button';
 import useRouteStore from './stores/routeStore';
@@ -19,11 +20,8 @@ import useAuthStore from './stores/authStore';
 import useBreakTimer from './hooks/useBreakTimer';
 import useBreakStore from './stores/breakStore';
 
-// Check test mode at module load time
-const urlParams = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
-const isTestMode = urlParams.get('test') === '1';
-
 function AppContent() {
+  const [testMode, setTestMode] = useState<string | null>(null);
   const [showSignup, setShowSignup] = useState(false);
   const [activeTab, setActiveTab] = useState('today');
   const [reportOpen, setReportOpen] = useState(false);
@@ -75,6 +73,17 @@ function AppContent() {
     const t = setTimeout(() => setLoadingStuck(true), 18000);
     return () => clearTimeout(t);
   }, [initializing]);
+
+  // Check for test mode: /?test=setup or ?test=waypoint or ?test=menu
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search || '');
+      const test = params.get('test');
+      if (test && ['setup', 'waypoint', 'menu', '1'].includes(test)) {
+        setTestMode(test);
+      }
+    } catch {}
+  }, []);
 
   // URL escape hatch: /?reset=1
   useEffect(() => {
@@ -164,6 +173,47 @@ function AppContent() {
   // We don't use a router, so we check the path directly.
   if (window.location.pathname === '/auth/callback') {
     return <AuthCallbackScreen />;
+  }
+
+  // Test mode: show wizards without authentication
+  if (testMode) {
+    if (testMode === 'setup') return <SetupWizard />;
+    if (testMode === 'waypoint') return <WaypointWizard />;
+    // menu or '1'
+    return (
+      <div className="min-h-screen bg-gray-50 p-8">
+        <div className="max-w-2xl mx-auto">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">RouteWise Test Hub</h1>
+          <p className="text-gray-600 mb-8">Private testing for wizards (Feb 28, 2026)</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <button
+              onClick={() => {
+                const p = new URLSearchParams(window.location.search);
+                p.set('test', 'setup');
+                window.location.search = p.toString();
+              }}
+              className="p-6 bg-white border-2 border-gray-200 rounded-lg hover:border-blue-600 hover:shadow-md transition text-left"
+            >
+              <div className="text-2xl mb-2">🎉</div>
+              <h2 className="text-lg font-bold text-gray-900 mb-2">Setup Wizard</h2>
+              <p className="text-sm text-gray-600">7-screen onboarding wizard</p>
+            </button>
+            <button
+              onClick={() => {
+                const p = new URLSearchParams(window.location.search);
+                p.set('test', 'waypoint');
+                window.location.search = p.toString();
+              }}
+              className="p-6 bg-white border-2 border-gray-200 rounded-lg hover:border-blue-600 hover:shadow-md transition text-left"
+            >
+              <div className="text-2xl mb-2">📍</div>
+              <h2 className="text-lg font-bold text-gray-900 mb-2">Waypoint Wizard</h2>
+              <p className="text-sm text-gray-600">4-screen waypoint configuration</p>
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   if (error) {
@@ -394,13 +444,4 @@ function AppContent() {
   );
 }
 
-function App() {
-  // Check for test mode BEFORE initializing any stores
-  if (isTestMode) {
-    return <TestHub />;
-  }
-  
-  return <AppContent />;
-}
-
-export default App;
+export default AppContent;
