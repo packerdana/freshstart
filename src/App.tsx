@@ -19,7 +19,11 @@ import useAuthStore from './stores/authStore';
 import useBreakTimer from './hooks/useBreakTimer';
 import useBreakStore from './stores/breakStore';
 
-function App() {
+// Check test mode at module load time
+const urlParams = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
+const isTestMode = urlParams.get('test') === '1';
+
+function AppContent() {
   const [showSignup, setShowSignup] = useState(false);
   const [activeTab, setActiveTab] = useState('today');
   const [reportOpen, setReportOpen] = useState(false);
@@ -63,12 +67,6 @@ function App() {
   const [loadingStuck, setLoadingStuck] = useState(false);
 
   useEffect(() => {
-    // Skip loading timeout in test mode
-    if (testMode) {
-      setLoadingStuck(false);
-      return;
-    }
-
     if (!initializing) {
       setLoadingStuck(false);
       return;
@@ -76,32 +74,25 @@ function App() {
 
     const t = setTimeout(() => setLoadingStuck(true), 18000);
     return () => clearTimeout(t);
-  }, [initializing, testMode]);
+  }, [initializing]);
 
-  // URL escape hatch: /?reset=1 or /?test=1 for TestHub
-  const [testMode, setTestMode] = useState(false);
+  // URL escape hatch: /?reset=1
   useEffect(() => {
     try {
       const params = new URLSearchParams(window.location.search || '');
       if (params.get('reset') === '1') {
         hardResetAuth?.();
       }
-      if (params.get('test') === '1') {
-        setTestMode(true);
-      }
     } catch {}
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
-    // Skip auth initialization in test mode
-    if (testMode) return;
-    
     const authListener = initializeAuth();
     return () => {
       authListener?.subscription?.unsubscribe();
     };
-  }, [initializeAuth, testMode]);
+  }, [initializeAuth]);
 
   useEffect(() => {
     if (user) {
@@ -175,7 +166,7 @@ function App() {
     return <AuthCallbackScreen />;
   }
 
-  if (!testMode && error) {
+  if (error) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-red-50 to-red-100 flex items-center justify-center p-6">
         <div className="max-w-md w-full bg-white rounded-xl shadow-lg p-6">
@@ -186,7 +177,7 @@ function App() {
     );
   }
 
-  if (!testMode && initializing) {
+  if (initializing) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100 flex items-center justify-center p-6">
         <div className="text-center max-w-sm w-full">
@@ -220,15 +211,6 @@ function App() {
             </div>
           ) : null}
         </div>
-      </div>
-    );
-  }
-
-  // Test mode: show TestHub without authentication (bypass Supabase check)
-  if (testMode) {
-    return (
-      <div className="min-h-screen bg-gray-50">
-        <TestHub />
       </div>
     );
   }
@@ -410,6 +392,15 @@ function App() {
       <BottomNav activeTab={activeTab} onTabChange={handleTabChange} />
     </div>
   );
+}
+
+function App() {
+  // Check for test mode BEFORE initializing any stores
+  if (isTestMode) {
+    return <TestHub />;
+  }
+  
+  return <AppContent />;
 }
 
 export default App;
