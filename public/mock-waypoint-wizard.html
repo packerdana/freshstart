@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RouteWise Waypoint Setup</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+
+        .wizard-container {
+            max-width: 500px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .progress-bar {
+            height: 4px;
+            background: #e0e0e0;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: #2563eb;
+            transition: width 0.3s ease;
+        }
+
+        .progress-text {
+            padding: 16px 24px;
+            background: #f9fafb;
+            border-bottom: 1px solid #e5e7eb;
+            font-size: 14px;
+            color: #666;
+            font-weight: 500;
+        }
+
+        .wizard-screen {
+            padding: 32px 24px;
+            display: none;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .wizard-screen.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .screen-title {
+            font-size: 24px;
+            font-weight: 700;
+            color: #1f2937;
+            margin-bottom: 8px;
+        }
+
+        .screen-subtitle {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 24px;
+            line-height: 1.5;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            font-size: 14px;
+            font-weight: 600;
+            color: #1f2937;
+            margin-bottom: 8px;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 16px;
+            font-family: inherit;
+        }
+
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #2563eb;
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+
+        .help-text {
+            font-size: 13px;
+            color: #666;
+            margin-top: 6px;
+            line-height: 1.4;
+        }
+
+        .tip-box {
+            background: #fef3c7;
+            border-left: 4px solid #f59e0b;
+            padding: 12px;
+            border-radius: 4px;
+            margin: 16px 0;
+            font-size: 13px;
+            color: #92400e;
+            line-height: 1.5;
+        }
+
+        .info-box {
+            background: #eff6ff;
+            border-left: 4px solid #2563eb;
+            padding: 12px;
+            border-radius: 4px;
+            margin: 16px 0;
+            font-size: 13px;
+            color: #1e40af;
+            line-height: 1.5;
+        }
+
+        .timeline-preview {
+            background: #f3f4f6;
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            padding: 16px;
+            margin: 16px 0;
+            font-size: 13px;
+        }
+
+        .timeline-item {
+            padding: 8px 0;
+            border-bottom: 1px solid #d1d5db;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .timeline-item:last-child {
+            border-bottom: none;
+        }
+
+        .timeline-num {
+            font-weight: 700;
+            color: #2563eb;
+            min-width: 30px;
+        }
+
+        .timeline-name {
+            flex: 1;
+            color: #1f2937;
+        }
+
+        .timeline-locked {
+            color: #999;
+            font-size: 11px;
+        }
+
+        .timeline-custom {
+            color: #10b981;
+            font-weight: 600;
+        }
+
+        .waypoint-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin: 16px 0;
+        }
+
+        .waypoint-item {
+            padding: 12px;
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            background: #f9fafb;
+            font-size: 14px;
+        }
+
+        .waypoint-item strong {
+            color: #1f2937;
+        }
+
+        .waypoint-item .waypoint-num {
+            font-weight: 700;
+            color: #2563eb;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 12px;
+            margin-top: 32px;
+        }
+
+        button {
+            flex: 1;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-primary {
+            background: #2563eb;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #1d4ed8;
+        }
+
+        .btn-primary:disabled {
+            background: #d1d5db;
+            cursor: not-allowed;
+        }
+
+        .btn-secondary {
+            background: #f3f4f6;
+            color: #1f2937;
+            border: 1px solid #d1d5db;
+        }
+
+        .btn-secondary:hover {
+            background: #e5e7eb;
+        }
+
+        .btn-success {
+            background: #10b981;
+            color: white;
+            flex: 0 1 100%;
+        }
+
+        .btn-success:hover {
+            background: #059669;
+        }
+
+        .welcome-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+        }
+
+        .optional-badge {
+            display: inline-block;
+            background: #dbeafe;
+            color: #1e40af;
+            font-size: 11px;
+            font-weight: 600;
+            padding: 2px 8px;
+            border-radius: 3px;
+            margin-left: 8px;
+        }
+
+        .add-button {
+            background: #f3f4f6;
+            border: 2px dashed #d1d5db;
+            color: #2563eb;
+            padding: 12px;
+            border-radius: 6px;
+            text-align: center;
+            cursor: pointer;
+            font-weight: 600;
+            margin-top: 12px;
+            transition: all 0.2s ease;
+        }
+
+        .add-button:hover {
+            background: #e5e7eb;
+            border-color: #2563eb;
+        }
+
+        .waypoint-card {
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            padding: 16px;
+            margin-bottom: 12px;
+        }
+
+        .waypoint-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .waypoint-card-title {
+            font-weight: 700;
+            color: #1f2937;
+        }
+
+        .remove-btn {
+            background: #fee2e2;
+            color: #dc2626;
+            border: none;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+
+        .remove-btn:hover {
+            background: #fecaca;
+        }
+    </style>
+</head>
+<body>
+    <div class="wizard-container">
+        <!-- Progress Bar -->
+        <div class="progress-bar">
+            <div class="progress-fill" id="progressFill"></div>
+        </div>
+
+        <!-- Progress Text -->
+        <div class="progress-text" id="progressText">Step 1 of 4</div>
+
+        <!-- Screen 1: Welcome -->
+        <div class="wizard-screen active" data-step="1">
+            <div class="welcome-icon">📍</div>
+            <h1 class="screen-title">Set Up Your Waypoints</h1>
+            <p class="screen-subtitle">Waypoints mark the key stops on your route where you want to log time.</p>
+            
+            <div class="info-box">
+                💡 <strong>Pro tip:</strong> Keep waypoints easy to reach—like when you're in your truck stopped at a parkpoint. Don't set waypoints where you'll be juggling mail in the sun with your hands full!
+            </div>
+
+            <div class="timeline-preview">
+                <div style="font-weight: 700; margin-bottom: 12px; color: #1f2937;">Your Timeline Will Look Like:</div>
+                <div class="timeline-item">
+                    <span class="timeline-num">#0</span>
+                    <span class="timeline-name">Start Street Time <span class="timeline-locked">(automatic on 721)</span></span>
+                </div>
+                <div class="timeline-item">
+                    <span class="timeline-num">#1</span>
+                    <span class="timeline-name">Leaving Post Office <span class="timeline-locked">(fixed)</span></span>
+                </div>
+                <div class="timeline-item">
+                    <span class="timeline-num">#2+</span>
+                    <span class="timeline-name timeline-custom">Your Custom Waypoints</span>
+                </div>
+                <div class="timeline-item">
+                    <span class="timeline-num">#98</span>
+                    <span class="timeline-name">Return to Post Office <span class="timeline-locked">(fixed)</span></span>
+                </div>
+                <div class="timeline-item">
+                    <span class="timeline-num">#99</span>
+                    <span class="timeline-name">End Street Time 744 or End Tour <span class="timeline-locked">(fixed)</span></span>
+                </div>
+            </div>
+
+            <div class="button-group">
+                <button class="btn-primary" onclick="nextStep()">Let's Set Waypoints →</button>
+            </div>
+        </div>
+
+        <!-- Screen 2: How Many Waypoints -->
+        <div class="wizard-screen" data-step="2">
+            <h2 class="screen-title">How Many Waypoints?</h2>
+            <p class="screen-subtitle">Think about your route. How many key stops make sense to track?</p>
+
+            <div class="tip-box">
+                💡 <strong>Examples:</strong>
+                <ul style="margin-top: 8px; margin-left: 16px;">
+                    <li>Simple route: 1-2 waypoints (first loop, second loop)</li>
+                    <li>Medium route: 2-3 waypoints (park point 1, park point 2, final area)</li>
+                    <li>Complex route: 3-5 waypoints (different neighborhoods, park points, boundaries)</li>
+                </ul>
+            </div>
+
+            <div class="form-group">
+                <label>How many custom waypoints do you want?</label>
+                <div style="display: flex; gap: 8px; margin-top: 12px;">
+                    <button style="flex: 1; padding: 12px; border: 2px solid #e5e7eb; background: white; border-radius: 6px; cursor: pointer; font-weight: 600; color: #1f2937;" onclick="setWaypointCount(1)">1</button>
+                    <button style="flex: 1; padding: 12px; border: 2px solid #e5e7eb; background: white; border-radius: 6px; cursor: pointer; font-weight: 600; color: #1f2937;" onclick="setWaypointCount(2)">2</button>
+                    <button style="flex: 1; padding: 12px; border: 2px solid #e5e7eb; background: white; border-radius: 6px; cursor: pointer; font-weight: 600; color: #1f2937;" onclick="setWaypointCount(3)">3</button>
+                    <button style="flex: 1; padding: 12px; border: 2px solid #e5e7eb; background: white; border-radius: 6px; cursor: pointer; font-weight: 600; color: #1f2937;" onclick="setWaypointCount(4)">4</button>
+                    <button style="flex: 1; padding: 12px; border: 2px solid #e5e7eb; background: white; border-radius: 6px; cursor: pointer; font-weight: 600; color: #1f2937;" onclick="setWaypointCount(5)">5+</button>
+                </div>
+            </div>
+
+            <div class="info-box">
+                ℹ️ You can add or remove waypoints anytime. Start with what makes sense for today.
+            </div>
+
+            <div class="button-group">
+                <button class="btn-secondary" onclick="prevStep()">← Back</button>
+                <button class="btn-primary" id="countBtn" onclick="nextStep()" disabled>Next →</button>
+            </div>
+        </div>
+
+        <!-- Screen 3: Name Your Waypoints -->
+        <div class="wizard-screen" data-step="3">
+            <h2 class="screen-title">Name Your Waypoints</h2>
+            <p class="screen-subtitle">Give them simple, memorable names. (e.g., "Park Point 1", "Downtown Loop", "Second Delivery Area")</p>
+
+            <div id="waypointInputs"></div>
+
+            <div class="tip-box">
+                💡 <strong>Naming tips:</strong> Use names YOU recognize instantly. Avoid vague names like "Stop A" or "Area 1". "Oak Park Loop" is better than "Loop 3".
+            </div>
+
+            <div class="button-group">
+                <button class="btn-secondary" onclick="prevStep()">← Back</button>
+                <button class="btn-primary" id="namesBtn" onclick="nextStep()" disabled>Next →</button>
+            </div>
+        </div>
+
+        <!-- Screen 4: Review & Confirm -->
+        <div class="wizard-screen" data-step="4">
+            <h2 class="screen-title">Your Waypoint Timeline</h2>
+            <p class="screen-subtitle">This is what you'll see on your Street Time screen.</p>
+
+            <div class="timeline-preview" style="margin-top: 16px;">
+                <div class="timeline-item">
+                    <span class="timeline-num">#0</span>
+                    <span class="timeline-name">Start Street Time <span class="timeline-locked">(automatic on 721)</span></span>
+                </div>
+                <div class="timeline-item">
+                    <span class="timeline-num">#1</span>
+                    <span class="timeline-name">Leaving Post Office <span class="timeline-locked">(fixed)</span></span>
+                </div>
+                <div id="reviewWaypoints"></div>
+                <div class="timeline-item">
+                    <span class="timeline-num">#98</span>
+                    <span class="timeline-name">Return to Post Office <span class="timeline-locked">(fixed)</span></span>
+                </div>
+                <div class="timeline-item">
+                    <span class="timeline-num">#99</span>
+                    <span class="timeline-name">End Street Time 744 or End Tour <span class="timeline-locked">(fixed)</span></span>
+                </div>
+            </div>
+
+            <div class="info-box">
+                ✅ When you hit the "721" button tomorrow, waypoint #0 will auto-log. Then you'll tap waypoints #1, #2, etc. as you reach them. Your phone will show you which one to tap next.
+            </div>
+
+            <div class="button-group">
+                <button class="btn-secondary" onclick="prevStep()">← Back</button>
+                <button class="btn-success" onclick="completeWaypoints()">Save Waypoints →</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentStep = 1;
+        const totalSteps = 4;
+        let waypointCount = 0;
+        const waypoints = [];
+
+        function updateProgress() {
+            const progress = (currentStep / totalSteps) * 100;
+            document.getElementById('progressFill').style.width = progress + '%';
+            document.getElementById('progressText').textContent = `Step ${currentStep} of ${totalSteps}`;
+        }
+
+        function showStep(step) {
+            document.querySelectorAll('.wizard-screen').forEach(screen => {
+                screen.classList.remove('active');
+            });
+            document.querySelector(`[data-step="${step}"]`).classList.add('active');
+            updateProgress();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function nextStep() {
+            if (currentStep < totalSteps) {
+                currentStep++;
+                showStep(currentStep);
+                if (currentStep === 3) {
+                    renderWaypointInputs();
+                } else if (currentStep === 4) {
+                    renderReviewWaypoints();
+                }
+            }
+        }
+
+        function prevStep() {
+            if (currentStep > 1) {
+                currentStep--;
+                showStep(currentStep);
+            }
+        }
+
+        function setWaypointCount(count) {
+            waypointCount = count;
+            waypoints.length = 0;
+            for (let i = 0; i < waypointCount; i++) {
+                waypoints.push({ name: '', num: i + 2 });
+            }
+            document.getElementById('countBtn').disabled = false;
+        }
+
+        function renderWaypointInputs() {
+            const container = document.getElementById('waypointInputs');
+            container.innerHTML = '';
+            
+            waypoints.forEach((wp, idx) => {
+                const input = document.createElement('div');
+                input.className = 'form-group';
+                input.innerHTML = `
+                    <label>Waypoint #${wp.num}</label>
+                    <input type="text" 
+                        placeholder="e.g., Park Point 1, Downtown Loop, Second Delivery Area" 
+                        value="${wp.name}"
+                        onkeyup="updateWaypointName(${idx}, this.value)">
+                    <div class="help-text">Make it easy to recognize when you're on the street.</div>
+                `;
+                container.appendChild(input);
+            });
+        }
+
+        function updateWaypointName(idx, name) {
+            waypoints[idx].name = name;
+            validateWaypoints();
+        }
+
+        function validateWaypoints() {
+            const allFilled = waypoints.every(wp => wp.name.trim());
+            document.getElementById('namesBtn').disabled = !allFilled;
+        }
+
+        function renderReviewWaypoints() {
+            const container = document.getElementById('reviewWaypoints');
+            container.innerHTML = '';
+            
+            waypoints.forEach((wp) => {
+                const item = document.createElement('div');
+                item.className = 'timeline-item';
+                item.innerHTML = `
+                    <span class="timeline-num">#${wp.num}</span>
+                    <span class="timeline-name timeline-custom">${wp.name}</span>
+                `;
+                container.appendChild(item);
+            });
+        }
+
+        function completeWaypoints() {
+            console.log('Waypoints complete:', waypoints);
+            alert(`Waypoints saved!\n\nYour timeline:\n#0 Start Street Time (auto)\n#1 Leaving Post Office\n${waypoints.map(wp => `#${wp.num} ${wp.name}`).join('\n')}\n#98 Return to Post Office\n#99 End Street Time 744 or End Tour\n\nYou're all set for tomorrow!`);
+        }
+
+        // Initialize
+        updateProgress();
+    </script>
+</body>
+</html>

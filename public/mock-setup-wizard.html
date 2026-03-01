@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RouteWise Setup Wizard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+
+        .wizard-container {
+            max-width: 500px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .progress-bar {
+            height: 4px;
+            background: #e0e0e0;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: #2563eb;
+            transition: width 0.3s ease;
+        }
+
+        .progress-text {
+            padding: 16px 24px;
+            background: #f9fafb;
+            border-bottom: 1px solid #e5e7eb;
+            font-size: 14px;
+            color: #666;
+            font-weight: 500;
+        }
+
+        .wizard-screen {
+            padding: 32px 24px;
+            display: none;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .wizard-screen.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .screen-title {
+            font-size: 24px;
+            font-weight: 700;
+            color: #1f2937;
+            margin-bottom: 8px;
+        }
+
+        .screen-subtitle {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 24px;
+            line-height: 1.5;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            font-size: 14px;
+            font-weight: 600;
+            color: #1f2937;
+            margin-bottom: 8px;
+        }
+
+        input[type="text"],
+        input[type="date"],
+        select {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 16px;
+            font-family: inherit;
+        }
+
+        input[type="text"]:focus,
+        input[type="date"]:focus,
+        select:focus {
+            outline: none;
+            border-color: #2563eb;
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+
+        .help-text {
+            font-size: 13px;
+            color: #666;
+            margin-top: 6px;
+            line-height: 1.4;
+        }
+
+        .info-box {
+            background: #eff6ff;
+            border-left: 4px solid #2563eb;
+            padding: 12px;
+            border-radius: 4px;
+            margin-top: 16px;
+            font-size: 13px;
+            color: #1e40af;
+            line-height: 1.5;
+        }
+
+        .radio-group {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .radio-option {
+            display: flex;
+            align-items: flex-start;
+            padding: 12px;
+            border: 2px solid #e5e7eb;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .radio-option:hover {
+            border-color: #2563eb;
+            background: #f9fafb;
+        }
+
+        .radio-option input[type="radio"] {
+            margin-top: 4px;
+            margin-right: 12px;
+            cursor: pointer;
+            accent-color: #2563eb;
+        }
+
+        .radio-label {
+            flex: 1;
+        }
+
+        .radio-label-main {
+            font-weight: 600;
+            color: #1f2937;
+            margin-bottom: 4px;
+        }
+
+        .radio-label-sub {
+            font-size: 13px;
+            color: #666;
+        }
+
+        .reference-data {
+            background: #f3f4f6;
+            padding: 12px;
+            border-radius: 6px;
+            margin: 16px 0;
+            font-size: 13px;
+            color: #666;
+        }
+
+        .reference-label {
+            font-weight: 600;
+            color: #1f2937;
+            margin-bottom: 8px;
+        }
+
+        .reference-item {
+            padding: 4px 0;
+        }
+
+        .review-section {
+            background: #f3f4f6;
+            padding: 16px;
+            border-radius: 6px;
+            margin: 12px 0;
+        }
+
+        .review-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #666;
+            text-transform: uppercase;
+            margin-bottom: 4px;
+        }
+
+        .review-value {
+            font-size: 18px;
+            font-weight: 700;
+            color: #1f2937;
+        }
+
+        .review-edit {
+            font-size: 12px;
+            color: #2563eb;
+            cursor: pointer;
+            margin-top: 4px;
+            text-decoration: none;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 12px;
+            margin-top: 32px;
+        }
+
+        button {
+            flex: 1;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-primary {
+            background: #2563eb;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #1d4ed8;
+        }
+
+        .btn-primary:disabled {
+            background: #d1d5db;
+            cursor: not-allowed;
+        }
+
+        .btn-secondary {
+            background: #f3f4f6;
+            color: #1f2937;
+            border: 1px solid #d1d5db;
+        }
+
+        .btn-secondary:hover {
+            background: #e5e7eb;
+        }
+
+        .btn-success {
+            background: #10b981;
+            color: white;
+            flex: 0 1 100%;
+        }
+
+        .btn-success:hover {
+            background: #059669;
+        }
+
+        .welcome-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+        }
+
+        .optional-badge {
+            display: inline-block;
+            background: #dbeafe;
+            color: #1e40af;
+            font-size: 11px;
+            font-weight: 600;
+            padding: 2px 8px;
+            border-radius: 3px;
+            margin-left: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="wizard-container">
+        <!-- Progress Bar -->
+        <div class="progress-bar">
+            <div class="progress-fill" id="progressFill"></div>
+        </div>
+
+        <!-- Progress Text -->
+        <div class="progress-text" id="progressText">Step 1 of 7</div>
+
+        <!-- Screen 1: Welcome -->
+        <div class="wizard-screen active" data-step="1">
+            <div class="welcome-icon">🎉</div>
+            <h1 class="screen-title">Welcome to RouteWise</h1>
+            <p class="screen-subtitle">Let's set up your account so we can start tracking your route accurately and protect your workload data.</p>
+            <div class="info-box">
+                ℹ️ This usually takes 5-10 minutes. You can come back later if needed.
+            </div>
+            <div class="button-group">
+                <button class="btn-primary" onclick="nextStep()">Let's Go →</button>
+            </div>
+        </div>
+
+        <!-- Screen 2: Name -->
+        <div class="wizard-screen" data-step="2">
+            <h2 class="screen-title">What's your name?</h2>
+            <p class="screen-subtitle">We use this to identify your routes in the app.</p>
+            <div class="form-group">
+                <label for="name">Full Name</label>
+                <input type="text" id="name" placeholder="Dana Olson" onkeyup="validateField('name')">
+                <div class="help-text">First and last name</div>
+            </div>
+            <div class="button-group">
+                <button class="btn-secondary" onclick="prevStep()">← Back</button>
+                <button class="btn-primary" id="nameBtn" onclick="nextStep()" disabled>Next →</button>
+            </div>
+        </div>
+
+        <!-- Screen 3: Station -->
+        <div class="wizard-screen" data-step="3">
+            <h2 class="screen-title">Which station?</h2>
+            <p class="screen-subtitle">Search by zipcode or office name.</p>
+            <div class="form-group">
+                <label for="station">Station / Office</label>
+                <input type="text" id="station" placeholder="Enter zipcode or station name (e.g., 90210 or Downtown)" onkeyup="searchStation()">
+                <div id="stationResults" style="margin-top: 8px;"></div>
+                <div class="help-text">Searches USPS delivery stations. Can't find yours? Contact support.</div>
+            </div>
+            <div class="button-group">
+                <button class="btn-secondary" onclick="prevStep()">← Back</button>
+                <button class="btn-primary" id="stationBtn" onclick="nextStep()" disabled>Next →</button>
+            </div>
+        </div>
+
+        <!-- Screen 4: Carrier Type -->
+        <div class="wizard-screen" data-step="4">
+            <h2 class="screen-title">What's your carrier type?</h2>
+            <p class="screen-subtitle">This tells us how many routes you'll be setting up.</p>
+            <div class="radio-group" id="carrierTypeGroup">
+                <label class="radio-option">
+                    <input type="radio" name="carrierType" value="regular" onchange="validateField('carrierType')">
+                    <div class="radio-label">
+                        <div class="radio-label-main">Regular Carrier</div>
+                        <div class="radio-label-sub">1 route (you're assigned to one primary route)</div>
+                    </div>
+                </label>
+                <label class="radio-option">
+                    <input type="radio" name="carrierType" value="t6-swing" onchange="validateField('carrierType')">
+                    <div class="radio-label">
+                        <div class="radio-label-main">T-6 or Swing</div>
+                        <div class="radio-label-sub">Up to 5 routes (you rotate across several)</div>
+                    </div>
+                </label>
+                <label class="radio-option">
+                    <input type="radio" name="carrierType" value="cca" onchange="validateField('carrierType')">
+                    <div class="radio-label">
+                        <div class="radio-label-main">CCA (City Carrier Assistant)</div>
+                        <div class="radio-label-sub">Many routes (you're assigned as needed)</div>
+                    </div>
+                </label>
+                <label class="radio-option">
+                    <input type="radio" name="carrierType" value="unassigned" onchange="validateField('carrierType')">
+                    <div class="radio-label">
+                        <div class="radio-label-main">Unassigned Regular</div>
+                        <div class="radio-label-sub">Many routes (regular without permanent assignment)</div>
+                    </div>
+                </label>
+            </div>
+            <div class="button-group">
+                <button class="btn-secondary" onclick="prevStep()">← Back</button>
+                <button class="btn-primary" id="carrierTypeBtn" onclick="nextStep()" disabled>Next →</button>
+            </div>
+        </div>
+
+        <!-- Screen 5: Seniority Date -->
+        <div class="wizard-screen" data-step="5">
+            <h2 class="screen-title">When did you start? <span class="optional-badge">Optional</span></h2>
+            <p class="screen-subtitle">Your seniority date helps us understand your career stage (not required).</p>
+            <div class="form-group">
+                <label for="seniorityDate">Start Date</label>
+                <input type="date" id="seniorityDate">
+                <div class="help-text">Leave blank if you'd rather not share.</div>
+            </div>
+            <div class="button-group">
+                <button class="btn-secondary" onclick="prevStep()">← Back</button>
+                <button class="btn-primary" onclick="nextStep()">Next →</button>
+            </div>
+        </div>
+
+        <!-- Screen 6: Route Setup -->
+        <div class="wizard-screen" data-step="6">
+            <h2 class="screen-title">Route Details <span class="optional-badge">Optional</span></h2>
+            <p class="screen-subtitle">Fill these in now, or come back later when you have the info.</p>
+
+            <div class="reference-data">
+                <div class="reference-label">📊 Your Recent History</div>
+                <div class="reference-item">Last 10 routes averaged: <strong>115 stops</strong></div>
+                <div class="reference-item">Last 10 routes averaged: <strong>24 parcels</strong></div>
+            </div>
+
+            <div class="form-group">
+                <label for="stops">How many stops on your route? <span style="font-weight: 400; color: #999;">(optional)</span></label>
+                <input type="text" id="stops" placeholder="115" onkeyup="saveRouteField('stops')">
+                <div class="help-text">Total delivery addresses. Find this in your <strong>edit book</strong>. <strong>Why?</strong> This determines cased boxholder credit calculations.</div>
+            </div>
+
+            <div class="form-group">
+                <label for="baseParcels">Base parcels (normal day) <span style="font-weight: 400; color: #999;">(optional)</span></label>
+                <input type="text" id="baseParcels" placeholder="24" onkeyup="saveRouteField('baseParcels')">
+                <div class="help-text">Average parcels you start with. Ask your <strong>supervisor</strong> for this number. <strong>Why?</strong> You'll use this on your 3996 form. Anything over base = grievance evidence.</div>
+            </div>
+
+            <div class="info-box">
+                💡 Once set, these become your baseline for 3996 claims. You can update them anytime, but each change starts a new period.
+            </div>
+
+            <div class="button-group">
+                <button class="btn-secondary" onclick="prevStep()">← Back</button>
+                <button class="btn-primary" onclick="nextStep()">Next →</button>
+            </div>
+        </div>
+
+        <!-- Screen 7: Review -->
+        <div class="wizard-screen" data-step="7">
+            <h2 class="screen-title">Review Your Setup</h2>
+            <p class="screen-subtitle">Make sure everything looks right before we start tracking.</p>
+
+            <div class="review-section">
+                <div class="review-label">Name</div>
+                <div class="review-value" id="reviewName">Dana Olson</div>
+                <a href="#" class="review-edit" onclick="goToStep(2); return false;">Change</a>
+            </div>
+
+            <div class="review-section">
+                <div class="review-label">Station</div>
+                <div class="review-value" id="reviewStation">Downtown Station</div>
+                <a href="#" class="review-edit" onclick="goToStep(3); return false;">Change</a>
+            </div>
+
+            <div class="review-section">
+                <div class="review-label">Carrier Type</div>
+                <div class="review-value" id="reviewCarrierType">Regular Carrier</div>
+                <a href="#" class="review-edit" onclick="goToStep(4); return false;">Change</a>
+            </div>
+
+            <div class="review-section">
+                <div class="review-label">Stops / Base Parcels</div>
+                <div class="review-value" id="reviewRoute">(pending)</div>
+                <a href="#" class="review-edit" onclick="goToStep(6); return false;">Fill in / Change</a>
+            </div>
+
+            <div class="info-box">
+                ✅ You're all set! RouteWise will now start tracking your delivery times, predict your end-of-tour, and help you document workload on form 3996. You can fill in route details anytime from your profile settings.
+            </div>
+
+            <div class="button-group">
+                <button class="btn-success" onclick="completeSetup()">Start Using RouteWise →</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentStep = 1;
+        const totalSteps = 7;
+        const formData = {};
+
+        function updateProgress() {
+            const progress = (currentStep / totalSteps) * 100;
+            document.getElementById('progressFill').style.width = progress + '%';
+            document.getElementById('progressText').textContent = `Step ${currentStep} of ${totalSteps}`;
+        }
+
+        function showStep(step) {
+            document.querySelectorAll('.wizard-screen').forEach(screen => {
+                screen.classList.remove('active');
+            });
+            document.querySelector(`[data-step="${step}"]`).classList.add('active');
+            updateProgress();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function nextStep() {
+            if (currentStep < totalSteps) {
+                currentStep++;
+                showStep(currentStep);
+            }
+        }
+
+        function prevStep() {
+            if (currentStep > 1) {
+                currentStep--;
+                showStep(currentStep);
+            }
+        }
+
+        function goToStep(step) {
+            currentStep = step;
+            showStep(currentStep);
+        }
+
+        // Mock station database (in real app, this comes from backend)
+        const stations = [
+            { id: 'downtown', name: 'Downtown Station', zipcode: '90210', fullName: 'Downtown Station (90210)' },
+            { id: 'north', name: 'North Station', zipcode: '90211', fullName: 'North Station (90211)' },
+            { id: 'south', name: 'South Station', zipcode: '90212', fullName: 'South Station (90212)' },
+            { id: 'east', name: 'East Station', zipcode: '90213', fullName: 'East Station (90213)' },
+            { id: 'west', name: 'West Station', zipcode: '90214', fullName: 'West Station (90214)' },
+            { id: 'central', name: 'Central Station', zipcode: '90215', fullName: 'Central Station (90215)' },
+            { id: 'airport', name: 'Airport Station', zipcode: '90216', fullName: 'Airport Station (90216)' },
+        ];
+
+        function searchStation() {
+            const input = document.getElementById('station').value.toLowerCase();
+            const resultsDiv = document.getElementById('stationResults');
+            
+            if (!input || input.length < 1) {
+                resultsDiv.innerHTML = '';
+                return;
+            }
+
+            const filtered = stations.filter(s => 
+                s.name.toLowerCase().includes(input) || 
+                s.zipcode.includes(input)
+            );
+
+            if (filtered.length === 0) {
+                resultsDiv.innerHTML = '<div style="color: #666; font-size: 13px; padding: 8px;">No stations found. Try a different zipcode.</div>';
+            } else {
+                resultsDiv.innerHTML = filtered.map(s => 
+                    `<div style="padding: 8px; border: 1px solid #e5e7eb; border-radius: 4px; margin-bottom: 6px; cursor: pointer; background: #f9fafb;" onclick="selectStation('${s.id}', '${s.fullName}')">${s.fullName}</div>`
+                ).join('');
+            }
+        }
+
+        function selectStation(stationId, stationName) {
+            document.getElementById('station').value = stationName;
+            formData.station = stationName;
+            document.getElementById('stationResults').innerHTML = '';
+            validateField('station');
+        }
+
+        function validateField(fieldName) {
+            const field = document.getElementById(fieldName);
+            if (fieldName === 'name') {
+                const btn = document.getElementById('nameBtn');
+                btn.disabled = !field.value.trim();
+                if (field.value) formData.name = field.value;
+            } else if (fieldName === 'station') {
+                const btn = document.getElementById('stationBtn');
+                btn.disabled = !field.value;
+                if (field.value) formData.station = field.value;
+            } else if (fieldName === 'carrierType') {
+                const btn = document.getElementById('carrierTypeBtn');
+                const selected = document.querySelector('input[name="carrierType"]:checked');
+                btn.disabled = !selected;
+                if (selected) formData.carrierType = selected.value;
+            }
+        }
+
+        function saveRouteField(fieldName) {
+            const stops = document.getElementById('stops').value;
+            const parcels = document.getElementById('baseParcels').value;
+            
+            if (stops) formData.stops = stops;
+            if (parcels) formData.baseParcels = parcels;
+            
+            if (stops && parcels) {
+                document.getElementById('reviewRoute').textContent = `${stops} stops • ${parcels} parcels`;
+            } else if (stops) {
+                document.getElementById('reviewRoute').textContent = `${stops} stops • (parcels pending)`;
+            } else if (parcels) {
+                document.getElementById('reviewRoute').textContent = `(stops pending) • ${parcels} parcels`;
+            } else {
+                document.getElementById('reviewRoute').textContent = '(pending)';
+            }
+        }
+
+        function completeSetup() {
+            formData.seniority = document.getElementById('seniorityDate').value;
+            console.log('Setup complete:', formData);
+            const routeInfo = formData.stops && formData.baseParcels 
+                ? `Route: ${formData.stops} stops, ${formData.baseParcels} parcels`
+                : `Route: (Fill in later from settings)`;
+            alert(`Setup complete! You're ready to start.\n\nName: ${formData.name}\nStation: ${formData.station}\nCarrier Type: ${formData.carrierType}\n${routeInfo}`);
+        }
+
+        // Initialize
+        updateProgress();
+
+        // Auto-populate review on final step
+        const reviewObserver = new MutationObserver(() => {
+            if (currentStep === 7) {
+                document.getElementById('reviewName').textContent = document.getElementById('name').value || 'Not set';
+                const station = document.getElementById('station');
+                document.getElementById('reviewStation').textContent = station.options[station.selectedIndex]?.text || 'Not set';
+                const carrierType = document.querySelector('input[name="carrierType"]:checked');
+                const carrierTypeMap = {
+                    'cca': 'CCA (City Carrier Assistant)',
+                    'regular': 'Regular Carrier',
+                    't6-swing': 'T-6 or Swing',
+                    'unassigned': 'Unassigned Regular'
+                };
+                document.getElementById('reviewCarrierType').textContent = carrierTypeMap[carrierType?.value] || 'Not set';
+            }
+        });
+    </script>
+</body>
+</html>
