@@ -63,6 +63,12 @@ function App() {
   const [loadingStuck, setLoadingStuck] = useState(false);
 
   useEffect(() => {
+    // Skip loading timeout in test mode
+    if (testMode) {
+      setLoadingStuck(false);
+      return;
+    }
+
     if (!initializing) {
       setLoadingStuck(false);
       return;
@@ -70,7 +76,7 @@ function App() {
 
     const t = setTimeout(() => setLoadingStuck(true), 18000);
     return () => clearTimeout(t);
-  }, [initializing]);
+  }, [initializing, testMode]);
 
   // URL escape hatch: /?reset=1 or /?test=1 for TestHub
   const [testMode, setTestMode] = useState(false);
@@ -88,11 +94,14 @@ function App() {
   }, []);
 
   useEffect(() => {
+    // Skip auth initialization in test mode
+    if (testMode) return;
+    
     const authListener = initializeAuth();
     return () => {
       authListener?.subscription?.unsubscribe();
     };
-  }, [initializeAuth]);
+  }, [initializeAuth, testMode]);
 
   useEffect(() => {
     if (user) {
@@ -166,7 +175,7 @@ function App() {
     return <AuthCallbackScreen />;
   }
 
-  if (error) {
+  if (!testMode && error) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-red-50 to-red-100 flex items-center justify-center p-6">
         <div className="max-w-md w-full bg-white rounded-xl shadow-lg p-6">
@@ -177,8 +186,7 @@ function App() {
     );
   }
 
-
-  if (initializing) {
+  if (!testMode && initializing) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100 flex items-center justify-center p-6">
         <div className="text-center max-w-sm w-full">
@@ -216,9 +224,13 @@ function App() {
     );
   }
 
-  // Test mode: show TestHub without authentication
+  // Test mode: show TestHub without authentication (bypass Supabase check)
   if (testMode) {
-    return <TestHub />;
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <TestHub />
+      </div>
+    );
   }
 
   if (!user) {
