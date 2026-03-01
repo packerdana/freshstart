@@ -1,9 +1,18 @@
 import { useState } from 'react';
 import SetupWizard from './SetupWizard';
 import WaypointWizard from './WaypointWizard';
+import TodayScreenV2 from './TodayScreenV2';
 
 export default function TestHub() {
   const [activeTest, setActiveTest] = useState('menu');
+  const [demoUser] = useState({
+    name: 'Dana Olson',
+    station: 'Downtown Station (90210)',
+    carrierType: 'Regular Carrier',
+    stops: 115,
+    baseParcels: 24,
+    route: 23,
+  });
 
   if (activeTest === 'setup-wizard') {
     return (
@@ -33,6 +42,31 @@ export default function TestHub() {
     );
   }
 
+  if (activeTest === 'demo-flow') {
+    return (
+      <div>
+        <div className="fixed top-0 left-0 right-0 bg-blue-600 text-white py-3 px-4 shadow-md z-40">
+          <div className="flex items-center justify-between gap-3">
+            <button
+              onClick={() => setActiveTest('menu')}
+              className="px-3 py-1 bg-gray-700 rounded-md text-sm font-semibold"
+            >
+              ← Back
+            </button>
+            <div className="flex-1 text-center">
+              <p className="text-sm font-bold">RouteWise Demo Flow</p>
+              <p className="text-xs text-blue-100">{demoUser.name} • Route {demoUser.route}</p>
+            </div>
+            <div className="w-16" />
+          </div>
+        </div>
+        <div className="pt-16">
+          <TodayScreenV2 />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 p-8">
       <div className="max-w-2xl mx-auto">
@@ -41,12 +75,22 @@ export default function TestHub() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <button
+            onClick={() => setActiveTest('demo-flow')}
+            className="p-6 bg-gradient-to-br from-blue-100 to-blue-50 border-2 border-blue-400 rounded-lg hover:shadow-lg transition text-left"
+          >
+            <div className="text-2xl mb-2">🚀</div>
+            <h2 className="text-lg font-bold text-blue-900 mb-2">Full Demo Flow</h2>
+            <p className="text-sm text-blue-700 font-semibold">Complete user experience with all new screens</p>
+            <p className="text-xs text-blue-600 mt-1">Setup → Waypoints → Today → Street Time</p>
+          </button>
+
+          <button
             onClick={() => setActiveTest('setup-wizard')}
             className="p-6 bg-white border-2 border-gray-200 rounded-lg hover:border-blue-600 hover:shadow-md transition text-left"
           >
             <div className="text-2xl mb-2">🎉</div>
             <h2 className="text-lg font-bold text-gray-900 mb-2">Setup Wizard</h2>
-            <p className="text-sm text-gray-600">7-screen onboarding wizard for first-time users. Tests name, station search, carrier type, seniority, route details.</p>
+            <p className="text-sm text-gray-600">7-screen onboarding (standalone test)</p>
           </button>
 
           <button
@@ -55,8 +99,14 @@ export default function TestHub() {
           >
             <div className="text-2xl mb-2">📍</div>
             <h2 className="text-lg font-bold text-gray-900 mb-2">Waypoint Wizard</h2>
-            <p className="text-sm text-gray-600">4-screen wizard for route waypoint configuration. Tests custom waypoints, naming, and timeline preview.</p>
+            <p className="text-sm text-gray-600">4-screen waypoint config (standalone test)</p>
           </button>
+
+          <div className="p-6 bg-white border-2 border-gray-200 rounded-lg text-left opacity-50">
+            <div className="text-2xl mb-2">🛣️</div>
+            <h2 className="text-lg font-bold text-gray-900 mb-2">More Screens</h2>
+            <p className="text-sm text-gray-600">Street Time, PM Office, End of Day (coming next)</p>
+          </div>
         </div>
 
         <div className="mt-12 p-6 bg-blue-50 border border-blue-200 rounded-lg">
