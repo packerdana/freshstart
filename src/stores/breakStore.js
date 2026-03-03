@@ -59,8 +59,12 @@ const startAlarm = (setState, kind) => {
   setState({ alarmActive: true, alarmKind: kind, alarmStartedAt: Date.now() });
 
   const fire = () => {
-    tryVibrate();
-    tryBeep();
+    try {
+      tryVibrate();
+      tryBeep();
+    } catch (e) {
+      console.warn('[breakStore] Alarm fire failed (non-fatal):', e?.message || e);
+    }
   };
 
   // Fire immediately and then repeat.
@@ -80,12 +84,20 @@ const stopAlarm = (setState) => {
 };
 
 const startAutoSave = (getState) => {
-  if (autoSaveInterval) return; // Already running
+  // DEFENSIVE: Clear any existing interval (prevents duplicate intervals from race conditions)
+  if (autoSaveInterval) {
+    clearInterval(autoSaveInterval);
+    autoSaveInterval = null;
+  }
   
   autoSaveInterval = setInterval(() => {
-    const state = getState();
-    if (state.lunchActive || state.breakActive || state.loadTruckActive) {
-      saveBreakState(state);
+    try {
+      const state = getState();
+      if (state.lunchActive || state.breakActive || state.loadTruckActive) {
+        saveBreakState(state);
+      }
+    } catch (e) {
+      console.warn('[breakStore] Auto-save failed (non-fatal):', e?.message || e);
     }
   }, 30000); // Save every 30 seconds
   
@@ -154,9 +166,36 @@ const useBreakStore = create(
   alarmKind: null, // 'lunch' | 'break'
   alarmStartedAt: null,
 
+  // ADDED: Track the date for daily resets (prevents memory leak from unbounded array growth)
+  lastBreakResetDate: getLocalDateString(),
+
   // ADDED: Initialize from database
   initialized: false,
   initializing: false,
+  
+  // ADDED: Check if day has changed and reset daily break data (prevents memory leaks)
+  checkAndResetDailyBreakData: () => {
+    const today = getLocalDateString(new Date());
+    const lastReset = get().lastBreakResetDate;
+
+    if (lastReset !== today) {
+      console.log('[breakStore] New day detected - resetting daily break data (memory cleanup)');
+      
+      // Reset all arrays that accumulate throughout the day
+      set({
+        breakEvents: [],          // Was growing unbounded
+        comfortStops: [],         // Was growing unbounded
+        todaysBreaks: [],         // Clear daily history
+        todaysBreaksDate: today,
+        waypointPausedSeconds: 0, // Reset daily pause accumulator
+        waypointPauseDate: today,
+        breakNudgeSnoozedUntil: null,
+        loadTruckNudgeSnoozedUntil: null,
+        lastBreakResetDate: today,
+      });
+    }
+  },
+  
   initializeFromDatabase: async () => {
     // Avoid parallel init calls
     if (get().initializing) return;

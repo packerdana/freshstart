@@ -13,14 +13,18 @@ export default function useBreakTimer() {
     if (!lunchActive && !breakActive && !loadTruckActive) return;
 
     const tick = async () => {
-      if (lunchActive) {
-        tickLunch();
-      }
-      if (breakActive) {
-        tickBreak();
-      }
-      if (loadTruckActive) {
-        await tickLoadTruck();
+      try {
+        if (lunchActive) {
+          tickLunch();
+        }
+        if (breakActive) {
+          tickBreak();
+        }
+        if (loadTruckActive) {
+          await tickLoadTruck();
+        }
+      } catch (e) {
+        console.warn('[useBreakTimer] Tick failed (non-fatal):', e?.message || e);
       }
     };
 
