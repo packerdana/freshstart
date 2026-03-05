@@ -43,7 +43,7 @@ function convertHistoryFieldNames(dbRecord) {
     actualOfficeTime: dbRecord.actual_office_time,
     casingWithdrawalMinutes: dbRecord.casing_withdrawal_minutes,
     dailyLog: dbRecord.daily_log,
-    hasBoxholder: dbRecord.has_boxholder,
+    hasBoxholder: !!dbRecord.has_boxholder,  // G5 fix: coerce to boolean (DB may return null/string)
     casedBoxholder: dbRecord.cased_boxholder,
     casedBoxholderType: dbRecord.cased_boxholder_type,
     predictedReturnTime: dbRecord.predicted_return_time,
@@ -552,7 +552,7 @@ export async function updateRouteHistory(id, updates) {
   }
 }
 
-export async function getRouteHistory(routeId, limit = 30) {
+export async function getRouteHistory(routeId, limit = 90) {
   // supabase-js can hang in some browsers; use a timeout + REST fallback.
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
   const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;

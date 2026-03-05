@@ -78,7 +78,9 @@ export function calculateSimplePrediction(history) {
 
   const valid = filterValidHistory(history);
   const base = valid.length >= 3 ? valid : history;
-  const recentDays = base.slice(-15);
+  // History is ordered date DESC (newest first). slice(0, 15) = most recent 15 days.
+  // Bug fix: was slice(-15) which returned the OLDEST 15 entries.
+  const recentDays = base.slice(0, 15);
   const avgStreetTime = recentDays.reduce((sum, day) => {
     const streetTime = getStreetTime(day);
     return sum + streetTime;
@@ -95,14 +97,19 @@ export function calculateSimplePrediction(history) {
 }
 
 function calculateVolumeWeightedPrediction(days, todayMail, dayType, routeConfig) {
-  // Boxholder days require separate prediction (longer street times due to extra door-to-door delivery)
-  // Only use boxholder-specific history if available; don't mix with non-boxholder days
-  const boxholderFiltered = days.filter(day => day.hasBoxholder === todayMail.hasBoxholder);
+  // Boxholder days require separate prediction (longer street times due to extra door-to-door delivery).
+  // Only use boxholder-specific history if available; don't mix with non-boxholder days.
+  // Bug fix G5: coerce both sides to boolean — Supabase may return null/string instead of true/false,
+  // which would cause strict === to always fail and silently skip boxholder matching.
+  const todayIsBoxholder = !!todayMail.hasBoxholder;
+  const boxholderFiltered = days.filter(day => !!day.hasBoxholder === todayIsBoxholder);
   
   let daysToUse;
   if (boxholderFiltered.length >= 3) {
-    // Boxholder days available: use last 5 if available, otherwise all 3+
-    daysToUse = boxholderFiltered.length > 5 ? boxholderFiltered.slice(-5) : boxholderFiltered;
+    // Boxholder days available: use most recent 5 if available, otherwise all 3+.
+    // History is ordered date DESC, so slice(0, 5) = newest 5.
+    // Bug fix: was slice(-5) which returned the OLDEST 5 entries.
+    daysToUse = boxholderFiltered.length > 5 ? boxholderFiltered.slice(0, 5) : boxholderFiltered;
   } else {
     // Not enough boxholder-specific data, cannot safely predict
     return null;
@@ -158,17 +165,28 @@ export function calculateSmartPrediction(todayMail, history, routeConfig) {
     return calculateSimplePrediction(historyToUse);
   }
 
+  // G1 Fix: For rare day types (day-after-holiday, saturday, monday) the 30-day
+  // window almost never contains enough matches — post-holidays appear at most ~11/year.
+  // Search ALL available history for same-type days, not just the last 30 days.
+  // For normal days we still keep the 30-day recency guard to stay relevant.
+  const isRareDayType = todayDayType === 'day-after-holiday'
+    || todayDayType === 'saturday'
+    || todayDayType === 'monday';
+
   const similarDayTypes = historyToUse
     .filter(day => {
       const dayType = day.dayType || detectDayType(new Date(day.date));
       return dayType === todayDayType;
     })
-    .filter(day => isWithinLast30Days(new Date(day.date)));
+    .filter(day => isRareDayType ? true : isWithinLast30Days(new Date(day.date)));
 
   if (similarDayTypes.length < 2) {
-    const recentDays = history
+    // Not enough same-type history — fall back to recent days of any type.
+    // History is ordered date DESC; slice(0,15) = most recent 15.
+    // Bug fix: was slice(-15) which returned the OLDEST 15 entries.
+    const recentDays = historyToUse
       .filter(day => isWithinLast30Days(new Date(day.date)))
-      .slice(-15);
+      .slice(0, 15);
 
     if (recentDays.length < 3) {
       return calculateSimplePrediction(history);

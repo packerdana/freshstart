@@ -28,6 +28,7 @@ import { offRouteService } from '../../services/offRouteService';
 import { DEFAULT_ROUTE_CONFIG } from '../../utils/constants';
 import { getLocalDateString, formatTimeAMPM, parseLocalDate } from '../../utils/time';
 import { supabase } from '../../lib/supabase';
+import PredictionExplanation from '../shared/PredictionExplanation';
 
 export default function TodayScreen() {
   const { todayInputs, updateTodayInputs, history, getCurrentRouteConfig, currentRouteId, addHistoryEntry, waypoints, routeStarted, setRouteStarted, routes, switchToRoute, preRouteLoadingMinutes, streetPreloadSeconds, setStreetPreloadSeconds } = useRouteStore();
@@ -1709,6 +1710,7 @@ export default function TodayScreen() {
         <>
           <OfficeTimeBreakdown prediction={prediction} />
           <HowAmIDoingSection prediction={prediction} startTime={todayInputs.startTimeOverride || currentRoute?.startTime || '07:30'} />
+          <PredictionExplanation prediction={prediction} todayInputs={todayInputs} />
         </>
       )}
 

@@ -1,4 +1,4 @@
-import { parseLocalDate } from '../utils/time';
+import { getDayType } from '../utils/holidays';
 
 export function calculateRouteAverages(history) {
   if (!history || history.length === 0) {
@@ -15,9 +15,13 @@ export function calculateRouteAverages(history) {
     return false;
   });
 
+  // G4 fix: include all four day types so saturday and day-after-holiday
+  // don't contaminate the normal average in StatsScreen.
   const byDayType = {
     normal: [],
     monday: [],
+    saturday: [],
+    'day-after-holiday': [],
   };
 
   validHistory.forEach((day) => {
@@ -33,16 +37,12 @@ export function calculateRouteAverages(history) {
 
     if (!streetTimeMinutes || streetTimeMinutes <= 0) return;
 
-    // IMPORTANT: day.date is a YYYY-MM-DD string.
-    // new Date('YYYY-MM-DD') is parsed as UTC in many environments and can shift the day.
-    // Use parseLocalDate so Monday stays Monday.
-    const dayOfWeek = parseLocalDate(day.date).getDay();
-
-    if (dayOfWeek === 1) {
-      byDayType.monday.push(streetTimeMinutes);
-    } else {
-      byDayType.normal.push(streetTimeMinutes);
-    }
+    // G4 fix: use getDayType() (the same classifier used for predictions) instead of
+    // a raw dayOfWeek === 1 check.  This ensures day-after-holiday and saturday are
+    // classified correctly and don't bleed into the normal/monday buckets.
+    const dayType = day.dayType || getDayType(day.date);
+    const bucket = Object.prototype.hasOwnProperty.call(byDayType, dayType) ? dayType : 'normal';
+    byDayType[bucket].push(streetTimeMinutes);
   });
 
   const averages = {};

@@ -3,6 +3,8 @@ export { OPERATION_CODES, STREET_TIME_CODES, OFFICE_TIME_CODES, LEAVE_CODES } fr
 export const DAY_TYPES = {
   NORMAL: 'normal',
   MONDAY: 'monday',
+  SATURDAY: 'saturday',
+  DAY_AFTER_HOLIDAY: 'day-after-holiday',
 };
 
 export const DEFAULT_ROUTE_CONFIG = {
