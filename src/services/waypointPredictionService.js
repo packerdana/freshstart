@@ -105,7 +105,7 @@ export async function predictWaypointTimes(waypoints, startTime, routeId, waypoi
       // Default: 6 minutes from previous waypoint
       const defaultDuration = 6;
       const basePredictedTime = new Date(previousWaypointTime.getTime() + defaultDuration * 60 * 1000);
-      const predictedTime = basePredictedTime;
+      const predictedTime = pauseMs > 0 ? new Date(basePredictedTime.getTime() + pauseMs) : basePredictedTime;
       const predictedMinutes = timeDifference(baseStartTime, predictedTime);
       
       // ✅ Update previous time for next waypoint chaining (UNPAUSED)
@@ -123,7 +123,7 @@ export async function predictWaypointTimes(waypoints, startTime, routeId, waypoi
     // previous waypoint time + average duration to this waypoint
     const durationFromPrevious = average.averageDuration;
     const basePredictedTime = new Date(previousWaypointTime.getTime() + durationFromPrevious * 60 * 1000);
-    const predictedTime = basePredictedTime;
+    const predictedTime = pauseMs > 0 ? new Date(basePredictedTime.getTime() + pauseMs) : basePredictedTime;
     const predictedMinutes = timeDifference(baseStartTime, predictedTime);
     
     console.log(
