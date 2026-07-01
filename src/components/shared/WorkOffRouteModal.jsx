@@ -21,14 +21,35 @@ export default function WorkOffRouteModal({ onClose, onSessionChange }) {
   const [completedSummary, setCompletedSummary] = useState(null);
 
   useEffect(() => {
-    if (!timerActive) return;
+    if (!timerActive || !startTime) return;
 
-    const interval = setInterval(() => {
-      setElapsedTime((prev) => prev + 1);
-    }, 1000);
+    // Calculate elapsed time from the session start timestamp instead of
+    // counting interval ticks. Mobile browsers throttle/suspend timers when
+    // the screen locks, so tick-counting falls behind — wall-clock math
+    // always recovers the true elapsed time as soon as the app wakes up.
+    const updateElapsed = () => {
+      const seconds = Math.max(0, Math.floor((Date.now() - startTime.getTime()) / 1000));
+      setElapsedTime(seconds);
+    };
 
-    return () => clearInterval(interval);
-  }, [timerActive]);
+    updateElapsed();
+
+    const interval = setInterval(updateElapsed, 1000);
+
+    // When the screen wakes / app returns to foreground, resync immediately
+    // rather than waiting up to a second for the next interval tick.
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        updateElapsed();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, [timerActive, startTime]);
 
   useEffect(() => {
     if (!timerActive || !expectedDuration) return;
