@@ -451,7 +451,8 @@ export default function TodayScreen() {
   };
 
   const handleInputChange = (field, value) => {
-    const isDecimalField = field === 'flats' || field === 'letters';
+    const decimalFields = ['flats', 'letters', 'curtailedFlats', 'curtailedLetters'];
+    const isDecimalField = decimalFields.includes(field);
     const numValue = isDecimalField ? (parseFloat(value) || 0) : (parseInt(value) || 0);
 
     const nextInputs = { ...todayInputs, [field]: numValue };
